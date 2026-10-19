@@ -32,6 +32,8 @@ export class Grant {
 	readonly redirectUri?: string;
 	/** Base URL of the Atlassian site, learned from the account after connect. */
 	readonly siteUrl?: string;
+	/** Cloud id of that site; every Jira and Confluence MCP tool requires it. */
+	readonly cloudId?: string;
 	readonly accessToken?: string;
 	readonly refreshToken?: string;
 	readonly tokenType?: string;
@@ -48,6 +50,7 @@ export class Grant {
 		this.clientSecret = params.clientSecret;
 		this.redirectUri = params.redirectUri;
 		this.siteUrl = params.siteUrl;
+		this.cloudId = params.cloudId;
 		this.accessToken = params.accessToken;
 		this.refreshToken = params.refreshToken;
 		this.tokenType = params.tokenType;

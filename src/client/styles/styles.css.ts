@@ -77,12 +77,26 @@ export const list = style({
 	padding: 0,
 	display: "grid",
 	gap: "8px",
+	selectors: {
+		'&[data-layout="list"]': { gap: "6px", margin: "6px 0 0" },
+	},
 });
 
 export const item = style({
 	padding: "8px 12px",
 	border: `0.5px solid ${theme.color.borderSubtle}`,
 	borderRadius: theme.radius.md,
+	selectors: {
+		// One issue earns room: it is the whole answer, not a row in a list.
+		[`${list}[data-layout="single"] &`]: {
+			padding: "14px 16px",
+			borderRadius: theme.radius.lg,
+		},
+		[`${list}[data-layout="list"] &`]: {
+			padding: "6px 10px",
+			borderRadius: theme.radius.sm,
+		},
+	},
 });
 
 export const itemHead = style({
@@ -90,6 +104,10 @@ export const itemHead = style({
 	alignItems: "baseline",
 	gap: "8px",
 	flexWrap: "wrap",
+	selectors: {
+		[`${list}[data-layout="single"] &`]: { fontSize: "15px", fontWeight: 500 },
+		[`${list}[data-layout="list"] &`]: { fontSize: "13px" },
+	},
 });
 
 export const link = style({
@@ -126,4 +144,51 @@ export const code = style({
 
 export const error = style({
 	color: theme.color.danger,
+});
+
+/** The cards one turn contributes, stacked in call order. */
+export const presentations = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "12px",
+	marginTop: "12px",
+});
+
+/** One presentation card: an optional heading over its items. */
+export const presentation = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "8px",
+	padding: "12px 16px 14px",
+	border: `0.5px solid ${theme.color.cardStroke}`,
+	borderRadius: theme.radius.xl,
+	background: theme.color.cardFill,
+});
+
+export const presentationHead = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	minHeight: "24px",
+});
+
+export const presentationTitle = style({
+	fontSize: "13px",
+	fontWeight: 600,
+	color: theme.color.labelPrimary,
+});
+
+/** One Atlassian tool call, rendered as a single terse line. */
+export const toolRow = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	flexWrap: "wrap",
+	minHeight: "24px",
+});
+
+export const toolName = style({
+	fontFamily: theme.font.code,
+	fontSize: "12px",
+	color: theme.color.labelPrimary,
 });

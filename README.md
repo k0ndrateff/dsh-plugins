@@ -18,10 +18,13 @@ Built and verified against DSH `0.2.1-rc.2`.
 - **Sign-in where you already are.** An **Atlassian** section in Settings, a
   `/atlassian` slash command (`status`, `login`, `logout`, `sync`), and a clear
   message when something needs a sign-in.
-- **Cards, not JSON.** A Jira search or issue read renders a card per issue with
-  its key, summary, status, priority, assignee, and a link to Jira; Confluence
-  results render as titled links. The cards use the harness's own UI kit and
-  design tokens, so they look like the rest of Settings.
+- **Terse tool rows.** A tool call reports one line — `searchJiraIssuesUsingJql ·
+  found 5 issues · created >= -60d` — instead of reproducing the server's JSON.
+  The full payload stays in the session log; the agent reads it, not the user.
+- **Cards in the answer.** Ask "какие задачи взять сегодня?" and the agent calls
+  `atlassian_present`, which shows one issue, a titled shortlist, a long list, or
+  Confluence pages as a card under its answer — see
+  [Presentation cards](#presentation-cards).
 
 ## Authentication
 
@@ -62,6 +65,35 @@ The plugin discovers the authorization server from the resource's own metadata,
 so both work. To move to the newer generation, set `endpoint` to
 `https://mcp.atlassian.com/v2/mcp` and sign in again.
 
+## Presentation cards
+
+`atlassian_present` is the one tool that is not an Atlassian server tool. It
+resolves what to show — issue keys, page ids, a JQL query, or a CQL query — answers
+the model with a text summary, and records a card for the turn:
+
+| Layout | When it fits |
+|---|---|
+| `single` | One item, with its full detail. |
+| `compact` | Two to four items, under an optional title such as "План на день". |
+| `list` | A dense list: the status stays, the rest is dropped to keep rows short. |
+
+`auto` (the default) picks by item count, and one card may mix Jira issues with
+Confluence pages — that is what lets "plan for today" be a single card.
+
+The card renders **under the closing text of the turn**, outside the collapsible
+tool group. That seat is shared with the harness's own `present` cards, and it is
+the right one because the card is an answer-shaped summary rather than a step in
+the work. The tool call itself keeps the generic tool row, so nothing is shown
+twice.
+
+Mechanically it writes **nothing extra to the session**. The tool publishes the
+card as the tool result's `presentationMeta`, which the harness persists on the
+result; the browser half registers a `ConversationNodeDefinition` that folds those
+results into turn-scoped data, and a seat in `conversation.chat.turnTail` draws
+them. Because the card is narrowed out of the persisted result, replaying the
+session log reproduces it exactly — the same approach `ui-schedule` uses for its
+created-task card, and the reason this plugin needs no new durable event type.
+
 ## Architecture
 
 The plugin is one package with two faces, matching how the harness composes
@@ -69,35 +101,39 @@ plugins. `src/host` runs in the harness process; `src/client` runs in the page.
 
 ```
 src/
-├── shared/                  types and constants both faces must agree on
-│   ├── meta.ts              the tool-result contract a card renders
-│   ├── status.ts            the status document the card reads
-│   └── tool-names.ts        known Atlassian tools, and the public-name rule
+├── shared/                     contracts both faces must agree on
+│   ├── meta.ts                 the tool-result contract a card renders
+│   ├── presentation.ts         the card payload, and its validator
+│   ├── status.ts               the status document the settings card reads
+│   └── tool-names.ts           known Atlassian tools, and the public-name rule
 ├── host/
-│   ├── index.ts             apply(): what the plugin registers
-│   ├── config.ts            configuration and its defaults
-│   ├── state.ts             process-local state shared by the surfaces
-│   ├── auth.ts            the operations every caller shares
+│   ├── index.ts                apply(): what the plugin registers
+│   ├── config.ts               configuration and its defaults
+│   ├── state.ts                process-local state shared by the surfaces
+│   ├── auth.ts                 sign-in, sign-out, and the status view
+│   ├── browser.ts              opening the user's browser
+│   ├── json.ts                 the JSON-safe credential payload helper
+│   ├── log.ts                  logger and error text
+│   ├── net.ts                  HTTP helpers with deadlines
 │   ├── oauth/
-│   │   ├── discovery.ts     RFC 9728 / 8414 discovery, scope negotiation
-│   │   ├── server.ts        registration and the token endpoint
-│   │   ├── loopback.ts      the redirect listener
-│   │   └── flow.ts          the PKCE flow registered on the seam
-│   ├── store/grant.ts       the credential record and token refresh
-│   ├── mcp/bridge.ts        the MCP connection and tool publishing
-│   ├── presentation/extract.ts   tool result -> card data
+│   │   ├── discovery.ts        RFC 9728 / 8414 discovery, scope negotiation
+│   │   ├── server.ts           registration, token exchange, token fields
+│   │   ├── loopback.ts         the redirect listener
+│   │   └── flow.ts             the PKCE flow registered on the seam
+│   ├── store/grant.ts          the credential record and token refresh
+│   ├── mcp/bridge.ts           the MCP connection and tool publishing
+│   ├── presentation/extract.ts tool result -> card data
+│   ├── tools/present.ts        atlassian_present: the card the agent shows
 │   └── surface/
-│       ├── command.ts       the /atlassian command
-│       └── http.ts          the loopback API the card calls
+│       ├── command.ts          the /atlassian command
+│       └── http.ts             the loopback API the settings card calls
 └── client/
-    ├── index.ts             the client plugin: slot registrations
-    ├── settings-section.tsx  the Atlassian settings card
-    ├── tool-row.tsx          the Jira/Confluence result cards
-    ├── theme.css.ts         the harness's design tokens as a typed contract
-    ├── styles.css.ts        the stylesheet, authored in vanilla-extract
-    ├── styles-runtime.ts    puts the compiled CSS into the page
-    ├── host-api.ts          the card's calls to the host
-    └── strings.ts           English and Russian copy
+    ├── index.ts                the client plugin: slot registrations
+    ├── components/             settings card, tool row, presentation cards
+    ├── conversation/           the node definition behind a presentation
+    ├── styles/                 vanilla-extract theme, rules, and injection
+    ├── host-api.ts             the settings card's calls to the host
+    └── plugin-id.ts            the id the module system keys on
 ```
 
 Two design notes worth knowing before changing things:

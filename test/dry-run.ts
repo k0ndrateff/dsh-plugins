@@ -16,6 +16,7 @@ import { resolveConfig } from "../src/host/config";
 import { apply } from "../src/host/index";
 import { oauthFlow } from "../src/host/oauth/flow";
 import { Grant } from "../src/host/store/grant";
+import { asPresentation } from "../src/shared/presentation";
 
 let failures = 0;
 let checks = 0;
@@ -227,6 +228,47 @@ check("Grant.from tolerates a missing payload", Grant.from(null) === undefined);
 check(
 	"Grant.from tolerates a foreign payload",
 	Grant.from(undefined) === undefined,
+);
+
+// The card is rendered from a record the browser validates; a payload this
+// version cannot read must be skipped rather than drawn wrongly.
+check(
+	"a well-formed presentation is accepted",
+	asPresentation({
+		callId: "call-1",
+		title: "План на день",
+		layout: "compact",
+		items: [
+			{ kind: "issue", issue: { key: "DEV-1", summary: "One" } },
+			{ kind: "page", page: { id: "42", title: "Notes" } },
+		],
+	})?.items.length === 2,
+);
+check(
+	"an unknown layout falls back to a list",
+	asPresentation({
+		callId: "c",
+		layout: "fancy",
+		items: [{ kind: "issue", issue: { key: "D-1" } }],
+	})?.layout === "list",
+);
+check(
+	"a foreign record is ignored",
+	asPresentation({ some: "other" }) === undefined,
+);
+check(
+	"a record without items is ignored",
+	asPresentation({ callId: "c", items: [] }) === undefined,
+);
+check(
+	"an unreadable item is dropped, not rendered",
+	asPresentation({
+		callId: "c",
+		items: [
+			{ kind: "issue", issue: {} },
+			{ kind: "page", page: { title: "ok" } },
+		],
+	})?.items.length === 1,
 );
 
 await driveFlow(ctx, "https://mcp.atlassian.com/v1/mcp");

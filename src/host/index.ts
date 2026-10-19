@@ -24,6 +24,7 @@ import { RuntimeState } from "./state";
 import { Grant } from "./store/grant";
 import { commandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX, type RouteHost } from "./surface/http";
+import { presentTool } from "./tools/present";
 
 export const name = "dsh-atlassian";
 
@@ -62,6 +63,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		input: { hint: "status | login | logout | sync" },
 		handler: commandHandler.create(ctx, state, config),
 	});
+
+	// The presentation tool is registered beside the MCP tools it resolves
+	// through: it shows what they return as a card under the agent's answer.
+	ctx.tools.register(presentTool.create(state));
 
 	// The card's channel to the host: a named route is how a plugin serves the
 	// page without a generated remote namespace.

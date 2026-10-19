@@ -4,9 +4,11 @@ import { Badge } from "./badge";
 
 interface Props {
 	issue: IssueCard;
+	/** Dense rows drop all but the status, so a long list stays scannable. */
+	dense?: boolean;
 }
 
-export const IssueItem = ({ issue }: Props) => {
+export const IssueItem = ({ issue, dense = false }: Props) => {
 	const title = [issue.key, issue.summary]
 		.filter((part) => part !== undefined && part !== "")
 		.join(" · ");
@@ -30,9 +32,14 @@ export const IssueItem = ({ issue }: Props) => {
 
 			<div className={styles.badges}>
 				<Badge label="Status" value={issue.status} />
-				<Badge label="Priority" value={issue.priority} />
-				<Badge label="Assignee" value={issue.assignee} />
-				<Badge label="Type" value={issue.type} />
+
+				{dense ? null : (
+					<>
+						<Badge label="Priority" value={issue.priority} />
+						<Badge label="Assignee" value={issue.assignee} />
+						<Badge label="Type" value={issue.type} />
+					</>
+				)}
 			</div>
 		</li>
 	);

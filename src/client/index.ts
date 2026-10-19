@@ -1,27 +1,39 @@
 /**
- * dsh-atlassian-plugin — the Web Client half.
+ * dsh-atlassian — the Web Client half.
  *
- * It contributes two things to the page:
- *  - an **Atlassian** section in Settings, with the sign-in state and the
+ * It contributes three things to the page:
+ *  - an **Integrations** section in Settings, with the sign-in state and the
  *    button that starts the OAuth flow in the host;
  *  - one keyed tool view per known Atlassian tool, so a Jira search or issue
- *    read renders as cards instead of raw JSON.
+ *    read renders as cards instead of raw JSON;
+ *  - a turn tail seat, so `atlassian_present` puts its card under the agent's
+ *    answer rather than inside the collapsible tool group.
  *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
 
 import type { Context } from "@deepseek-ai/cordis";
+// Each import below carries a declaration this half needs: the slot registry
+// itself, the slot contracts, and the Chat node kind registry.
+import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
+import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
+import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
+import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
+import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
 import { PUBLIC_TOOL_NAMES } from "../shared/tool-names";
+import { PresentationTail } from "./components/presentation-tail";
 import { AtlassianSection } from "./components/settings-section";
 import { AtlassianToolRow } from "./components/tool-row";
+import { presentationDefinition } from "./conversation/presentation-definition";
+import { PLUGIN_ID } from "./plugin-id";
 import { installStyles } from "./styles/styles-runtime";
 
-/** The one client service this half needs. */
-export const inject = ["slots"];
+/** The client services this half needs. */
+export const inject = ["slots", "uiConversation"];
 
 /**
- * Register the section and the tool views.
+ * Register the section, the tool views, and the presentation cards.
  * @param ctx - the browser Cordis context carrying the slot registry.
  */
 export const apply = (ctx: Context): void => {
@@ -29,11 +41,13 @@ export const apply = (ctx: Context): void => {
 	// tagged with the plugin id, so turning the plugin off removes it too.
 	ctx.effect(() => installStyles(), "atlassian: stylesheet");
 
+	// The card's payload arrives as a durable session record; this definition
+	// turns it into a Chat node the turn tail can select.
+	ctx.uiConversation.events.register(presentationDefinition);
+
 	// `inject` waits for the owning package to declare the slot, so this
 	// registration survives the Settings page not being open yet.
-	// @ts-expect-error
 	ctx.slots.inject("settings.section", () =>
-		// @ts-expect-error
 		ctx.slots.register(
 			{
 				name: "settings.section",
@@ -45,20 +59,28 @@ export const apply = (ctx: Context): void => {
 		),
 	);
 
-	// @ts-expect-error
 	ctx.slots.inject("tool.call.toolview", () => {
 		const disposers = PUBLIC_TOOL_NAMES.map((name) =>
-			// @ts-expect-error
 			ctx.slots.register(
-				{
-					name: "tool.call.toolview",
-					key: name,
-				},
+				{ name: "tool.call.toolview", key: name },
 				AtlassianToolRow,
 			),
 		);
+
 		return () => {
 			for (const dispose of disposers) dispose();
 		};
 	});
+
+	// Under the closing prose of the turn, beside the delivered-file cards.
+	ctx.slots.inject("conversation.chat.turnTail", () =>
+		ctx.slots.register(
+			{
+				name: "conversation.chat.turnTail",
+				id: PLUGIN_ID,
+				order: 20,
+			},
+			PresentationTail,
+		),
+	);
 };

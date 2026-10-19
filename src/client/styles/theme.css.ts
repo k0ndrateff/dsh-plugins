@@ -14,6 +14,8 @@ import { createGlobalThemeContract } from "@vanilla-extract/css";
 
 export const theme = createGlobalThemeContract({
 	radius: {
+		/** H20-28 controls, and a dense row in a list. */
+		sm: "dsw-radius-sm",
 		/** H32-40 controls, compact rows. */
 		md: "dsw-radius-md",
 		/** Code blocks, diffs, nested cards. */

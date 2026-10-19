@@ -14,7 +14,11 @@
  */
 
 import type { Context } from "@deepseek-ai/cordis";
-import type { Client, Tool } from "@modelcontextprotocol/client";
+import type {
+	CallToolResult,
+	Client,
+	Tool,
+} from "@modelcontextprotocol/client";
 import { publicToolName } from "../../shared/tool-names";
 import type { Config } from "../config";
 import { errorText, loggerOf } from "../log";
@@ -46,6 +50,8 @@ class McpBridge {
 
 		if (typeof grant.siteUrl === "string") state.siteUrl = grant.siteUrl;
 
+		if (typeof grant.cloudId === "string") state.cloudId = grant.cloudId;
+
 		try {
 			const oauth =
 				state.oauth ?? (await oauthDiscovery.discover(config.endpoint));
@@ -54,7 +60,7 @@ class McpBridge {
 			if (state.client === undefined) await this.connect(ctx, state, oauth);
 
 			await this.publishTools(ctx, state);
-			await this.learnSiteUrl(ctx, state);
+			await this.learnSite(ctx, state);
 
 			loggerOf(ctx).info(
 				"[atlassian] %d tools available from %s",
@@ -87,6 +93,33 @@ class McpBridge {
 		state.client = undefined;
 
 		if (client !== undefined) await client.close().catch(() => undefined);
+	};
+
+	/**
+	 * Call one tool of the connected server by its own name.
+	 *
+	 * The presentation tool uses this to resolve what it was asked to show; the
+	 * published tool wrappers go through the same path, so both see identical
+	 * results.
+	 * @param state - runtime state holding the connection.
+	 * @param name - the server's tool name, without the published prefix.
+	 * @param args - tool arguments.
+	 * @returns the canonical MCP result.
+	 */
+	callTool = async (
+		state: RuntimeState,
+		name: string,
+		args: Record<string, unknown>,
+	): Promise<CallToolResult> => {
+		const client = state.client;
+
+		if (client === undefined)
+			throw new Error("the Atlassian MCP connection is not open");
+
+		return await client.callTool(
+			{ name, arguments: args },
+			{ timeout: this.TOOL_CALL_TIMEOUT_MS },
+		);
 	};
 
 	/** Open the MCP connection, or replace the existing one. */
@@ -193,18 +226,23 @@ class McpBridge {
 	};
 
 	/**
-	 * Learn the site base URL once.
+	 * Learn the site once: its browser URL and the cloud id every tool needs.
 	 *
 	 * Atlassian withholds `webUrl` from clients it does not recognize by name, so
-	 * the account's own list of sites is what lets a card link to an issue.
+	 * the account's own list of sites is what lets a card link to an issue — and
+	 * its `id` is what every Jira and Confluence tool call must carry.
 	 */
-	private learnSiteUrl = async (
+	private learnSite = async (
 		ctx: Context,
 		state: RuntimeState,
 	): Promise<void> => {
 		const client = state.client;
 
-		if (client === undefined || state.siteUrl !== undefined) return;
+		if (
+			client === undefined ||
+			(state.siteUrl !== undefined && state.cloudId !== undefined)
+		)
+			return;
 
 		const available = state.toolNames.some((name) =>
 			name.endsWith(this.SITE_TOOL),
@@ -225,19 +263,30 @@ class McpBridge {
 
 			const sites: unknown = JSON.parse(text);
 			const first = Array.isArray(sites) ? sites[0] : undefined;
-			const url =
+			const record =
 				first !== null && typeof first === "object"
-					? (first as { url?: unknown }).url
+					? (first as { url?: unknown; id?: unknown })
 					: undefined;
 
-			if (typeof url !== "string" || url === "") return;
+			const url = typeof record?.url === "string" ? record.url : undefined;
+			const cloudId = typeof record?.id === "string" ? record.id : undefined;
 
-			state.siteUrl = url.replace(/\/+$/u, "");
+			if (url !== undefined && url !== "")
+				state.siteUrl = url.replace(/\/+$/u, "");
+			if (cloudId !== undefined && cloudId !== "") state.cloudId = cloudId;
 
 			await Grant.mutate(ctx, async (grant) =>
 				grant === undefined
 					? undefined
-					: new Grant({ ...grant, siteUrl: state.siteUrl }),
+					: new Grant({
+							...grant,
+							...(state.siteUrl === undefined
+								? {}
+								: { siteUrl: state.siteUrl }),
+							...(state.cloudId === undefined
+								? {}
+								: { cloudId: state.cloudId }),
+						}),
 			);
 		} catch (error) {
 			loggerOf(ctx).warn(

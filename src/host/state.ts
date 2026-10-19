@@ -31,6 +31,8 @@ export class RuntimeState {
 	oauth: OAuthServer | undefined;
 	/** Atlassian site base URL, learned from the account after connecting. */
 	siteUrl: string | undefined;
+	/** Cloud id of that site; every Jira and Confluence MCP tool requires it. */
+	cloudId: string | undefined;
 
 	constructor() {
 		this.notice = undefined;
@@ -42,5 +44,6 @@ export class RuntimeState {
 		this.connected = false;
 		this.oauth = undefined;
 		this.siteUrl = undefined;
+		this.cloudId = undefined;
 	}
 }
