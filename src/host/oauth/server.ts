@@ -118,7 +118,10 @@ export class OAuthServer {
 	 */
 	toTokenFields = (
 		payload: Record<string, unknown>,
-		previous: Grant,
+		previous: Pick<
+			Grant,
+			"accessToken" | "refreshToken" | "tokenType" | "scope"
+		>,
 	): Pick<
 		Grant,
 		"accessToken" | "refreshToken" | "tokenType" | "scope" | "expiresAt"

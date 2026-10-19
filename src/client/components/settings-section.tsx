@@ -87,7 +87,9 @@ export const AtlassianSection = () => {
 		}
 	}, []);
 
-	if (failure !== null && status === null) {
+	// No status yet: either the first read is still in flight, or the host half
+	// did not answer. Returning here is what narrows `status` for the card below.
+	if (status === null) {
 		return (
 			<section className={styles.section}>
 				<div className={styles.card}>
@@ -96,10 +98,14 @@ export const AtlassianSection = () => {
 					</div>
 
 					<div className={styles.caption}>
-						The Atlassian host half is not reachable.
+						{failure === null
+							? "Checking the Atlassian sign-in…"
+							: "The Atlassian host half is not reachable."}
 					</div>
 
-					<div className={styles.code}>{failure}</div>
+					{failure === null ? null : (
+						<div className={styles.code}>{failure}</div>
+					)}
 
 					<div className={styles.actions}>
 						<Button variant="outline" onClick={refresh}>
@@ -112,7 +118,7 @@ export const AtlassianSection = () => {
 	}
 
 	const signedIn = status.signedIn === true;
-	const toolCount = status.tools.length ?? 0;
+	const toolCount = status.tools.length;
 
 	return (
 		<section className={styles.section}>

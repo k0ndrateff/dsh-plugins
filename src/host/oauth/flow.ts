@@ -79,15 +79,19 @@ class OAuthFlow {
 				clientId = registered.clientId;
 				clientSecret = registered.clientSecret;
 
-				await Grant.mutate(ctx, async (grant) => ({
-					...(grant ?? { version: 1 as const }),
-					version: 1,
-					issuer: oauth.issuer,
-					resource: endpoint,
-					redirectUri: listener.redirectUri,
-					clientId,
-					...(clientSecret === undefined ? {} : { clientSecret }),
-				}));
+				await Grant.mutate(
+					ctx,
+					async (grant) =>
+						new Grant({
+							...(grant ?? { version: 1 as const }),
+							version: 1,
+							issuer: oauth.issuer,
+							resource: endpoint,
+							redirectUri: listener.redirectUri,
+							clientId,
+							...(clientSecret === undefined ? {} : { clientSecret }),
+						}),
+				);
 			}
 
 			const authorize = new URL(oauth.authorizationEndpoint);
@@ -164,16 +168,11 @@ class OAuthFlow {
 
 	/** base64url without padding, as PKCE and `state` require. */
 	private b64url = (input: Buffer): string => {
-		return (
-			input
-				.toString("base64")
-				// @ts-expect-error
-				.replace(/\+/gu, "-")
-				// @ts-expect-error
-				.replace(/\//gu, "_")
-				// @ts-expect-error
-				.replace(/=+$/u, "")
-		);
+		return input
+			.toString("base64")
+			.replace(/\+/gu, "-")
+			.replace(/\//gu, "_")
+			.replace(/=+$/u, "");
 	};
 }
 

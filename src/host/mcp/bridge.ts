@@ -78,7 +78,6 @@ class McpBridge {
 
 	/** Close the connection and withdraw every published tool. */
 	drop = async (state: RuntimeState): Promise<void> => {
-		// @ts-expect-error
 		for (const dispose of state.tools.values()) dispose();
 
 		state.tools = new Map();
@@ -185,7 +184,6 @@ class McpBridge {
 			names.push(name);
 		}
 
-		// @ts-expect-error
 		for (const dispose of state.tools.values()) dispose();
 
 		state.tools = disposers;
@@ -234,7 +232,6 @@ class McpBridge {
 
 			if (typeof url !== "string" || url === "") return;
 
-			// @ts-expect-error
 			state.siteUrl = url.replace(/\/+$/u, "");
 
 			await Grant.mutate(ctx, async (grant) =>

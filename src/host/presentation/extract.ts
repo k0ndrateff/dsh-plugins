@@ -23,7 +23,6 @@ export interface ExtractOptions {
 
 class Extractor {
 	/** Jira issue keys: an uppercase project key, a dash, and a number. */
-	// @ts-expect-error
 	private readonly ISSUE_KEY = /\b[A-Z][A-Z0-9_]{0,9}-\d+\b/u;
 
 	/** Bound the work a pathological payload can cause. */
@@ -217,7 +216,6 @@ class Extractor {
 			if (!text.includes("/browse/") || !text.includes(key)) continue;
 
 			const match = text.match(
-				// @ts-expect-error
 				/https?:\/\/[^\s"')<>]*\/browse\/[A-Z][A-Z0-9_]{0,9}-\d+/u,
 			);
 
@@ -238,7 +236,6 @@ class Extractor {
 		if (!raw.startsWith("/")) return undefined;
 
 		for (const text of strings) {
-			// @ts-expect-error
 			const match = text.match(/https?:\/\/[^\s"')<>]*atlassian\.net/u);
 
 			if (match !== null) return `${match[0]}${raw}`;
@@ -294,7 +291,6 @@ class Extractor {
 			if (issues.size >= this.MAX_CARDS) break;
 		}
 
-		// @ts-expect-error
 		return [...issues.values()];
 	};
 
@@ -343,7 +339,6 @@ class Extractor {
 			if (pages.size >= this.MAX_CARDS) break;
 		}
 
-		// @ts-expect-error
 		return [...pages.values()];
 	};
 }

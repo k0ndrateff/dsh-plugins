@@ -93,13 +93,13 @@ class Auth {
 		config: Config,
 	): Promise<AtlassianStatus> => {
 		const grant = await Grant.read(ctx);
-		const signedIn = grant.isSignedIn();
+		const signedIn = grant?.isSignedIn() ?? false;
 
 		return {
 			signedIn,
 			inFlight: state.running !== undefined,
-			expiresAt: signedIn ? (grant.expiresAt ?? null) : null,
-			scope: signedIn ? (grant.scope ?? null) : null,
+			expiresAt: signedIn ? (grant?.expiresAt ?? null) : null,
+			scope: signedIn ? (grant?.scope ?? null) : null,
 			siteUrl: state.siteUrl ?? grant?.siteUrl ?? null,
 			notice: state.notice ?? null,
 			error: state.error ?? null,

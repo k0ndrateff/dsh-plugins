@@ -66,7 +66,7 @@ async function compileStyles() {
   await build({
     // `styles.css.ts` imports the theme contract, so it carries every rule the
     // plugin ships; the components only consume the class names it produces.
-    entryPoints: ['src/client/styles.css.ts'],
+    entryPoints: ['src/client/styles/styles.css.ts'],
     outdir: STYLE_DIR,
     entryNames: 'styles',
     bundle: true,

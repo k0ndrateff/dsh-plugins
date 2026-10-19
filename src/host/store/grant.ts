@@ -55,6 +55,19 @@ export class Grant {
 		this.expiresAt = params.expiresAt;
 	}
 
+	/**
+	 * Rebuild a grant from a stored payload.
+	 *
+	 * The credential store returns plain JSON, so a payload read back from disk
+	 * is not an instance and carries no `isSignedIn`. Every read path goes
+	 * through here, so callers only ever see a real `Grant`.
+	 */
+	static from(payload: unknown): Grant | undefined {
+		if (payload === null || typeof payload !== "object") return undefined;
+
+		return new Grant(payload as Omit<Grant, "isSignedIn">);
+	}
+
 	/** Whether a stored grant carries a usable access token. */
 	isSignedIn(): this is SignedInGrant {
 		return typeof this.accessToken === "string" && this.accessToken !== "";
@@ -66,7 +79,7 @@ export class Grant {
 
 		if (record === undefined || record.kind !== "grant") return undefined;
 
-		return record.payload as Grant;
+		return Grant.from(record.payload);
 	}
 
 	/**
@@ -81,7 +94,7 @@ export class Grant {
 			Grant.CREDENTIAL_KEY,
 			async (current) => {
 				const previous =
-					current?.kind === "grant" ? (current.payload as Grant) : undefined;
+					current?.kind === "grant" ? Grant.from(current.payload) : undefined;
 
 				const next = await mutate(previous);
 				if (next === undefined) return undefined;
@@ -93,7 +106,7 @@ export class Grant {
 			},
 		);
 
-		return record?.kind === "grant" ? (record.payload as Grant) : undefined;
+		return record?.kind === "grant" ? Grant.from(record.payload) : undefined;
 	}
 
 	/** Forget the record entirely; the issuer is not told, matching the seam. */
@@ -128,7 +141,8 @@ export class Grant {
 			return new Grant({ ...grant, ...oauth.toTokenFields(payload, grant) });
 		});
 
-		if (!after.isSignedIn()) throw new Error("not signed in to Atlassian");
+		if (after === undefined || !after.isSignedIn())
+			throw new Error("not signed in to Atlassian");
 
 		return after.accessToken;
 	}
@@ -140,7 +154,7 @@ export class Grant {
 	): Promise<string | undefined> {
 		const grant = await Grant.read(ctx);
 
-		if (!grant?.isSignedIn()) return undefined;
+		if (grant === undefined || !grant.isSignedIn()) return undefined;
 
 		if (Date.now() < (grant.expiresAt ?? 0) - REFRESH_MARGIN_MS)
 			return grant.accessToken;

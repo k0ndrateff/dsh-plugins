@@ -114,7 +114,6 @@ class OAuthDiscovery {
 	/** Well-known protected-resource locations for a resource, most specific first. */
 	private protectedResourceCandidates = (endpoint: string): string[] => {
 		const url = new URL(endpoint);
-		// @ts-expect-error
 		const path = url.pathname.replace(/\/+$/u, "");
 
 		return [
@@ -130,9 +129,7 @@ class OAuthDiscovery {
 	 */
 	private authorizationServerCandidates = (issuer: string): string[] => {
 		const url = new URL(issuer);
-		// @ts-expect-error
 		const path = url.pathname.replace(/\/+$/u, "");
-		// @ts-expect-error
 		const bare = issuer.replace(/\/+$/u, "");
 
 		return [
