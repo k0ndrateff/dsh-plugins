@@ -66,7 +66,7 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 
 	// The presentation tool is registered beside the MCP tools it resolves
 	// through: it shows what they return as a card under the agent's answer.
-	ctx.tools.register(presentTool.create(state));
+	ctx.tools.register(presentTool.create(ctx, state));
 
 	// The card's channel to the host: a named route is how a plugin serves the
 	// page without a generated remote namespace.

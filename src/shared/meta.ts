@@ -16,7 +16,19 @@ export type IssueCard = {
 	readonly assignee?: string;
 	readonly priority?: string;
 	readonly type?: string;
+	/** The issue's own estimate, as Jira states it ("3d 4h"). */
+	readonly estimate?: string;
+	/** One sentence about the issue, compressed from its description. */
+	readonly description?: string;
 	readonly url?: string;
+	/**
+	 * The issue's description, before it was compressed.
+	 *
+	 * Host-side only, and only while a caller asks for it: this is what the gist
+	 * pass reads, and the tool projects a fresh card without it, so it can never
+	 * reach the recorded payload.
+	 */
+	readonly rawText?: string;
 };
 
 /** A Confluence page (or any titled content), reduced to what a card shows. */
@@ -25,6 +37,10 @@ export type PageCard = {
 	readonly title: string;
 	readonly url?: string;
 	readonly space?: string;
+	/** One sentence about the page, compressed from its body. */
+	readonly excerpt?: string;
+	/** The page's body, before it was compressed. Host-side only. */
+	readonly rawText?: string;
 };
 
 /** The kinds of result the host half recognizes. */
@@ -42,6 +58,13 @@ export type AtlassianMeta = {
 	readonly tool: string;
 	/** The query or target the call carried, when it had one. */
 	readonly query?: string;
+	/**
+	 * How many matching items the server reported, when it said.
+	 *
+	 * A search answers with more than it returns, so a card says "5 of 42"
+	 * rather than implying that five is all there is.
+	 */
+	readonly total?: number;
 	issues: IssueCard[];
 	pages: PageCard[];
 	readonly text: string;
@@ -55,6 +78,11 @@ export function asAtlassianMeta(value: unknown): AtlassianMeta | undefined {
 	if (typeof candidate.kind !== "string" || typeof candidate.tool !== "string")
 		return undefined;
 
+	const total =
+		typeof candidate.total === "number" && Number.isFinite(candidate.total)
+			? candidate.total
+			: undefined;
+
 	return {
 		kind:
 			candidate.kind === "jira-issues" || candidate.kind === "confluence-pages"
@@ -62,6 +90,7 @@ export function asAtlassianMeta(value: unknown): AtlassianMeta | undefined {
 				: "text",
 		tool: candidate.tool,
 		...(typeof candidate.query === "string" ? { query: candidate.query } : {}),
+		...(total === undefined ? {} : { total }),
 		issues: Array.isArray(candidate.issues)
 			? (candidate.issues as IssueCard[])
 			: [],

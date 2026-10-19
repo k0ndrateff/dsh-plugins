@@ -73,16 +73,31 @@ export const row = style({
 
 export const list = style({
 	listStyle: "none",
-	margin: "8px 0 0",
+	// The card's own `gap` is the only space between the heading and the list;
+	// a margin here would double it.
+	margin: 0,
 	padding: 0,
 	display: "grid",
 	gap: "8px",
 	selectors: {
-		'&[data-layout="list"]': { gap: "6px", margin: "6px 0 0" },
+		'&[data-layout="list"]': { gap: "6px" },
+		// A card stays a card: past four rows it scrolls, and the heading says how
+		// many items there are, so a long answer never buries the prose above it.
+		'&[data-scrollable="true"]': {
+			maxHeight: "360px",
+			overflowY: "auto",
+			overscrollBehavior: "contain",
+			scrollbarGutter: "stable",
+			paddingRight: "2px",
+		},
 	},
 });
 
 export const item = style({
+	position: "relative",
+	display: "flex",
+	flexDirection: "column",
+	gap: "6px",
 	padding: "8px 12px",
 	border: `0.5px solid ${theme.color.borderSubtle}`,
 	borderRadius: theme.radius.md,
@@ -96,17 +111,51 @@ export const item = style({
 			padding: "6px 10px",
 			borderRadius: theme.radius.sm,
 		},
+		// The whole row is the link, so hovering anywhere on it is the affordance.
+		"&:has(a):hover": { background: theme.color.hoverFill },
 	},
 });
 
 export const itemHead = style({
 	display: "flex",
-	alignItems: "baseline",
+	alignItems: "center",
 	gap: "8px",
 	flexWrap: "wrap",
 	selectors: {
 		[`${list}[data-layout="single"] &`]: { fontSize: "15px", fontWeight: 500 },
 		[`${list}[data-layout="list"] &`]: { fontSize: "13px" },
+	},
+});
+
+/** The one sentence the card shows about an item, clamped to its layout. */
+export const itemText = style({
+	margin: 0,
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	display: "-webkit-box",
+	WebkitBoxOrient: "vertical",
+	WebkitLineClamp: 2,
+	overflow: "hidden",
+	selectors: {
+		[`${list}[data-layout="list"] &`]: { WebkitLineClamp: 1 },
+	},
+});
+
+/**
+ * The overlay that makes a whole row clickable.
+ *
+ * The title carries it, so one anchor covers the row: clicking the summary, the
+ * badges or the empty space beside them all open the issue.
+ */
+export const itemLink = style({
+	selectors: {
+		"&::after": {
+			content: '""',
+			position: "absolute",
+			inset: 0,
+			borderRadius: "inherit",
+		},
 	},
 });
 
@@ -176,6 +225,15 @@ export const presentationTitle = style({
 	fontSize: "13px",
 	fontWeight: 600,
 	color: theme.color.labelPrimary,
+});
+
+/** How many items the card shows, and how many matched. */
+export const presentationCount = style({
+	marginLeft: "auto",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	whiteSpace: "nowrap",
 });
 
 /** One Atlassian tool call, rendered as a single terse line. */

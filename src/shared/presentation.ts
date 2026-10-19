@@ -28,6 +28,13 @@ export interface AtlassianPresentation {
 	/** Optional heading, such as "План на день". */
 	readonly title?: string;
 	readonly layout: PresentationLayout;
+	/**
+	 * How many items the search matched, when that is more than the card shows.
+	 *
+	 * A card that scrolls says "25 of 137 issues"; a card that shows everything
+	 * leaves this out rather than repeating the item count.
+	 */
+	readonly total?: number;
 	/** Issues and pages, in the order the tool put them. */
 	readonly items: readonly PresentationItem[];
 }
@@ -92,6 +99,11 @@ export function asPresentation(
 			? { title: value.title }
 			: {}),
 		layout,
+		...(typeof value.total === "number" &&
+		Number.isFinite(value.total) &&
+		value.total > items.length
+			? { total: value.total }
+			: {}),
 		items,
 	};
 }

@@ -10,8 +10,9 @@
  * model does not have to thread that identifier through every call.
  */
 
-import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
-import type { IssueCard, PageCard } from "../../shared/meta";
+import type { Context } from "@deepseek-ai/cordis";
+import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
+import type { AtlassianMeta, IssueCard, PageCard } from "../../shared/meta";
 import type {
 	AtlassianPresentation,
 	PresentationItem,
@@ -21,6 +22,7 @@ import type {
 import type { JsonValue } from "../json";
 import { mcpBridge } from "../mcp/bridge";
 import { extractor } from "../presentation/extract";
+import { type Gist, modelRoute, summarizeGists } from "../presentation/gist";
 import type { RuntimeState } from "../state";
 
 /** One tool call's text answer, before it becomes blocks. */
@@ -28,8 +30,17 @@ interface PresentOutcome {
 	readonly title: string | undefined;
 	readonly layout: PresentationLayout;
 	readonly items: readonly PresentationItem[];
+	/** The server's match count, when it exceeds what the card shows. */
+	readonly total: number | undefined;
 	/** Requests that could not be resolved, by key or id. */
 	readonly failed: readonly string[];
+}
+
+/** What one resolution pass found: card items and the count behind them. */
+interface Found<Item> {
+	readonly items: readonly Item[];
+	/** The server's own match count, when it reported one. */
+	readonly total: number | undefined;
 }
 
 /** The arguments the model may send, after validation. */
@@ -68,20 +79,28 @@ class PresentTool {
 		"assignee",
 		"priority",
 		"issuetype",
+		"timetracking",
+		"timeoriginalestimate",
+		// Read to write one sentence per issue, then dropped again: the recorded
+		// card carries the sentence, never the description.
+		"description",
 	];
 
 	/**
 	 * Build the tool definition for one plugin instance.
+	 * @param ctx - host context; the model service is read from it for summaries.
 	 * @param state - runtime state holding the MCP connection and cloud id.
 	 */
-	create = (state: RuntimeState): ToolDefinition => ({
+	create = (ctx: Context, state: RuntimeState): ToolDefinition => ({
 		name: this.TOOL_NAME,
 		description:
 			"Show Jira issues and/or Confluence pages to the user as a card under your answer. " +
 			"Use this whenever the user asks to see work — a daily plan, a shortlist, a single issue, " +
 			"or search results — instead of only describing it in prose. Resolve the content by issue " +
-			"keys, by page ids, by JQL, or by CQL; the card carries status, assignee, priority and links. " +
-			"Call it once per card, then write your answer.",
+			"keys, by page ids, by JQL, or by CQL. Each row carries a link to the item, its status, " +
+			"assignee, priority, type and estimate, plus one sentence summarizing its description, " +
+			"so the user can act without opening the issue. Call it once per card, then write your " +
+			"answer; do not repeat the card's contents as a list in the text.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -96,7 +115,8 @@ class PresentTool {
 					enum: ["auto", "single", "compact", "list"],
 					description:
 						"auto (default) picks by item count: one item as a full card, two to four as " +
-						"compact rows, more as a dense list. Force one when the content calls for it.",
+						"compact rows, more as a dense list. A card longer than four rows scrolls and " +
+						"shows how many items matched. Force one when the content calls for it.",
 				},
 				issues: {
 					type: "array",
@@ -151,7 +171,7 @@ class PresentTool {
 		},
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs);
-			const outcome = await this.resolve(state, args);
+			const outcome = await this.resolve(ctx, state, args, exec);
 
 			const viewed = this.describe(outcome, args);
 			const summary =
@@ -163,6 +183,7 @@ class PresentTool {
 				callId: String(exec.callId),
 				...(outcome.title === undefined ? {} : { title: outcome.title }),
 				layout: outcome.layout,
+				...(outcome.total === undefined ? {} : { total: outcome.total }),
 				items: outcome.items,
 			};
 
@@ -203,8 +224,10 @@ class PresentTool {
 
 	/** Resolve every requested source into card items. */
 	private resolve = async (
+		ctx: Context,
 		state: RuntimeState,
 		args: PresentArgs,
+		exec: ToolExecution,
 	): Promise<PresentOutcome> => {
 		const cloudId = args.cloudId ?? state.cloudId;
 
@@ -215,6 +238,7 @@ class PresentTool {
 
 		const items: PresentationItem[] = [];
 		const failed: string[] = [];
+		let matched = 0;
 
 		const push = (candidate: readonly PresentationItem[]): void => {
 			for (const item of candidate) {
@@ -231,7 +255,9 @@ class PresentTool {
 					fields: this.ISSUE_FIELDS,
 				});
 
-				push(this.issuesOf(value, key));
+				const found = this.issuesOf(value, state.siteUrl, key);
+				push(found.items);
+				matched += found.total ?? found.items.length;
 			} catch {
 				failed.push(key);
 			}
@@ -249,7 +275,9 @@ class PresentTool {
 				},
 			);
 
-			push(this.issuesOf(value));
+			const found = this.issuesOf(value, state.siteUrl);
+			push(found.items);
+			matched += found.total ?? found.items.length;
 		}
 
 		for (const id of args.pages) {
@@ -259,7 +287,9 @@ class PresentTool {
 					pageId: id,
 				});
 
-				push(this.pagesOf(value, id));
+				const found = this.pagesOf(value, state.siteUrl, id);
+				push(found.items);
+				matched += found.total ?? found.items.length;
 			} catch {
 				failed.push(id);
 			}
@@ -276,53 +306,162 @@ class PresentTool {
 				},
 			);
 
-			push(this.pagesOf(value));
+			const found = this.pagesOf(value, state.siteUrl);
+			push(found.items);
+			matched += found.total ?? found.items.length;
 		}
 
 		if (items.length === 0 && failed.length === 0)
 			throw new Error("nothing to show: pass issues, pages, jql, or cql");
 
+		// One sentence per item, written by the conversation's own model. The
+		// card is projected again afterwards, so no raw description survives.
+		const gists = await this.summarize(ctx, items, exec);
+		const projected = items.map((item, index) =>
+			item.kind === "issue"
+				? {
+						kind: "issue" as const,
+						issue: this.issueWire(item.issue, gists.get(String(index))),
+					}
+				: {
+						kind: "page" as const,
+						page: this.pageWire(item.page, gists.get(String(index))),
+					},
+		);
+
 		return {
 			title: args.title,
-			layout: this.resolveLayout(args.layout, items.length),
-			items,
+			layout: this.resolveLayout(args.layout, projected.length),
+			items: projected,
+			total: matched > projected.length ? matched : undefined,
 			failed,
 		};
 	};
 
+	/**
+	 * Compress the long text behind each item into one sentence.
+	 *
+	 * A card is worth waiting a moment for, not a minute: the pass is bounded by
+	 * its own timeout and any failure simply leaves the items without summaries.
+	 */
+	private summarize = async (
+		ctx: Context,
+		items: readonly PresentationItem[],
+		exec: ToolExecution,
+	): Promise<ReadonlyMap<string, string>> => {
+		const targets = items.flatMap((item, index) => {
+			const title =
+				item.kind === "issue"
+					? (item.issue.summary ?? item.issue.key)
+					: item.page.title;
+			const body =
+				(item.kind === "issue" ? item.issue.rawText : item.page.rawText) ?? "";
+
+			return body === "" ? [] : [{ id: String(index), title, body }];
+		});
+
+		if (targets.length === 0) return new Map();
+
+		const gists: readonly Gist[] | undefined = await summarizeGists(
+			ctx,
+			targets,
+			{ route: modelRoute(exec), signal: exec.signal },
+		);
+
+		return new Map((gists ?? []).map((gist) => [gist.id, gist.text]));
+	};
+
+	/**
+	 * The recorded shape of one issue.
+	 *
+	 * Built field by field rather than spread: `rawText` is the description the
+	 * compression pass read, and the card must not carry a word of it.
+	 */
+	private issueWire = (
+		issue: IssueCard,
+		gist: string | undefined,
+	): IssueCard => ({
+		key: issue.key,
+		...(issue.summary === undefined ? {} : { summary: issue.summary }),
+		...(issue.status === undefined ? {} : { status: issue.status }),
+		...(issue.assignee === undefined ? {} : { assignee: issue.assignee }),
+		...(issue.priority === undefined ? {} : { priority: issue.priority }),
+		...(issue.type === undefined ? {} : { type: issue.type }),
+		...(issue.estimate === undefined ? {} : { estimate: issue.estimate }),
+		...(gist === undefined ? {} : { description: gist }),
+		...(issue.url === undefined ? {} : { url: issue.url }),
+	});
+
+	/** The recorded shape of one page; see {@link issueWire}. */
+	private pageWire = (page: PageCard, gist: string | undefined): PageCard => ({
+		title: page.title,
+		...(page.id === undefined ? {} : { id: page.id }),
+		...(page.url === undefined ? {} : { url: page.url }),
+		...(page.space === undefined ? {} : { space: page.space }),
+		...(gist === undefined ? {} : { excerpt: gist }),
+	});
+
 	/** Normalize one Jira result; `fallbackKey` keeps a single-issue fetch labelled. */
-	private issuesOf(value: unknown, fallbackKey?: string): PresentationItem[] {
-		const meta = extractor.extract({
+	private issuesOf(
+		value: unknown,
+		siteUrl: string | undefined,
+		fallbackKey?: string,
+	): Found<PresentationItem> {
+		const meta: AtlassianMeta = extractor.extract({
 			tool: "getJiraIssue",
 			args: {},
 			value,
-			siteUrl: undefined,
+			siteUrl,
+			// The description is read here and compressed before it is recorded.
+			bodies: true,
 		});
 
 		const issues = meta.issues as readonly IssueCard[];
-		if (issues.length > 0)
-			return issues.map((issue) => ({ kind: "issue", issue }));
 
-		return fallbackKey === undefined
-			? []
-			: [{ kind: "issue", issue: { key: fallbackKey } }];
+		if (issues.length > 0)
+			return {
+				items: issues.map((issue) => ({ kind: "issue", issue })),
+				total: meta.total,
+			};
+
+		return {
+			items:
+				fallbackKey === undefined
+					? []
+					: [{ kind: "issue", issue: { key: fallbackKey } }],
+			total: meta.total,
+		};
 	}
 
 	/** Normalize one Confluence result; `fallbackId` keeps a single fetch labelled. */
-	private pagesOf(value: unknown, fallbackId?: string): PresentationItem[] {
-		const meta = extractor.extract({
+	private pagesOf(
+		value: unknown,
+		siteUrl: string | undefined,
+		fallbackId?: string,
+	): Found<PresentationItem> {
+		const meta: AtlassianMeta = extractor.extract({
 			tool: "getConfluencePage",
 			args: {},
 			value,
-			siteUrl: undefined,
+			siteUrl,
+			bodies: true,
 		});
 
 		const pages = meta.pages as readonly PageCard[];
-		if (pages.length > 0) return pages.map((page) => ({ kind: "page", page }));
 
-		return fallbackId === undefined
-			? []
-			: [{ kind: "page", page: { id: fallbackId, title: fallbackId } }];
+		if (pages.length > 0)
+			return {
+				items: pages.map((page) => ({ kind: "page", page })),
+				total: meta.total,
+			};
+
+		return {
+			items:
+				fallbackId === undefined
+					? []
+					: [{ kind: "page", page: { id: fallbackId, title: fallbackId } }],
+			total: meta.total,
+		};
 	}
 
 	/** Pick the layout the caller asked for, or infer one from the item count. */
@@ -366,6 +505,9 @@ class PresentTool {
 					item.issue.summary,
 					item.issue.status,
 					item.issue.assignee,
+					item.issue.estimate === undefined
+						? undefined
+						: `estimate ${item.issue.estimate}`,
 					item.issue.url,
 				].filter(
 					(part): part is string => typeof part === "string" && part !== "",

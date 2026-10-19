@@ -1,14 +1,21 @@
+/**
+ * One Jira issue on a card.
+ *
+ * The row is the link: the title anchors a stretched overlay, so the whole card
+ * opens the issue. The type is a coloured chip rather than a "Type: …" badge,
+ * because a colour is what makes a mixed list scannable at a glance.
+ */
+
 import type { IssueCard } from "../../shared/meta";
+import { issueTypeTone, priorityTone } from "../../shared/tone";
 import * as styles from "../styles/styles.css";
 import { Badge } from "./badge";
 
 interface Props {
 	issue: IssueCard;
-	/** Dense rows drop all but the status, so a long list stays scannable. */
-	dense?: boolean;
 }
 
-export const IssueItem = ({ issue, dense = false }: Props) => {
+export const IssueItem = ({ issue }: Props) => {
 	const title = [issue.key, issue.summary]
 		.filter((part) => part !== undefined && part !== "")
 		.join(" · ");
@@ -16,11 +23,13 @@ export const IssueItem = ({ issue, dense = false }: Props) => {
 	return (
 		<li className={styles.item}>
 			<div className={styles.itemHead}>
+				<Badge value={issue.type} tone={issueTypeTone(issue.type)} />
+
 				{issue.url === undefined ? (
 					<span>{title}</span>
 				) : (
 					<a
-						className={styles.link}
+						className={`${styles.link} ${styles.itemLink}`}
 						href={issue.url}
 						target="_blank"
 						rel="noreferrer"
@@ -30,16 +39,19 @@ export const IssueItem = ({ issue, dense = false }: Props) => {
 				)}
 			</div>
 
+			{issue.description === undefined ? null : (
+				<p className={styles.itemText}>{issue.description}</p>
+			)}
+
 			<div className={styles.badges}>
 				<Badge label="Status" value={issue.status} />
-
-				{dense ? null : (
-					<>
-						<Badge label="Priority" value={issue.priority} />
-						<Badge label="Assignee" value={issue.assignee} />
-						<Badge label="Type" value={issue.type} />
-					</>
-				)}
+				<Badge
+					label="Priority"
+					value={issue.priority}
+					tone={priorityTone(issue.priority)}
+				/>
+				<Badge label="Assignee" value={issue.assignee} />
+				<Badge label="Estimate" value={issue.estimate} />
 			</div>
 		</li>
 	);

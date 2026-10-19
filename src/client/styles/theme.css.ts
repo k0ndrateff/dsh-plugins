@@ -29,6 +29,7 @@ export const theme = createGlobalThemeContract({
 		cardFill: "dsw-alias-settings-card-fill",
 		cardStroke: "dsw-alias-settings-card-stroke",
 		borderSubtle: "dsw-alias-border-l2",
+		hoverFill: "dsw-alias-interactive-bg-hover",
 		link: "dsw-alias-link",
 		codeFill: "dsw-alias-markdown-code-block",
 		danger: "dsw-alias-state-error-primary",

@@ -23,7 +23,9 @@ Built and verified against DSH `0.2.1-rc.2`.
   The full payload stays in the session log; the agent reads it, not the user.
 - **Cards in the answer.** Ask "какие задачи взять сегодня?" and the agent calls
   `atlassian_present`, which shows one issue, a titled shortlist, a long list, or
-  Confluence pages as a card under its answer — see
+  Confluence pages as a card under its answer. Every row links to the item and
+  carries its status, assignee, priority, a colour-coded type, its estimate and
+  one sentence of its description — see
   [Presentation cards](#presentation-cards).
 
 ## Authentication
@@ -75,10 +77,26 @@ the model with a text summary, and records a card for the turn:
 |---|---|
 | `single` | One item, with its full detail. |
 | `compact` | Two to four items, under an optional title such as "План на день". |
-| `list` | A dense list: the status stays, the rest is dropped to keep rows short. |
+| `list` | Five or more items: tighter rows, one line of summary each. |
 
 `auto` (the default) picks by item count, and one card may mix Jira issues with
 Confluence pages — that is what lets "plan for today" be a single card.
+
+What one row carries:
+
+- **A link.** The whole card is clickable: the title anchors a stretched overlay,
+  so the summary, the badges and the empty space beside them all open the issue
+  or the page in the browser.
+- **A coloured type.** The issue type is a chip on the harness's own palettes —
+  a bug is red, a task blue, a story green, an epic the one solid chip — matched
+  by name in either language, and neutral when the name means nothing to this
+  version.
+- **The facts that decide.** Status, priority (its own colour), assignee, and the
+  estimate exactly as Jira states it (`3d 4h`, `4ч`).
+- **One sentence of description.** See below.
+
+A card longer than four rows **scrolls** instead of growing, and its heading
+counts what it holds — `5 of 42 issues` when the server reported a total.
 
 The card renders **under the closing text of the turn**, outside the collapsible
 tool group. That seat is shared with the harness's own `present` cards, and it is
@@ -86,13 +104,28 @@ the right one because the card is an answer-shaped summary rather than a step in
 the work. The tool call itself keeps the generic tool row, so nothing is shown
 twice.
 
-Mechanically it writes **nothing extra to the session**. The tool publishes the
-card as the tool result's `presentationMeta`, which the harness persists on the
-result; the browser half registers a `ConversationNodeDefinition` that folds those
-results into turn-scoped data, and a seat in `conversation.chat.turnTail` draws
-them. Because the card is narrowed out of the persisted result, replaying the
-session log reproduces it exactly — the same approach `ui-schedule` uses for its
-created-task card, and the reason this plugin needs no new durable event type.
+### The one-sentence description
+
+A Jira description is a page of context and a Confluence body is more, so neither
+reaches the card. `atlassian_present` reads them, asks the conversation's own
+model for one sentence per item, and records only the sentences.
+
+The pass is a single auxiliary `ctx.llm.stream` call for the whole card, on the
+route the current turn logged, with `temperature: 0`, a 20-second deadline and
+the tool call's own cancellation. It is best-effort by construction: no `llm`
+service, no readable route, a slow or failing provider — each of those leaves the
+card without its sentences and nothing else changes. The nested call never enters
+the session log, and the raw descriptions are dropped when the card is projected,
+so they are not persisted either.
+
+Mechanically the card writes **nothing extra to the session**. The tool publishes
+it as the tool result's `presentationMeta`, which the harness persists on the
+result; the browser half registers a `ConversationNodeDefinition` that folds
+those results into turn-scoped data, and a seat in `conversation.chat.turnTail`
+draws them. Because the card is narrowed out of the persisted result, replaying
+the session log reproduces it exactly — the same approach `ui-schedule` uses for
+its created-task card, and the reason this plugin needs no new durable event
+type.
 
 ## Architecture
 
@@ -105,6 +138,7 @@ src/
 │   ├── meta.ts                 the tool-result contract a card renders
 │   ├── presentation.ts         the card payload, and its validator
 │   ├── status.ts               the status document the settings card reads
+│   ├── tone.ts                 which colour a type or priority earns
 │   └── tool-names.ts           known Atlassian tools, and the public-name rule
 ├── host/
 │   ├── index.ts                apply(): what the plugin registers
@@ -122,7 +156,9 @@ src/
 │   │   └── flow.ts             the PKCE flow registered on the seam
 │   ├── store/grant.ts          the credential record and token refresh
 │   ├── mcp/bridge.ts           the MCP connection and tool publishing
-│   ├── presentation/extract.ts tool result -> card data
+│   ├── presentation/
+│   │   ├── extract.ts          tool result -> card data
+│   │   └── gist.ts             one sentence per item, written by the model
 │   ├── tools/present.ts        atlassian_present: the card the agent shows
 │   └── surface/
 │       ├── command.ts          the /atlassian command
@@ -226,16 +262,23 @@ patch reloads live.
 ## Test
 
 ```sh
-npm test                      # build, then drive the OAuth machinery live
-node test/dry-run.mjs         # against the already-built lib/
+npm test                      # the dry run, with bun
+npm run typecheck             # both halves
 ```
 
-`test/dry-run.mjs` runs the host half against Atlassian's real endpoints with a
-fake harness context. It discovers metadata, registers a throwaway OAuth client,
-builds the authorize URL, checks the consent page renders, proves the loopback
-callback rejects a forged `state`, verifies the stored record survives a JSON
-round trip (the credential store refuses a value it cannot represent), and
-cancels the attempt — for both endpoint generations. It never completes consent.
+`test/dry-run.ts` covers two things. First the pure parts: the credential record
+rehydrates from plain JSON, a card payload this version cannot read is skipped
+rather than drawn wrongly, an estimate in seconds reads like Jira's own, model
+output is parsed back into one sentence per item, an unknown type or priority is
+neutral and a Cyrillic `Р4` is not, and one MCP search result becomes cards with
+links — including the site-relative Confluence URL, which is resolved against the
+wiki rather than the site root.
+
+Then it drives the OAuth machinery against Atlassian's real endpoints with a fake
+harness context: metadata discovery, a throwaway client registration, the
+authorize URL, the consent page rendering, the loopback callback rejecting a
+forged `state`, the stored record, and cancellation — for both endpoint
+generations. It never completes consent.
 
 While the harness is running, the host half also answers on loopback:
 
@@ -257,12 +300,17 @@ curl http://127.0.0.1:55236/dsh-atlassian/status
   build issue links from the site URL the plugin learns at connect time.
 - **Cards cover known tool names.** A tool this plugin has never seen keeps the
   generic tool row; add its name to `TOOL_NAMES` in `src/shared/tool-names.ts`.
-- **Tool results are capped** at 25 issues or pages per card, with a text
-  excerpt as the fallback.
+- **Tool results are capped** at 25 issues or pages per card; past four rows the
+  card scrolls and its heading counts what it holds.
+- **A Jira search reports no total.** The server paginates it with a cursor
+  (`isLast`, `nextPageToken`) rather than a count, so a Jira card says "25
+  issues" where a Confluence one can say "25 of 712 pages".
+- **The one-sentence descriptions need a model route.** They use the turn's own
+  provider and model; a deployment without the `llm` service, or a turn with no
+  logged request header, gets cards without sentences rather than no cards.
 - **The `/dsh-atlassian` route is unauthenticated**, unlike `/api`. It is
   loopback-only, like the rest of the web server, but any local process can read
   the sign-in state and start or stop a sign-in.
-- **The card's copy is not routed through the client locale service.** That
-  service is registered per namespace at build time in TypeScript; this plugin
-  keeps an explicit two-language `strings.ts` instead, which needs no build-time
-  declaration merging.
+- **The card's copy is English and not routed through the client locale
+  service**, which is registered per namespace at build time in TypeScript. The
+  facts on a card are whatever the site says, in the site's own language.

@@ -45,28 +45,35 @@ const serverToolName = (toolName: string | undefined): string =>
 	(toolName ?? "").replace(/^mcp__atlassian__/u, "") || "Atlassian";
 
 /** One short phrase describing what a settled call found. */
-const summarize = (
-	block: ToolRowBlock | undefined,
-	toolName: string | undefined,
-): string => {
+const summarize = (block: ToolRowBlock | undefined): string => {
 	const meta = asAtlassianMeta(block?.meta);
 	if (meta === undefined) return "done";
 
 	const parts: string[] = [];
+	const total = meta.total;
 
 	if (meta.issues.length > 0)
-		parts.push(
-			`found ${meta.issues.length} issue${meta.issues.length === 1 ? "" : "s"}`,
-		);
+		parts.push(found(meta.issues.length, "issue", total));
 	else if (meta.pages.length > 0)
-		parts.push(
-			`found ${meta.pages.length} page${meta.pages.length === 1 ? "" : "s"}`,
-		);
+		parts.push(found(meta.pages.length, "page", total));
 
 	if (meta.query !== undefined) parts.push(meta.query);
 	if (parts.length === 0) parts.push("done");
 
 	return parts.join(" · ");
+};
+
+/** "found 3 issues", or "found 3 of 712 pages" when the server said so. */
+const found = (
+	count: number,
+	noun: string,
+	total: number | undefined,
+): string => {
+	const plural = count === 1 ? "" : "s";
+
+	return total === undefined || total <= count
+		? `found ${count} ${noun}${plural}`
+		: `found ${count} of ${total} ${noun}${plural}`;
 };
 
 interface Props {
@@ -104,7 +111,7 @@ export const AtlassianToolRow = ({ phase, block, toolName }: Props) => {
 		<div className={styles.toolRow} data-tool={toolName}>
 			<StateDot state="done" />
 			<span className={styles.toolName}>{name}</span>
-			<span className={styles.caption}>{summarize(block, toolName)}</span>
+			<span className={styles.caption}>{summarize(block)}</span>
 		</div>
 	);
 };
