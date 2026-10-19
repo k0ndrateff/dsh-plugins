@@ -27,6 +27,10 @@ Built and verified against DSH `0.2.1-rc.2`.
   carries its status, assignee, priority, a colour-coded type, its estimate and
   one sentence of its description — see
   [Presentation cards](#presentation-cards).
+- **The whole issue, one click away.** Clicking a card opens it in the harness's
+  own right panel — description, comments, and the buttons that move the status
+  or hand it to somebody else — instead of a browser tab — see
+  [The side panel](#the-side-panel).
 
 ## Authentication
 
@@ -127,6 +131,43 @@ the session log reproduces it exactly — the same approach `ui-schedule` uses f
 its created-task card, and the reason this plugin needs no new durable event
 type.
 
+## The side panel
+
+Clicking a card opens the issue or the page in the harness's own right Sidebar
+rather than a browser tab. ⌘/Ctrl-click, Shift-click, a middle click and the
+key on a card all still open Atlassian itself.
+
+The panel is a **tab type of this plugin's own**, registered the same two-stage
+way a package shipped with the product does: the definition into
+`ctx.sidebarRightTabs`, the body into the keyed `sidebar.right.pane.tab` seat,
+the chip title into `sidebar.right.pane.tab.title`. No `multiple`, so there is
+one panel per pane and clicking through a list of issues navigates it — the
+behaviour of a link rather than of windows.
+
+The panel is not a second connection to Atlassian. It reads and writes through
+the same `/dsh-atlassian` route the settings card uses, and the host resolves
+every call through the same MCP bridge the agent's tools go through:
+
+| Call | What it does |
+|---|---|
+| `GET /issue?key=` | `getJiraIssue` with `comment`, plus `getTransitionsForJiraIssue` |
+| `GET /page?id=` | `getConfluencePage`, plus `getConfluencePageFooterComments` |
+| `GET /people?q=` | `lookupJiraAccountId` |
+| `POST /issue/transition` | `transitionJiraIssue`, then answers with the fresh issue |
+| `POST /issue/assignee` | `editJiraIssue`; `null` clears the assignee |
+
+Three rules shape it:
+
+- **A write answers with the truth.** Every write returns the issue as it stands
+  afterwards, so the panel never renders an assumption about what a transition
+  did; a failed write is reported and the panel reloads to show what the site
+  actually holds.
+- **A read degrades by section.** A transition list the token cannot read, or a
+  comment section the server declines, costs that section and nothing else.
+- **A transition that opens a screen is not attempted.** Those need a form, so
+  the panel disables them and says so, instead of sending a call Jira will
+  reject for missing fields.
+
 ## Architecture
 
 The plugin is one package with two faces, matching how the harness composes
@@ -137,6 +178,7 @@ src/
 ├── shared/                     contracts both faces must agree on
 │   ├── meta.ts                 the tool-result contract a card renders
 │   ├── presentation.ts         the card payload, and its validator
+│   ├── panel.ts                the side panel's documents, and its validator
 │   ├── status.ts               the status document the settings card reads
 │   ├── tone.ts                 which colour a type or priority earns
 │   └── tool-names.ts           known Atlassian tools, and the public-name rule
@@ -155,24 +197,28 @@ src/
 │   │   ├── loopback.ts         the redirect listener
 │   │   └── flow.ts             the PKCE flow registered on the seam
 │   ├── store/grant.ts          the credential record and token refresh
-│   ├── mcp/bridge.ts           the MCP connection and tool publishing
+│   ├── mcp/
+│   │   ├── bridge.ts           the MCP connection and tool publishing
+│   │   └── payload.ts          reading JSON out of an MCP result
 │   ├── presentation/
 │   │   ├── extract.ts          tool result -> card data
 │   │   └── gist.ts             one sentence per item, written by the model
+│   ├── panels/panel.ts         the side panel's reads, and its two writes
 │   ├── tools/present.ts        atlassian_present: the card the agent shows
 │   └── surface/
 │       ├── command.ts          the /atlassian command
-│       └── http.ts             the loopback API the settings card calls
+│       └── http.ts             the loopback API the page calls
 └── client/
     ├── index.ts                the client plugin: slot registrations
     ├── components/             settings card, tool row, presentation cards
     ├── conversation/           the node definition behind a presentation
+    ├── sidebar/                the right-Sidebar panel: type, body, title
     ├── styles/                 vanilla-extract theme, rules, and injection
-    ├── host-api.ts             the settings card's calls to the host
+    ├── host-api.ts             the page's calls to the host
     └── plugin-id.ts            the id the module system keys on
 ```
 
-Two design notes worth knowing before changing things:
+Four design notes worth knowing before changing things:
 
 - **`src/host`, not the stock MCP client.** `dsh-mcp-client` takes its HTTP
   headers from static configuration, and an OAuth access token changes over the
@@ -184,6 +230,14 @@ Two design notes worth knowing before changing things:
   `/dsh-atlassian` on the same loopback origin. A generated Typert remote
   namespace would also work but needs a build step the harness does not publish;
   a named route is structured JSON in both directions and needs none.
+- **Optional services are read, never injected.** The one-sentence descriptions
+  need `ctx.llm` and the panel needs the right Sidebar, and neither may take the
+  rest of the plugin down with it: a host without a model still gets cards, and a
+  page without a Sidebar still gets clickable links. So both are reached with
+  `ctx.get(...)` at the moment of use, and the Sidebar's tab registration hangs
+  off a scoped `ctx.inject(["sidebarRightTabs"], ...)` rather than this plugin's
+  own `inject` list. That list is the hard dependency set — a plugin that waits
+  for a service the deployment omits never activates at all.
 - **vanilla-extract, not the harness's CSS Modules.** In-repo packages compile
   `.module.css` with a preset that is not published, so an out-of-tree plugin has
   to bring its own pipeline. vanilla-extract gives the same result — static CSS,
@@ -274,8 +328,16 @@ neutral and a Cyrillic `Р4` is not, and one MCP search result becomes cards wit
 links — including the site-relative Confluence URL, which is resolved against the
 wiki rather than the site root.
 
-Then it drives the OAuth machinery against Atlassian's real endpoints with a fake
-harness context: metadata discovery, a throwaway client registration, the
+Then the host's own surfaces, against fake MCP results: `atlassian_present`
+resolves, projects and records a card whose payload carries no raw description,
+the panel loader turns one issue into a document with its comments, its
+localized type and its transitions — a failed transition list still answering
+with the issue — and the panel's routes are driven as the browser drives them,
+including the two writes and a malformed request. A request this route cannot act
+on answers `400`; a failure behind it answers `502`.
+
+Finally it drives the OAuth machinery against Atlassian's real endpoints with a
+fake harness context: metadata discovery, a throwaway client registration, the
 authorize URL, the consent page rendering, the loopback callback rejecting a
 forged `state`, the stored record, and cancellation — for both endpoint
 generations. It never completes consent.
@@ -308,9 +370,16 @@ curl http://127.0.0.1:55236/dsh-atlassian/status
 - **The one-sentence descriptions need a model route.** They use the turn's own
   provider and model; a deployment without the `llm` service, or a turn with no
   logged request header, gets cards without sentences rather than no cards.
+- **The panel needs the right Sidebar.** Without that package the cards are still
+  cards — a click just opens Atlassian in the browser instead.
+- **The panel writes what the workflow allows.** A transition that opens a screen
+  cannot be taken from the panel, because it has no form for the required fields;
+  the assignee search matches on the site's own lookup, which needs two
+  characters and a moment.
 - **The `/dsh-atlassian` route is unauthenticated**, unlike `/api`. It is
   loopback-only, like the rest of the web server, but any local process can read
-  the sign-in state and start or stop a sign-in.
+  the sign-in state, start or stop a sign-in, and now also transition an issue or
+  reassign it, with the signed-in user's own permissions.
 - **The card's copy is English and not routed through the client locale
   service**, which is registered per namespace at build time in TypeScript. The
   facts on a card are whatever the site says, in the site's own language.

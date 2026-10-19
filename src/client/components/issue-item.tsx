@@ -8,6 +8,7 @@
 
 import type { IssueCard } from "../../shared/meta";
 import { issueTypeTone, priorityTone } from "../../shared/tone";
+import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
 import { Badge } from "./badge";
 
@@ -33,6 +34,13 @@ export const IssueItem = ({ issue }: Props) => {
 						href={issue.url}
 						target="_blank"
 						rel="noreferrer"
+						onClick={(event) => {
+							// The panel, when this build has one; the browser for a
+							// modified click, or when it does not.
+							if (wantsBrowser(event)) return;
+							if (openPanel({ kind: "issue", key: issue.key }))
+								event.preventDefault();
+						}}
 					>
 						{title}
 					</a>

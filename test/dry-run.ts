@@ -10,17 +10,21 @@
  * registration and then abandons it.
  */
 
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { AuthorizationSession } from "@deepseek-ai/dsh-authorization";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { resolveConfig } from "../src/host/config";
 import { apply } from "../src/host/index";
 import { oauthFlow } from "../src/host/oauth/flow";
+import { panelApi } from "../src/host/panels/panel";
 import { extractor, formatDuration } from "../src/host/presentation/extract";
 import { parseGists } from "../src/host/presentation/gist";
 import { RuntimeState } from "../src/host/state";
 import { Grant } from "../src/host/store/grant";
+import { createApiHandler } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
+import { asPanelData, asPanelTarget } from "../src/shared/panel";
 import { asPresentation } from "../src/shared/presentation";
 import { issueTypeTone, priorityTone } from "../src/shared/tone";
 
@@ -559,6 +563,318 @@ check(
 check(
 	"the model is told what the card shows",
 	outcome.summary.includes("План на день"),
+);
+
+// --- The side panel ------------------------------------------------------
+// The panel is the only writer in this plugin, so its half of the test drives
+// both directions: what the host loads for a panel, and what the routes accept.
+
+/** One MCP result, as the server sends it: JSON inside a text block. */
+function mcp(value: unknown): unknown {
+	return { content: [{ type: "text", text: JSON.stringify(value) }] };
+}
+
+/** A route request the handler can read, without a socket under it. */
+function fakeRequest(
+	method: string,
+	url: string,
+	body?: unknown,
+): IncomingMessage {
+	const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))];
+
+	return {
+		method,
+		url,
+		async *[Symbol.asyncIterator]() {
+			for (const chunk of chunks) yield chunk;
+		},
+	} as unknown as IncomingMessage;
+}
+
+/** A route response that records what the handler answered. */
+function fakeResponse(): {
+	response: ServerResponse;
+	read: () => { status: number; body: unknown };
+} {
+	let status = 0;
+	let payload = "";
+
+	return {
+		response: {
+			writeHead: (code: number) => {
+				status = code;
+			},
+			end: (text?: string) => {
+				payload = text ?? "";
+			},
+		} as unknown as ServerResponse,
+		read: () => ({
+			status,
+			body: payload === "" ? undefined : JSON.parse(payload),
+		}),
+	};
+}
+
+const panelIssue = {
+	id: "43753",
+	key: "DEV-6471",
+	fields: {
+		summary: "Убрать base64-PNG из SVG-иконок",
+		issuetype: { name: "Задача" },
+		status: { name: "Release Testing" },
+		priority: { name: "Р2" },
+		assignee: { accountId: "acc-1", displayName: "Egor Kain" },
+		reporter: { displayName: "Don Cook" },
+		duedate: "2026-10-30",
+		labels: ["B2C", "Frontend"],
+		updated: "2026-10-19T18:21:23.514Z",
+		timetracking: { originalEstimate: "1ч", originalEstimateSeconds: 3600 },
+		description: "Требуется убрать base64-PNG из иконок.",
+		comment: {
+			comments: [
+				{
+					author: { displayName: "Azaliia Kh" },
+					created: "2026-10-16T15:58:09.328+0200",
+					body: "заменили цвет текста",
+				},
+			],
+		},
+	},
+};
+
+const panelState = new RuntimeState();
+panelState.cloudId = "cloud-1";
+panelState.siteUrl = site;
+
+const panelWrite: { name: string; args: Record<string, unknown> }[] = [];
+let failTransitions = false;
+
+panelState.client = {
+	callTool: async (request: {
+		name: string;
+		arguments: Record<string, unknown>;
+	}) => {
+		panelWrite.push({ name: request.name, args: request.arguments });
+
+		switch (request.name) {
+			case "getJiraIssue":
+				return mcp(panelIssue);
+			case "getTransitionsForJiraIssue":
+				if (failTransitions) throw new Error("no transitions for you");
+				return mcp({
+					transitions: [
+						{
+							id: "11",
+							name: "Ready on Preview",
+							to: { name: "Ready on Preview" },
+							isAvailable: true,
+							hasScreen: false,
+						},
+						{ id: "12", name: "Done", isAvailable: false, hasScreen: true },
+					],
+				});
+			case "lookupJiraAccountId":
+				return mcp({
+					data: {
+						users: {
+							users: [
+								{ accountId: "acc-1", displayName: "Kirill" },
+								{ accountId: "", displayName: "nameless" },
+							],
+						},
+					},
+				});
+			case "getConfluencePage":
+				return mcp({ id: "988676219", title: "Обзор", body: "# Привет" });
+			case "getConfluencePageFooterComments":
+				return mcp({ results: [] });
+			default:
+				return mcp({});
+		}
+	},
+} as unknown as RuntimeState["client"];
+
+const loaded = await panelApi.issue(panelState, "DEV-6471");
+
+check("the panel loads the issue", loaded.key === "DEV-6471");
+check(
+	"the panel keeps the localized type and priority",
+	loaded.type === "Задача" && loaded.priority === "Р2",
+);
+check("the panel links to the issue", loaded.url === `${site}/browse/DEV-6471`);
+check("the panel shows the assignee", loaded.assignee?.name === "Egor Kain");
+check("the panel shows Jira's own estimate", loaded.estimate === "1ч");
+check(
+	"the panel shows the labels and the due date",
+	loaded.labels.length === 2 && loaded.due === "2026-10-30",
+);
+check(
+	"the panel shows the description as text",
+	loaded.description === "Требуется убрать base64-PNG из иконок.",
+	String(loaded.description),
+);
+check(
+	"the panel shows the comment and who wrote it",
+	loaded.comments[0]?.author === "Azaliia Kh" &&
+		loaded.comments[0]?.body === "заменили цвет текста",
+);
+check(
+	"a transition that opens a screen is marked as one",
+	loaded.transitions[1]?.needsFields === true &&
+		loaded.transitions[1]?.available === false,
+);
+check(
+	"an ordinary transition is offered",
+	loaded.transitions[0]?.name === "Ready on Preview" &&
+		loaded.transitions[0]?.to === "Ready on Preview",
+);
+
+// A workflow the token cannot read must not cost the user the issue itself.
+failTransitions = true;
+const withoutTransitions = await panelApi.issue(panelState, "DEV-6471");
+check(
+	"a failed transition list still answers with the issue",
+	withoutTransitions.key === "DEV-6471" &&
+		withoutTransitions.transitions.length === 0,
+);
+failTransitions = false;
+
+const people = await panelApi.people(panelState, "Kir");
+check(
+	"the panel can find a person",
+	people.length === 1 && people[0]?.accountId === "acc-1",
+	String(people.length),
+);
+
+const page = await panelApi.page(panelState, "988676219");
+check(
+	"the panel loads the page",
+	page.title === "Обзор" && page.body === "# Привет",
+);
+check(
+	"a page with no webui link still gets one",
+	page.url === `${site}/wiki/pages/viewpage.action?pageId=988676219`,
+	String(page.url),
+);
+
+// The routes the browser half actually calls.
+const route = createApiHandler(ctx, panelState, resolveConfig(undefined));
+
+const readIssue = fakeResponse();
+await route(
+	fakeRequest("GET", "/dsh-atlassian/issue?key=DEV-6471"),
+	readIssue.response,
+);
+const issueAnswer = readIssue.read();
+check(
+	"the issue route answers a readable document",
+	issueAnswer.status === 200 && asPanelData(issueAnswer.body)?.kind === "issue",
+	`HTTP ${issueAnswer.status}`,
+);
+
+const readPage = fakeResponse();
+await route(
+	fakeRequest("GET", "/dsh-atlassian/page?id=988676219"),
+	readPage.response,
+);
+check(
+	"the page route answers a readable document",
+	asPanelData(readPage.read().body)?.kind === "page",
+);
+
+const readPeople = fakeResponse();
+await route(
+	fakeRequest("GET", "/dsh-atlassian/people?q=Kir"),
+	readPeople.response,
+);
+check("the people route answers a list", Array.isArray(readPeople.read().body));
+
+panelWrite.length = 0;
+const assign = fakeResponse();
+await route(
+	fakeRequest("POST", "/dsh-atlassian/issue/assignee", {
+		key: "DEV-6471",
+		accountId: "acc-1",
+	}),
+	assign.response,
+);
+check(
+	"the assignee route writes the change",
+	panelWrite.some(
+		(call) =>
+			call.name === "editJiraIssue" &&
+			(call.args.fields as { assignee?: { accountId?: string } }).assignee
+				?.accountId === "acc-1",
+	),
+);
+check(
+	"the assignee route answers with the fresh issue",
+	asPanelData(assign.read().body)?.kind === "issue",
+);
+
+const unassign = fakeResponse();
+await route(
+	fakeRequest("POST", "/dsh-atlassian/issue/assignee", {
+		key: "DEV-6471",
+		accountId: null,
+	}),
+	unassign.response,
+);
+check(
+	"an explicit null clears the assignee",
+	panelWrite.some(
+		(call) =>
+			call.name === "editJiraIssue" &&
+			(call.args.fields as { assignee?: unknown }).assignee === null,
+	),
+);
+
+const transition = fakeResponse();
+await route(
+	fakeRequest("POST", "/dsh-atlassian/issue/transition", {
+		key: "DEV-6471",
+		transitionId: "11",
+	}),
+	transition.response,
+);
+check(
+	"the transition route sends the transition id",
+	panelWrite.some(
+		(call) =>
+			call.name === "transitionJiraIssue" &&
+			(call.args.transition as { id?: string }).id === "11",
+	),
+);
+
+const missing = fakeResponse();
+await route(
+	fakeRequest("POST", "/dsh-atlassian/issue/transition", { key: "DEV-6471" }),
+	missing.response,
+);
+check(
+	"a write without its target is refused as a bad request, not a gateway",
+	missing.read().status === 400,
+	`HTTP ${missing.read().status}`,
+);
+
+// The panel's own validator: the browser half must not draw a document this
+// version cannot read.
+check(
+	"a panel target is narrowed",
+	asPanelTarget({ kind: "issue", key: "D-1" })?.kind === "issue" &&
+		asPanelTarget({ kind: "page", id: "42", title: "T" })?.kind === "page",
+);
+check(
+	"a foreign panel target is ignored",
+	asPanelTarget({ kind: "wiki" }) === undefined,
+);
+check(
+	"a panel document without its identity is ignored",
+	asPanelData({ kind: "issue", summary: "no key" }) === undefined,
+);
+check(
+	"a panel document survives a missing optional field",
+	asPanelData({ kind: "issue", key: "D-1" })?.kind === "issue",
 );
 
 await driveFlow(ctx, "https://mcp.atlassian.com/v1/mcp");

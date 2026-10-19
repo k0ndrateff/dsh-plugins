@@ -29,6 +29,8 @@ export const theme = createGlobalThemeContract({
 		cardFill: "dsw-alias-settings-card-fill",
 		cardStroke: "dsw-alias-settings-card-stroke",
 		borderSubtle: "dsw-alias-border-l2",
+		/** The column behind a side panel, as the shell draws it. */
+		bgBase: "dsw-alias-bg-base",
 		hoverFill: "dsw-alias-interactive-bg-hover",
 		link: "dsw-alias-link",
 		codeFill: "dsw-alias-markdown-code-block",

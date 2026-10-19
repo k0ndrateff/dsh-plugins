@@ -6,6 +6,7 @@
  */
 
 import type { PageCard } from "../../shared/meta";
+import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
 import { Badge } from "./badge";
 
@@ -25,6 +26,19 @@ export const PageItem = ({ page }: Props) => {
 						href={page.url}
 						target="_blank"
 						rel="noreferrer"
+						onClick={(event) => {
+							// A page id is what the panel needs; a card that only knows a
+							// URL leaves the click to the browser.
+							if (wantsBrowser(event) || page.id === undefined) return;
+							if (
+								openPanel({
+									kind: "page",
+									id: page.id,
+									title: page.title,
+								})
+							)
+								event.preventDefault();
+						}}
 					>
 						{page.title}
 					</a>

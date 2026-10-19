@@ -14,6 +14,7 @@ import type {
 	MetaKind,
 	PageCard,
 } from "../../shared/meta";
+import { mcpJson, mcpText } from "../mcp/payload";
 
 export interface ExtractOptions {
 	/** The server's own tool name. */
@@ -73,8 +74,8 @@ class Extractor {
 	private readonly MAX_DEPTH = 7;
 	private readonly MAX_CARDS = 25;
 	private readonly MAX_TEXT = 4000;
-	/** Longest description or body kept for the gist pass. */
-	private readonly MAX_BODY = 4000;
+	/** Longest description or body kept for a summary pass or a panel. */
+	private readonly MAX_BODY = 8000;
 
 	/** Node types that end a line, so a flattened document keeps its shape. */
 	private readonly BLOCK_TYPES = new Set([
@@ -94,7 +95,7 @@ class Extractor {
 	 * @returns the meta the client renders; `text` is always populated.
 	 */
 	extract = (options: ExtractOptions): AtlassianMeta => {
-		const texts = this.textBlocks(options.value);
+		const texts = mcpText(options.value);
 		const joined = texts.join("\n").trim();
 
 		const roots: unknown[] = [];
@@ -102,16 +103,7 @@ class Extractor {
 
 		if (structured !== undefined) roots.push(structured);
 
-		for (const text of texts) {
-			const trimmed = text.trim();
-
-			if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) continue;
-			try {
-				roots.push(JSON.parse(trimmed));
-			} catch {
-				// Not JSON; the text excerpt still carries the answer.
-			}
-		}
+		roots.push(...mcpJson(options.value));
 
 		const objects: Record<string, unknown>[] = [];
 		const strings: string[] = [];
@@ -171,25 +163,15 @@ class Extractor {
 		};
 	};
 
-	/** Text content blocks of an MCP result, in order. */
-	private textBlocks = (value: unknown): string[] => {
-		if (value === null || typeof value !== "object") return [];
-
-		const content = (value as { content?: unknown }).content;
-
-		if (!Array.isArray(content)) return [];
-
-		const out: string[] = [];
-		for (const block of content) {
-			if (block !== null && typeof block === "object") {
-				const { type, text } = block as { type?: unknown; text?: unknown };
-
-				if (type === "text" && typeof text === "string") out.push(text);
-			}
-		}
-
-		return out;
-	};
+	/**
+	 * Flatten one rich field to the plain text a caller can use.
+	 *
+	 * The side panel reads a description or a comment body through this: the same
+	 * markdown-or-ADF handling the cards use, with the same bound.
+	 * @param value - a markdown string, an ADF tree, or anything else.
+	 * @returns the text, or undefined when there is none.
+	 */
+	text = (value: unknown): string | undefined => this.plainText(value);
 
 	private collectStrings = (
 		node: unknown,
