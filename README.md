@@ -7,6 +7,9 @@ the Web Client instead of raw JSON.
 
 Built and verified against DSH `0.2.1-rc.2`.
 
+Where this is going — several small plugins on one shared OAuth library, plus
+Sentry, GitLab and Figma — is written down in [docs/roadmap.md](docs/roadmap.md).
+
 ## What you get
 
 - **The agent's Atlassian tools.** The tools of `https://mcp.atlassian.com/v1/mcp`
