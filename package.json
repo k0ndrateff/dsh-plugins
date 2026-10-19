@@ -1,0 +1,74 @@
+{
+  "name": "dsh-atlassian",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Jira and Confluence for DeepSeek Harness: Atlassian OAuth sign-in and the tools of Atlassian's remote MCP server",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "test": "npm run build && node test/dry-run.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.2.0",
+    "@vanilla-extract/css": "^1.21.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-tool": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.12",
+    "@vanilla-extract/esbuild-plugin": "^2.3.22",
+    "esbuild": "^0.25.0",
+    "typescript": "7"
+  }
+}
