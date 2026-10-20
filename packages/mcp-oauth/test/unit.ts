@@ -18,6 +18,7 @@ import {
 } from "../src/account";
 import { Grant } from "../src/grant";
 import { jsonSafe } from "../src/json";
+import { mcpJson } from "../src/payload";
 import {
 	accountLabel,
 	credentialKeyOf,
@@ -227,6 +228,36 @@ check(
 check(
 	"an explicit method wins over the presence of a secret",
 	authMethodOf({ clientSecret: "s", tokenAuthMethod: "none" }) === "none",
+);
+
+console.log("\n=== reading a tool result ===");
+
+check(
+	"the JSON inside a text block is read",
+	mcpJson({ content: [{ type: "text", text: '{"a":1}' }] }).length === 1,
+);
+check(
+	"structuredContent is read even when no block carries it",
+	(
+		mcpJson({
+			content: [{ type: "text", text: "prose" }],
+			structuredContent: { a: 1 },
+		}).at(0) as { a?: number } | undefined
+	)?.a === 1,
+);
+check(
+	"structuredContent comes before the text that renders it",
+	(
+		mcpJson({
+			content: [{ type: "text", text: '{"from":"text"}' }],
+			structuredContent: { from: "structured" },
+		})[0] as { from?: string } | undefined
+	)?.from === "structured",
+);
+check(
+	"prose alone yields nothing to walk",
+	mcpJson({ content: [{ type: "text", text: "# Heading\n\nprose" }] })
+		.length === 0 && mcpJson(undefined).length === 0,
 );
 
 console.log("\n=== the stored grant ===");

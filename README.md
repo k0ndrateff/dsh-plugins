@@ -13,6 +13,7 @@ Built and verified against DSH `0.2.1-rc.2`.
 | Package | What it is |
 |---|---|
 | [`packages/atlassian`](packages/atlassian) | `dsh-atlassian-plugin` — Jira and Confluence |
+| [`packages/sentry`](packages/sentry) | `dsh-sentry-plugin` — Sentry errors, with a card and a panel |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 
@@ -99,6 +100,31 @@ file is a working example:
 - **Nothing is written to the project**, and each recipe runs through the
   harness's own shell seam, so the same sandbox and environment rules as `bash`
   apply.
+
+## Sentry
+
+The third bundle connects Sentry's remote MCP server through the same library the
+Atlassian plugin uses: discovery, dynamic client registration, PKCE, and the
+bridge that keeps the token fresh. `/sentry login` signs in, a **Sentry** section
+in Settings shows the state, and the server's fifteen tools arrive as ordinary
+harness tools (`mcp__sentry__search_issues`, `mcp__sentry__get_sentry_resource`,
+`mcp__sentry__update_issue`, …).
+
+On top of them:
+
+- **`sentry_present`** — a card under the answer: a search or a list of issue ids,
+  each row with its status, assignee, event and user counts, and a link to the
+  issue. When the card is about one issue, the suspect commit rides along —
+  short sha, message, author, and the tracker key the message names.
+- **The issue panel** — click a row and the whole issue opens in the harness's own
+  right panel: the exception and its full stack trace, the code location, the
+  suspect commit, the tags, and the buttons that change it — **Resolve**,
+  **Ignore**, **Reopen**, and **Assign** to `user:<id>` or `team:<slug>`.
+
+Sentry's server answers its issue tools with Markdown meant for a person (it even
+suggests a card), so the plugin reads that document rather than a JSON payload;
+the readers live in `src/host/presentation/parse.ts` and are pinned by captures
+from the live server.
 
 ## Configuration
 

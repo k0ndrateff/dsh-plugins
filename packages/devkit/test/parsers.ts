@@ -59,6 +59,23 @@ const BIOME_PRETTY_WARNING = [
 	"Found 1 warning.",
 ].join("\n");
 
+/**
+ * Captured: `biome check` on a file the formatter would rewrite. Its header
+ * names no position, because the diagnostic is about the whole file.
+ */
+const BIOME_PRETTY_FORMAT = [
+	".dsh-checks.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+	"",
+	"  × Formatter would have printed the following content:",
+	"  ",
+	"     1  1 │   {",
+	'     2    │ - ··"checks":·{',
+	'        2 │ + → "checks":·{',
+	"",
+	"Checked 1 file in 12ms. No fixes applied.",
+	"Found 1 error.",
+].join("\n");
+
 /** Documented: ESLint's default `stylish` formatter. */
 const ESLINT_STYLISH = [
 	"/Users/me/app/src/sum.js",
@@ -206,6 +223,22 @@ section("biome");
 	check(
 		"a pretty run counts what its summary line says",
 		parserNamed("biome")(BIOME_PRETTY_WARNING).summary.warnings === 1,
+	);
+
+	const formatted = parserNamed("biome")(BIOME_PRETTY_FORMAT);
+
+	check(
+		"a formatter diagnostic, whose header names no position, is still read",
+		formatted.failures.length === 1 &&
+			formatted.failures[0]?.file === ".dsh-checks.json" &&
+			formatted.failures[0]?.rule === "format" &&
+			(formatted.failures[0]?.message ?? "").startsWith("Formatter would"),
+		JSON.stringify(formatted.failures[0]),
+	);
+	check(
+		"a formatter diagnostic keeps no line it does not have",
+		formatted.failures[0]?.line === undefined && formatted.summary.errors === 1,
+		JSON.stringify(formatted.summary),
 	);
 }
 

@@ -1,0 +1,21 @@
+# dsh-sentry-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# Override or disable it from the profile patch with:
+#   - id: sentry
+#     disabled: true
+- insert:
+    - id: sentry
+      name: dsh-sentry-plugin
+      config:
+        # Sentry's remote MCP resource. It is also the RFC 8707 `resource`
+        # parameter every token request carries.
+        endpoint: https://mcp.sentry.dev/mcp
+        # Loopback port for the OAuth redirect (http://127.0.0.1:<port>/callback).
+        # The next free port is used when this one is taken.
+        redirectPort: 8144
+        # Set true to log the raw MCP payloads of every Sentry tool result.
+        debug: false

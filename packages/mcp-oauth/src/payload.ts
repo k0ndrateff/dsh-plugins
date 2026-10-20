@@ -30,12 +30,21 @@ export function mcpText(value: unknown): string[] {
 /**
  * The JSON payloads an MCP result carries.
  *
- * A block that is not JSON is skipped rather than failing the read: a server
- * may answer a successful call with prose, and the caller's text fallback is
- * then the truthful answer.
+ * `structuredContent` comes first when the server sent it: it is the canonical
+ * machine-readable answer, and the text blocks are its rendering. A block that
+ * is not JSON is skipped rather than failing the read: a server may answer a
+ * successful call with prose, and the caller's text fallback is then the
+ * truthful answer.
  */
 export function mcpJson(value: unknown): unknown[] {
 	const roots: unknown[] = [];
+
+	if (value !== null && typeof value === "object") {
+		const structured = (value as { structuredContent?: unknown })
+			.structuredContent;
+
+		if (structured !== undefined) roots.push(structured);
+	}
 
 	for (const text of mcpText(value)) {
 		const trimmed = text.trim();

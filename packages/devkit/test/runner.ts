@@ -316,6 +316,39 @@ section("reading the two streams");
 			(expired.output ?? "").includes("still running"),
 		expired.output,
 	);
+
+	// A tool may report on both streams at once, and each report is a finding.
+	const { ctx: onBoth } = scriptedShell({
+		exitCode: 1,
+		stdout: "src/a.ts(1,1): error TS1: from stdout\n",
+		stderr: "src/b.ts(2,2): error TS2: from stderr\n",
+	});
+	const two = await new RecipeRunner(onBoth).run(recipe({ parser: "tsc" }), {
+		cwd: "/work",
+	});
+
+	check(
+		"failures on both streams are all kept",
+		two.failures.length === 2 &&
+			two.failures[0]?.file === "src/a.ts" &&
+			two.failures[1]?.file === "src/b.ts",
+		JSON.stringify(two.failures.map((failure) => failure.file)),
+	);
+
+	const { ctx: twice } = scriptedShell({
+		exitCode: 1,
+		stdout: "src/a.ts(1,1): error TS1: same\n",
+		stderr: "src/a.ts(1,1): error TS1: same\n",
+	});
+	const once = await new RecipeRunner(twice).run(recipe({ parser: "tsc" }), {
+		cwd: "/work",
+	});
+
+	check(
+		"the same failure written twice is read once",
+		once.failures.length === 1,
+		JSON.stringify(once.failures),
+	);
 }
 
 section("live: real commands through a real process");

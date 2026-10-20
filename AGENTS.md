@@ -9,12 +9,12 @@
 интеграции с внешними системами, которые дают агенту тулы, а человеку — карточки
 и панели внутри харнесса вместо переключения в браузер.
 
-Текущее состояние — Atlassian (Jira + Confluence) и проект-плагин проверок.
-Куда идём — [docs/roadmap.md](docs/roadmap.md): Sentry, GitLab, Figma, общая
-панель и дайджест. **M0, M1 и M2 сделаны**: `dsh-mcp-oauth` вынесена и умеет
-мультиаккаунт и no-auth, Atlassian-плагин работает на ней, а `dsh-devkit-plugin`
-запускает рецепты проверок проекта. Активная веха — **M3** (Sentry, первый
-провайдер на библиотеке).
+Текущее состояние — Atlassian (Jira + Confluence), Sentry и проект-плагин
+проверок. Куда идём — [docs/roadmap.md](docs/roadmap.md): GitLab, Figma, общая
+панель и дайджест. **M0–M3 сделаны**: `dsh-mcp-oauth` вынесена и умеет
+мультиаккаунт и no-auth, Atlassian и Sentry работают на ней, `dsh-devkit-plugin`
+запускает рецепты проверок проекта. Активная веха — **M4** (общая обвязка UI)
+перед GitLab.
 
 ## 2. Структура
 
@@ -25,6 +25,7 @@
 packages/
 ├── mcp-oauth/     dsh-mcp-oauth         библиотека: OAuth для MCP-серверов
 ├── devkit/        dsh-devkit-plugin     бандл: рецепты проверок проекта
+├── sentry/        dsh-sentry-plugin     бандл: ошибки Sentry
 └── atlassian/     dsh-atlassian-plugin  бандл: Jira и Confluence
 ```
 
@@ -38,9 +39,8 @@ test/         проверки, запускаются bun
 lib/          собранное (в git не хранится)
 ```
 
-Плановые пакеты (`sentry`, `gitlab`, `figma`, `devkit`, `integration-ui`,
-`plugin-build`, `workflow`) появятся по мере вех — имена зарезервированы в
-roadmap.
+Плановые пакеты (`gitlab`, `figma`, `integration-ui`, `plugin-build`,
+`workflow`) появятся по мере вех — имена зарезервированы в roadmap.
 
 ## 3. Команды
 
@@ -242,8 +242,8 @@ factory})`; её `require` умеет **только** то, что перечи
 
 ## 8. Куда идти дальше
 
-- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0, M1 и M2, дальше —
-  M3.
+- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0–M3, дальше — M4
+  (общая обвязка UI) перед GitLab.
 - Описание для пользователя — [README.md](README.md).
 - Принятые решения (монорепа, имена без скоупа, gitlab.com, дайджест с
   настройкой, социальные действия через `confirm`) — раздел 8 в roadmap.

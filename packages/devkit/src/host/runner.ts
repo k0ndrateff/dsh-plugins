@@ -15,6 +15,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ShellRunResult } from "@deepseek-ai/dsh-shell";
 import {
+	type CheckFailure,
 	type CheckResult,
 	type CheckSummary,
 	OUTPUT_TAIL_LINES,
@@ -134,11 +135,14 @@ export class RecipeRunner {
 	/**
 	 * Read both streams and keep what each said.
 	 *
-	 * A tool may write one report to one stream, or split it: Biome prints its
-	 * diagnostics on stderr and its counts on stdout. So both are parsed, the
-	 * failures are the ones either stream produced — stdout first, because that
-	 * is where a tool with a single report writes it — and each count is the
-	 * larger of the two, so a stream that only repeats a count cannot double it.
+	 * A tool may write one report to one stream, or split it across both — Biome
+	 * prints its diagnostics on stderr and its counts on stdout — so both are
+	 * parsed and both streams' failures are kept. A tool that writes the same
+	 * diagnostic twice is read once: identity is the file, position, rule, and
+	 * wording together.
+	 *
+	 * Each count is the larger of the two, not the sum: a stream that only
+	 * repeats a count must not double it.
 	 */
 	private parse(recipe: Recipe, result: ShellRunResult): ParsedOutput {
 		const parse = parserNamed(recipe.parser);
@@ -158,8 +162,30 @@ export class RecipeRunner {
 				testsFailed: largest((summary) => summary.testsFailed),
 				testsSkipped: largest((summary) => summary.testsSkipped),
 			},
-			failures:
-				fromOut.failures.length > 0 ? fromOut.failures : fromErr.failures,
+			failures: distinct([...fromOut.failures, ...fromErr.failures]),
 		};
 	}
+}
+
+/** The failures of both streams, without the ones a tool wrote twice. */
+function distinct(failures: readonly CheckFailure[]): CheckFailure[] {
+	const seen = new Set<string>();
+	const kept: CheckFailure[] = [];
+
+	for (const failure of failures) {
+		const key = [
+			failure.file ?? "",
+			failure.line ?? "",
+			failure.column ?? "",
+			failure.rule ?? "",
+			failure.message,
+		].join("\u0000");
+
+		if (seen.has(key)) continue;
+
+		seen.add(key);
+		kept.push(failure);
+	}
+
+	return kept;
 }

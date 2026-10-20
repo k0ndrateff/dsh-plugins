@@ -4,9 +4,13 @@
  * Biome can say the same thing two ways, and this reads both. Its JSON reporter
  * carries severity, category, and location per diagnostic, so a recipe that
  * writes `biome check --reporter=json` gets an exact reading; the default
- * pretty reporter gets a best-effort one — a header line names the file, the
- * rule, and the position, and the first marker under it says whether the
- * diagnostic is an error (`×`) or a warning (`!`).
+ * pretty reporter gets a best-effort one — a header line names the file and the
+ * rule, and the first marker under it says whether the diagnostic is an error
+ * (`×`) or a warning (`!`).
+ *
+ * A lint diagnostic's header carries the position; a formatter diagnostic has
+ * none, because it is about the whole file — `path format ━━━` — so both header
+ * shapes are read and the position is kept only when there is one.
  *
  * The JSON reporter announces itself as experimental on a line before the
  * document, so the document starts at the first brace.
@@ -19,9 +23,13 @@ import {
 } from "../../shared/checks";
 import type { ParsedOutput, Parser } from "./parsed";
 
-/** The header of one pretty diagnostic: path, position, and rule category. */
-const HEADER =
+/** The header of one pretty diagnostic that names a position. */
+const LOCATED =
 	/^(?<file>[^\s:][^:]*):(?<line>\d+):(?<column>\d+) (?<category>\S+)/u;
+
+/** The header of one that does not: a formatter diagnostic over a whole file. */
+const UNLOCATED =
+	/^(?<file>[^\s:][^:]*?) (?<category>(?:lint|assist|syntax|format|project)\S*)(?=\s|$)/u;
 
 /** The marker line that says how severe the diagnostic above it is. */
 const MARKER = /^\s*(?<marker>[×!])\s/u;
@@ -143,16 +151,20 @@ function readPretty(text: string): ParsedOutput {
 	const failures: CheckFailure[] = [];
 
 	for (let index = 0; index < lines.length; index += 1) {
-		const header = HEADER.exec(lines[index] ?? "");
+		const line = lines[index] ?? "";
+		const located = LOCATED.exec(line);
+		const header = located ?? UNLOCATED.exec(line);
 
 		if (header?.groups === undefined) continue;
 
 		const marked = diagnosticBelow(lines, index + 1);
+		const at = Number(located?.groups?.line);
+		const column = Number(located?.groups?.column);
 
 		failures.push({
 			file: header.groups.file ?? "",
-			line: Number(header.groups.line),
-			column: Number(header.groups.column),
+			...(Number.isFinite(at) ? { line: at } : {}),
+			...(Number.isFinite(column) ? { column } : {}),
 			rule: header.groups.category ?? "",
 			message: marked.message,
 			severity: marked.severity,
@@ -178,7 +190,7 @@ function diagnosticBelow(
 	for (let index = from; index < lines.length; index += 1) {
 		const line = lines[index] ?? "";
 
-		if (HEADER.test(line)) break;
+		if (LOCATED.test(line) || UNLOCATED.test(line)) break;
 
 		const marker = MARKER.exec(line);
 

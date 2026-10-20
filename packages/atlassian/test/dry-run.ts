@@ -180,7 +180,9 @@ async function driveFlow(ctx: Context, endpoint: string): Promise<void> {
 		.run(ctx, session)
 		.catch((error: unknown) => error);
 
-	for (let waited = 0; waited < 60 && notify === undefined; waited += 1)
+	// The flow discovers an authorization server and registers a client before it
+	// publishes anything, and both are live calls: a slow minute is not a failure.
+	for (let waited = 0; waited < 300 && notify === undefined; waited += 1)
 		await new Promise((resolve) => {
 			setTimeout(resolve, 100);
 		});
