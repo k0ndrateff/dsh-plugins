@@ -27,6 +27,7 @@ export type {
 	PresentationLayout,
 	PresentationLayoutInput,
 } from "./card/types";
+export { Fact } from "./fact";
 export { createHostRequest, type HostRequest } from "./host-api";
 export { createPanelBody } from "./panel/body";
 export {
@@ -49,6 +50,7 @@ export {
 	createSettingsSection,
 	type SettingsApi,
 	type SettingsSectionSpec,
+	type TokenFieldSpec,
 } from "./settings/section";
 export { installStyles } from "./styles/runtime";
 export {

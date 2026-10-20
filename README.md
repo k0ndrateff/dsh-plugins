@@ -1,10 +1,10 @@
 # dsh-plugins
 
-DeepSeek Harness plugins: Jira and Confluence today, Sentry, GitLab and Figma
-next. One plugin gives the agent the tools of a remote MCP server, signs in
-through a real OAuth flow, and draws what it finds as cards and panels in the Web
-Client instead of raw JSON — and the OAuth half is a library, because the harness
-has none.
+DeepSeek Harness plugins: Jira and Confluence, Sentry, and GitLab today, Figma
+next. One plugin gives the agent the tools of a provider, connects it however
+that provider allows — an OAuth flow, or a personal access token the user pastes
+— and draws what it finds as cards and panels in the Web Client instead of raw
+JSON. The OAuth half is a library, because the harness has none.
 
 Built and verified against DSH `0.2.1-rc.2`.
 
@@ -14,6 +14,7 @@ Built and verified against DSH `0.2.1-rc.2`.
 |---|---|
 | [`packages/atlassian`](packages/atlassian) | `dsh-atlassian-plugin` — Jira and Confluence |
 | [`packages/sentry`](packages/sentry) | `dsh-sentry-plugin` — Sentry errors, with a card and a panel |
+| [`packages/gitlab`](packages/gitlab) | `dsh-gitlab-plugin` — merge requests, review threads and pipelines |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 | [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
@@ -48,9 +49,11 @@ names the account, and the paths its panel uses. `dsh-integration-ui` owns the
 side-panel body — loading, failing, retrying, one write at a time — the result
 card under the answer, the terse tool row, the settings card and the stylesheet
 they are drawn with; a plugin supplies its payload, its drawing rules, and its own
-tab kind. Atlassian, Sentry and devkit are built on both.
+tab kind. The settings card takes either shape of sign-in: a button that starts a
+browser flow, or a field the user pastes a credential into. Atlassian, Sentry,
+GitLab and devkit are built on both.
 
-Where this is going — GitLab, Figma, and the digest — is written down in
+Where this is going — Figma and the digest — is written down in
 [docs/roadmap.md](docs/roadmap.md). How to work in this
 repository is [AGENTS.md](AGENTS.md).
 
@@ -138,6 +141,40 @@ suggests a card), so the plugin reads that document rather than a JSON payload;
 the readers live in `src/host/presentation/parse.ts` and are pinned by captures
 from the live server.
 
+## GitLab
+
+The fourth bundle talks to GitLab's REST API with a personal access token the
+user pastes into a **GitLab** section in Settings. It is not the MCP server, and
+that is a recorded fact rather than a preference: GitLab's MCP endpoint is
+switched off for a whole top-level group unless an Owner turns it on, and the
+tokens it issues carry the single scope `mcp`, which no REST call accepts. A
+token the user already has works everywhere, and the plugin keeps it in the
+harness credential store under `dsh-gitlab/token`.
+
+On top of the API:
+
+- **`gitlab_present`** — a card under the answer: merge requests waiting for your
+  review, your own, a search, one merge request's review findings, or its failed
+  jobs. A row carries the reference, state, draft flag, author, reviewers and note
+  count, and a finding row carries the file and line a reviewer asked about.
+- **The merge request panel** — click a row and the whole merge request opens in
+  the harness's own right panel, in four sections: **Overview** (branches,
+  labels, description, approve), **Diff** (every changed file with its patch and
+  per-file counts), **Discussions** (threads filtered to unresolved or to
+  findings, with reply and resolve), and **Pipeline** (the jobs, and a failed
+  job's trace read on demand).
+- **`gitlab_review`** — comment, reply in a thread, resolve or reopen one, approve
+  or unapprove. Every one of these changes somebody else's merge request, so the
+  tool never sends one by itself: without `confirm` it answers with the exact text
+  that would be posted, and the panel shows the same draft with a Send button
+  beside it.
+
+The readers live in `src/host/presentation/parse.ts` and are pinned by captures
+from a live account — the shapes in `test/readers.ts` are what gitlab.com
+actually answered, including the naming GitLab mixes (`web_url` beside
+`detailed_merge_status`) and the fact that the discussions endpoint reports a
+note's resolution on the note rather than on the thread.
+
 ## Configuration
 
 The Atlassian bundle's patch inserts one row with defaults; override the row from
@@ -156,6 +193,21 @@ The Atlassian bundle's patch inserts one row with defaults; override the row fro
 | `endpoint` | `https://mcp.atlassian.com/v1/mcp` | MCP resource to connect to |
 | `redirectPort` | `8143` | First loopback port tried for the OAuth callback; the next free port is used if it is taken |
 | `debug` | `false` | Log the raw payload of every Atlassian tool result |
+
+The GitLab bundle takes an instance root and a debug flag, and no port — there is
+no browser flow to come back to:
+
+```yaml
+- id: gitlab
+  config:
+    endpoint: https://gitlab.com
+    debug: false
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `endpoint` | `https://gitlab.com` | Instance root; calls are made under its `/api/v4` |
+| `debug` | `false` | Log the raw payload of every GitLab call |
 
 Disable either plugin without uninstalling it:
 
@@ -207,10 +259,24 @@ project's, and that lives in the project.
   cannot be taken from the panel, because it has no form for the required fields;
   the assignee search matches on the site's own lookup, which needs two
   characters and a moment.
-- **The `/dsh-atlassian` route is unauthenticated**, unlike `/api`. It is
-  loopback-only, like the rest of the web server, but any local process can read
-  the sign-in state, start or stop a sign-in, and now also transition an issue or
-  reassign it, with the signed-in user's own permissions.
+- **The local routes are unauthenticated** (`/dsh-atlassian`, `/dsh-gitlab`),
+  unlike `/api`. They are loopback-only, like the rest of the web server, but any
+  local process can read the sign-in state, start or stop a sign-in, store a
+  token, and act on an issue or a merge request with the signed-in user's own
+  permissions.
+- **GitLab signs in with a token, not a browser.** A personal access token with
+  the `api` scope is required; `read_api` covers the reads, and the writes
+  (comment, reply, resolve, approve) need `api`.
+- **GitLab's MCP server needs a group switch.** It is off unless an Owner of the
+  top-level group turns on **Settings → General → Permissions and group features
+  → MCP client access → Allow connection to GitLab**, and its tokens work only at
+  the MCP endpoint. That is why this plugin drives REST instead.
+- **A job's trace is cut to its last 64 KiB.** A failed job's log runs up to the
+  failure, so the end is what is kept; the panel says so and links to the job.
+- **A merge request list carries no pipeline status.** GitLab's list endpoint does
+  not send `head_pipeline`, so a list row shows the state and the reviewers but
+  no pipeline badge; the panel's Pipeline tab reads it from the merge request
+  itself.
 - **The card's copy is English and not routed through the client locale
   service**, which is registered per namespace at build time in TypeScript. The
   facts on a card are whatever the site says, in the site's own language.

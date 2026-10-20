@@ -6,11 +6,11 @@
  * whenever this build has no panel at all.
  */
 
+import { Fact } from "dsh-integration-ui";
 import type { MouseEvent } from "react";
 import type { IssueCard } from "../../shared/meta";
 import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
-import { Fact } from "./fact";
 
 interface Props {
 	issue: IssueCard;

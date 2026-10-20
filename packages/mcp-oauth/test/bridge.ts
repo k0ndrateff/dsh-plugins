@@ -174,6 +174,40 @@ async function startFakeServer(): Promise<FakeServer> {
 	};
 }
 
+/**
+ * A server that refuses every request, as a provider does when the resource is
+ * not switched on for the account.
+ */
+async function startRefusingServer(): Promise<FakeServer> {
+	const server: Server = createServer((_request, response) => {
+		response
+			.writeHead(403, { "content-type": "application/json" })
+			.end(
+				JSON.stringify({ message: "403 Forbidden - MCP server not enabled" }),
+			);
+	});
+
+	await new Promise<void>((resolve) => {
+		server.listen(0, "127.0.0.1", resolve);
+	});
+
+	const address = server.address();
+	const port =
+		typeof address === "object" && address !== null ? address.port : 0;
+
+	return {
+		endpoint: `http://127.0.0.1:${port}/mcp`,
+		seen: [],
+		close: async () => {
+			server.closeAllConnections();
+
+			await new Promise<void>((resolve) => {
+				server.close(() => resolve());
+			});
+		},
+	};
+}
+
 /** A harness context with just enough surface for the bridge and its store. */
 function harness(records: Map<string, unknown>): {
 	ctx: Context;
@@ -356,6 +390,29 @@ check(
 	refused !== "",
 );
 
+console.log("\n=== a server that refuses the connection ===");
+
+const refusing = await startRefusingServer();
+const blocked = new McpBridge({
+	profile: localProfile(refusing.endpoint),
+	clientInfo: CLIENT_INFO,
+});
+
+check(
+	"a refused connection is not usable",
+	(await blocked.ensure(ctx)) === false,
+);
+check(
+	"the reason the server gave is kept for the settings card",
+	blocked.lastFailure?.includes("403 Forbidden") === true,
+	String(blocked.lastFailure),
+);
+check(
+	"a bridge that never failed has no reason to show",
+	local.lastFailure === undefined && remote.lastFailure === undefined,
+);
+
+await refusing.close();
 await server.close();
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

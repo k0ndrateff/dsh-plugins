@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "Developer Kit",
+		"description": "Project-owned checks for DeepSeek Harness: named recipes for lint, typecheck, tests and build, run as one tool and shown as a card."
+	}
+}

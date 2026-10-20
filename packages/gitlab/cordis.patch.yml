@@ -1,0 +1,18 @@
+# dsh-gitlab-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# Override or disable it from the profile patch with:
+#   - id: gitlab
+#     disabled: true
+- insert:
+    - id: gitlab
+      name: dsh-gitlab-plugin
+      config:
+        # The GitLab instance's own root. Calls are made under its /api/v4, so a
+        # self-hosted instance is named as https://gitlab.example.
+        endpoint: https://gitlab.com
+        # Set true to log the raw GitLab payloads of every tool result.
+        debug: false

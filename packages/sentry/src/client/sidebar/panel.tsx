@@ -16,6 +16,7 @@ import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
 	createPanelBody,
 	createPanelTitle,
+	Fact,
 	type PanelActions,
 	type PanelProvider,
 } from "dsh-integration-ui";
@@ -28,7 +29,6 @@ import {
 	type IssuePanel,
 	type IssueTag,
 } from "../../shared/meta";
-import { Fact } from "../components/fact";
 import { SuspectRow } from "../components/suspect-row";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";

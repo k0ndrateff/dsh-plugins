@@ -30,6 +30,17 @@ import {
 /** The redirect URI every registration here is bound to. */
 const REDIRECT_URI = "http://127.0.0.1:8143/callback";
 
+/**
+ * Whether a registration was refused for asking too often.
+ *
+ * Registration creates a real OAuth application on the provider, and providers
+ * limit how many one address may create in an hour — GitLab allows ten. A run
+ * that arrives after the limit is spent has learned nothing about the library,
+ * so it reports the provider as skipped rather than as broken.
+ */
+const rateLimited = (reason: string): boolean =>
+	/\b429\b|rate limit|temporarily_unavailable/iu.test(reason);
+
 /** The name a consent screen shows for a conformance client. */
 const CLIENT_NAME = "DeepSeek Harness conformance";
 
@@ -274,7 +285,15 @@ async function conformConfidential(oauth: OAuthServer): Promise<void> {
 				String(refused),
 			);
 		} catch (error) {
-			check(`${method} registration issued a secret`, false, errorText(error));
+			const reason = errorText(error);
+
+			if (rateLimited(reason)) {
+				console.log(`  --   ${method} registration is rate-limited; skipped`);
+
+				continue;
+			}
+
+			check(`${method} registration issued a secret`, false, reason);
 		}
 	}
 }
@@ -382,7 +401,17 @@ async function conform(provider: Provider): Promise<void> {
 	try {
 		client = await oauth.registerClient(REDIRECT_URI, CLIENT_NAME);
 	} catch (error) {
-		check("registration issued a client", false, errorText(error));
+		const reason = errorText(error);
+
+		if (rateLimited(reason)) {
+			console.log(
+				`  --   registration is rate-limited right now; the rest of ${provider.name} is skipped — ${reason}`,
+			);
+
+			return;
+		}
+
+		check("registration issued a client", false, reason);
 
 		return;
 	}

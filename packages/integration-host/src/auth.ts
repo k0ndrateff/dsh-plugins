@@ -160,7 +160,15 @@ export class IntegrationAuth<
 
 		const ready = await bridge.ensure(ctx);
 
-		if (ready) await this.learn();
+		if (ready) {
+			state.error = undefined;
+			await this.learn();
+		} else {
+			// The reason a connection failed is the provider's own words — a group
+			// switch that is off, a scope the token lacks — and it is what the
+			// settings card must show, rather than a bare "not connected".
+			state.error = bridge.lastFailure;
+		}
 
 		return ready;
 	}

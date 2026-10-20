@@ -10,7 +10,12 @@
  * account it works with — arrives as one extra row.
  */
 
-import { Button, StateDot, Tag } from "@deepseek-ai/dsh-client-ui-primitives";
+import {
+	Button,
+	Input,
+	StateDot,
+	Tag,
+} from "@deepseek-ai/dsh-client-ui-primitives";
 import type { IntegrationStatus } from "dsh-integration-host/status";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,32 +26,77 @@ const POLL_MS = 1500;
 
 type ConnectionState = "done" | "ongoing" | "idle";
 
-/** The four operations every settings card drives. */
+/** The operations every settings card drives. */
 export interface SettingsApi<TStatus extends IntegrationStatus> {
 	/** Read the current sign-in and connection state. */
 	status(): Promise<TStatus>;
-	/** Start a sign-in attempt; resolves as soon as the attempt is running. */
-	login(): Promise<TStatus>;
-	/** Forget the stored sign-in and withdraw the published tools. */
+	/** Start a sign-in attempt; a token card has no flow to start. */
+	login?(): Promise<TStatus>;
+	/** Forget the stored credential and withdraw the published tools. */
 	logout(): Promise<TStatus>;
-	/** Reconnect and re-publish the integration's tools. */
+	/** Verify the stored credential and re-publish the integration's tools. */
 	sync(): Promise<TStatus>;
 }
 
-/** Everything one integration's settings card says and does. */
-export interface SettingsSectionSpec<TStatus extends IntegrationStatus> {
+/**
+ * A credential the user types, for an integration with no browser flow.
+ *
+ * Some providers have no page to send the user to: a personal access token, a
+ * client id and secret the administrator issued. The card then offers a field
+ * instead of a sign-in button, and the same status document says whether what
+ * was stored works.
+ */
+export interface TokenFieldSpec<TStatus extends IntegrationStatus> {
+	/** The field's own name, such as "Personal access token". */
+	readonly label: string;
+	readonly placeholder: string;
+	/** Where the user gets one, in one sentence. */
+	readonly hint: string;
+	readonly saveLabel: string;
+	/** What the button that forgets the stored credential says. */
+	readonly clearLabel: string;
+	/**
+	 * Store one typed credential and verify it.
+	 * @returns the status as it now stands, error and all.
+	 */
+	save(token: string): Promise<TStatus>;
+}
+
+/** What every settings card says, whatever it does to connect. */
+interface SectionCommon<TStatus extends IntegrationStatus> {
 	readonly title: string;
 	readonly blurb: string;
 	/** What the card says while the first read is in flight. */
 	readonly checking: string;
 	/** What the card says when the host half does not answer at all. */
 	readonly unreachable: string;
-	readonly signInLabel: string;
 	readonly syncLabel: string;
 	readonly api: SettingsApi<TStatus>;
 	/** Rows the provider adds under the blurb, such as the account it works with. */
 	readonly details?: (status: TStatus) => ReactNode;
 }
+
+/** A card whose provider signs in through a browser. */
+interface BrowserSection<TStatus extends IntegrationStatus>
+	extends SectionCommon<TStatus> {
+	readonly signInLabel: string;
+	/** A browser card has no field: the two are alternatives, not options. */
+	readonly token?: undefined;
+	/** Its provider can start a flow, so its api must offer one. */
+	readonly api: SettingsApi<TStatus> & { login(): Promise<TStatus> };
+}
+
+/** A card whose provider's credential is typed by the user. */
+interface TokenSection<TStatus extends IntegrationStatus>
+	extends SectionCommon<TStatus> {
+	readonly token: TokenFieldSpec<TStatus>;
+	readonly signInLabel?: undefined;
+}
+
+/** Everything one integration's settings card says and does. */
+export type SettingsSectionSpec<TStatus extends IntegrationStatus> =
+	| BrowserSection<TStatus>
+	| TokenSection<TStatus>;
 
 /** Human text for the connection state, for the tooltip and the dot. */
 const connectionState = (status: IntegrationStatus | null): ConnectionState => {
@@ -69,6 +119,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 		const [status, setStatus] = useState<TStatus | null>(null);
 		const [failure, setFailure] = useState<string | null>(null);
 		const [busy, setBusy] = useState(false);
+		const [typed, setTyped] = useState("");
 
 		const refresh = useCallback(async () => {
 			try {
@@ -125,6 +176,8 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 		// No status yet: either the first read is still in flight, or the host half
 		// did not answer. Returning here is what narrows `status` for the card below.
+		const tokenField = spec.token;
+
 		if (status === null) {
 			return (
 				<section className={styles.section}>
@@ -214,23 +267,72 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						</div>
 					) : null}
 
+					{tokenField === undefined ? null : (
+						<>
+							<div className={styles.row}>
+								<Input
+									type="password"
+									value={typed}
+									placeholder={tokenField.placeholder}
+									aria-label={tokenField.label}
+									disabled={busy}
+									onChange={(event) => {
+										setTyped(event.target.value);
+									}}
+								/>
+							</div>
+
+							<div className={styles.caption}>{tokenField.hint}</div>
+						</>
+					)}
+
 					<div className={styles.actions}>
-						{signedIn ? (
-							<Button
-								variant="outline"
-								disabled={busy}
-								onClick={() => void act(spec.api.logout)}
-							>
-								Sign out
-							</Button>
+						{spec.token === undefined ? (
+							signedIn ? (
+								<Button
+									variant="outline"
+									disabled={busy}
+									onClick={() => void act(spec.api.logout)}
+								>
+									Sign out
+								</Button>
+							) : (
+								<Button
+									variant="primary"
+									disabled={busy}
+									onClick={() => void act(spec.api.login)}
+								>
+									{busy ? "Working…" : spec.signInLabel}
+								</Button>
+							)
 						) : (
-							<Button
-								variant="primary"
-								disabled={busy}
-								onClick={() => void act(spec.api.login)}
-							>
-								{busy ? "Working…" : spec.signInLabel}
-							</Button>
+							<>
+								<Button
+									variant="primary"
+									disabled={busy || typed.trim() === ""}
+									onClick={() => {
+										void act(async () => {
+											const next = await spec.token.save(typed);
+
+											setTyped("");
+
+											return next;
+										});
+									}}
+								>
+									{busy ? "Working…" : spec.token.saveLabel}
+								</Button>
+
+								{signedIn ? (
+									<Button
+										variant="outline"
+										disabled={busy}
+										onClick={() => void act(spec.api.logout)}
+									>
+										{spec.token.clearLabel}
+									</Button>
+								) : null}
+							</>
 						)}
 
 						<Button

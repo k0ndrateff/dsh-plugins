@@ -9,12 +9,12 @@
 интеграции с внешними системами, которые дают агенту тулы, а человеку — карточки
 и панели внутри харнесса вместо переключения в браузер.
 
-Текущее состояние — Atlassian (Jira + Confluence), Sentry и проект-плагин
-проверок. Куда идём — [docs/roadmap.md](docs/roadmap.md): GitLab, Figma,
-дайджест и market-индекс. **M0–M4 сделаны**: `dsh-mcp-oauth` вынесена и умеет
+Текущее состояние — Atlassian (Jira + Confluence), Sentry, GitLab и
+проект-плагин проверок. Куда идём — [docs/roadmap.md](docs/roadmap.md): Figma,
+дайджест и market-индекс. **M0–M5 сделаны**: `dsh-mcp-oauth` вынесена и умеет
 мультиаккаунт и no-auth, `dsh-integration-host` и `dsh-integration-ui` держат
-общую обвязку интеграции, а Atlassian, Sentry и devkit работают на них.
-Активная веха — **M5** (GitLab).
+общую обвязку интеграции, Atlassian, Sentry, GitLab и devkit работают на них.
+Активная веха — **M6** (Figma).
 
 ## 2. Структура
 
@@ -28,7 +28,8 @@ packages/
 ├── integration-ui/   dsh-integration-ui    библиотека: общая обвязка UI
 ├── devkit/           dsh-devkit-plugin     бандл: рецепты проверок проекта
 ├── sentry/           dsh-sentry-plugin     бандл: ошибки Sentry
-└── atlassian/        dsh-atlassian-plugin  бандл: Jira и Confluence
+├── atlassian/        dsh-atlassian-plugin  бандл: Jira и Confluence
+└── gitlab/           dsh-gitlab-plugin     бандл: MR, ревью и пайплайны GitLab
 ```
 
 Внутри каждого пакета:
@@ -41,8 +42,8 @@ test/         проверки, запускаются bun
 lib/          собранное (в git не хранится)
 ```
 
-Плановые пакеты (`gitlab`, `figma`, `plugin-build`, `workflow`) появятся по
-мере вех — имена зарезервированы в roadmap.
+Плановые пакеты (`figma`, `plugin-build`, `workflow`) появятся по мере вех —
+имена зарезервированы в roadmap.
 
 ## 3. Команды
 
@@ -225,6 +226,14 @@ factory})`; её `require` умеет **только** то, что перечи
   дайджестом для длинных имён — один код на обе половины.
 - **OAuth для MCP в харнессе не существует.** Стоковый `dsh-mcp-client` умеет
   только статический заголовок `Authorization`; всё остальное — наша библиотека.
+- **Провайдер может быть недоступен по MCP, и это не баг плагина.** MCP-сервер
+  GitLab включается на уровне top-level группы (Owner), а его токен имеет
+  единственный скоуп `mcp`, который REST не принимает вовсе: `401`. Поэтому
+  GitLab-плагин ходит в REST личным токеном. Прежде чем писать интеграцию на
+  MCP, проверь, что эндпоинт вообще доступен аккаунту.
+- **`credentialKeyFor` — про аккаунты OAuth**, его id всегда `mcp` или
+  `mcp-<instance>`. Для записи, которую выдал не OAuth (личный токен), ключ
+  строится `credentialKey(scope, id)` из `dsh-credentials` напрямую.
 - **У библиотеки два входа, и это не случайность.** `dsh-mcp-oauth` тянет
   node-модули и в браузерный бандл не годится; общая для обеих половин мелочь
   (правило именования тулов) живёт в `dsh-mcp-oauth/tool-name` и оттуда
@@ -249,8 +258,10 @@ factory})`; её `require` умеет **только** то, что перечи
 
 ## 8. Куда идти дальше
 
-- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0–M4, дальше — M5
-  (GitLab).
+- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0–M5, дальше — M6
+  (Figma).
 - Описание для пользователя — [README.md](README.md).
 - Принятые решения (монорепа, имена без скоупа, gitlab.com, дайджест с
   настройкой, социальные действия через `confirm`) — раздел 8 в roadmap.
+- GitLab ходит в REST личным токеном, а не через MCP: причина и факты — раздел
+  M5 в roadmap.

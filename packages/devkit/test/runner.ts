@@ -10,7 +10,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type {
 	ShellExecRequest,
@@ -354,9 +356,12 @@ section("reading the two streams");
 section("live: real commands through a real process");
 {
 	const runner = new RecipeRunner(liveShell());
+	// The runtime running this file, by its own path: a bare `node` would make
+	// the check depend on the PATH of whatever shell happens to run the suite.
+	const runtime = process.execPath;
 
 	const ok = await runner.run(
-		recipe({ run: "node -e \"console.log('ok')\"" }),
+		recipe({ run: `${runtime} -e "console.log('ok')"` }),
 		{ cwd: process.cwd() },
 	);
 
@@ -366,9 +371,10 @@ section("live: real commands through a real process");
 		`${ok.status}/${String(ok.exitCode)}/${ok.durationMs}ms`,
 	);
 
-	const bad = await runner.run(recipe({ run: 'node -e "process.exit(3)"' }), {
-		cwd: process.cwd(),
-	});
+	const bad = await runner.run(
+		recipe({ run: `${runtime} -e "process.exit(3)"` }),
+		{ cwd: process.cwd() },
+	);
 
 	check(
 		"a real failing command fails with its exit code",
@@ -376,20 +382,20 @@ section("live: real commands through a real process");
 		`${bad.status}/${String(bad.exitCode)}`,
 	);
 
+	// The fixture lives in a directory of its own, because a suite that writes
+	// into its own package leaves a file behind when it fails and cannot write at
+	// all under a sandbox that allows only temporary areas.
 	const fixture = "runner-fixture.ts";
-	const packageDir = new URL("..", import.meta.url).pathname;
+	const dir = mkdtempSync(join(tmpdir(), "devkit-runner-"));
 	const tsc = new URL("../../../node_modules/.bin/tsc", import.meta.url)
 		.pathname;
 
-	writeFileSync(
-		new URL(`../${fixture}`, import.meta.url),
-		'export const count: number = "three";\n',
-	);
+	writeFileSync(join(dir, fixture), 'export const count: number = "three";\n');
 
 	try {
 		const typed = await runner.run(
 			recipe({ run: `${tsc} --noEmit --strict ${fixture}`, parser: "tsc" }),
-			{ cwd: packageDir },
+			{ cwd: dir },
 		);
 
 		check(
@@ -406,7 +412,7 @@ section("live: real commands through a real process");
 			JSON.stringify(typed.summary),
 		);
 	} finally {
-		rmSync(new URL(`../${fixture}`, import.meta.url), { force: true });
+		rmSync(dir, { recursive: true, force: true });
 	}
 }
 

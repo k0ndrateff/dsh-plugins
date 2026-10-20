@@ -64,6 +64,7 @@ export class McpBridge {
 	private disposers = new Map<string, () => void>();
 	private names: string[] = [];
 	private ready = false;
+	private failure: string | undefined;
 
 	constructor(private readonly options: McpBridgeOptions) {
 		if (needsOAuth(options.profile) && options.store === undefined)
@@ -80,6 +81,17 @@ export class McpBridge {
 	/** Whether the connection is currently usable. */
 	get isConnected(): boolean {
 		return this.ready;
+	}
+
+	/**
+	 * Why the last connection attempt failed, when one did.
+	 *
+	 * A server that refuses the connection — a resource that needs an
+	 * administrator's switch, a scope the token lacks — says so here, so a
+	 * settings card can show the reason instead of an unexplained "not connected".
+	 */
+	get lastFailure(): string | undefined {
+		return this.failure;
 	}
 
 	/**
@@ -105,6 +117,7 @@ export class McpBridge {
 
 			await this.publishTools(ctx);
 			await this.options.onConnected?.();
+			this.failure = undefined;
 
 			loggerOf(ctx).info(
 				"[%s] %d tools available from %s",
@@ -118,10 +131,11 @@ export class McpBridge {
 			this.ready = false;
 
 			await this.drop();
+			this.failure = errorText(error);
 			loggerOf(ctx).warn(
 				"[%s] MCP bridge unavailable: %s",
 				accountLabel(profile),
-				errorText(error),
+				this.failure,
 			);
 
 			return false;
@@ -135,6 +149,7 @@ export class McpBridge {
 		this.disposers = new Map();
 		this.names = [];
 		this.ready = false;
+		this.failure = undefined;
 
 		const client = this.client;
 		this.client = undefined;

@@ -6,9 +6,9 @@
  * key the message mentions are read the same way in each.
  */
 
+import { Fact } from "dsh-integration-ui";
 import type { SuspectCommit } from "../../shared/meta";
 import * as styles from "../styles/styles.css";
-import { Fact } from "./fact";
 
 /** How much of the sha the row spells out; the rest is in Sentry. */
 const SHORT_SHA = 12;
