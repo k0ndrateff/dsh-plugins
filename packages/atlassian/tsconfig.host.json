@@ -1,0 +1,11 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"types": ["node"],
+		"paths": {
+			"dsh-mcp-oauth": ["../mcp-oauth/src/index.ts"],
+			"dsh-mcp-oauth/tool-name": ["../mcp-oauth/src/tool-name.ts"]
+		}
+	},
+	"include": ["src/host/**/*.ts", "src/shared/**/*.ts", "test/**/*.ts"]
+}

@@ -1,0 +1,160 @@
+/**
+ * The loopback redirect listener for the authorization-code flow.
+ *
+ * A desktop OAuth client cannot receive a redirect on a public URL, so it binds
+ * `127.0.0.1` and hands the browser a redirect URI pointing at itself. The
+ * registered client is bound to the exact URI, and the preferred port may be
+ * taken, so the listener reports the port it actually got.
+ */
+
+import { timingSafeEqual } from "node:crypto";
+import { createServer, type Server } from "node:http";
+import { PORT_ATTEMPTS } from "./config";
+import { errorText } from "./log";
+
+export class LoopbackListener {
+	readonly server: Server;
+	readonly port: number;
+	readonly redirectUri: string;
+	/** Resolves with the authorization code the browser returned. */
+	readonly code: Promise<string>;
+
+	readonly fail: (error: Error) => void;
+
+	protected constructor(
+		server: Server,
+		port: number,
+		redirectUri: string,
+		code: Promise<string>,
+		fail: (error: Error) => void,
+	) {
+		this.server = server;
+		this.port = port;
+		this.redirectUri = redirectUri;
+		this.code = code;
+		this.fail = fail;
+	}
+
+	/**
+	 * Bind the first free port at or after `preferredPort` and wait for the code.
+	 * @param preferredPort - the configured port to try first.
+	 * @param expectedState - the `state` value the response must carry back.
+	 * @param label - the provider's name, for the pages the browser sees.
+	 */
+	static async listenForCode(
+		preferredPort: number,
+		expectedState: string,
+		label: string,
+	): Promise<LoopbackListener> {
+		let resolveCode: (code: string) => void = () => {};
+		let rejectCode: (error: Error) => void = () => {};
+
+		const code = new Promise<string>((resolve, reject) => {
+			resolveCode = resolve;
+			rejectCode = reject;
+		});
+
+		// The caller always awaits `code`; this keeps a rejection observed even when
+		// it settles before that await is attached.
+		code.catch(() => undefined);
+
+		let lastError: unknown;
+
+		for (let offset = 0; offset < PORT_ATTEMPTS; offset += 1) {
+			const port = preferredPort + offset;
+
+			const server = createServer((request, response) => {
+				const url = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
+
+				if (url.pathname !== "/callback") {
+					response
+						.writeHead(404, { "content-type": "text/plain; charset=utf-8" })
+						.end("not found");
+					return;
+				}
+
+				const gotState = url.searchParams.get("state") ?? "";
+				const oauthError = url.searchParams.get("error");
+				const returned = url.searchParams.get("code");
+
+				const comparable =
+					Buffer.byteLength(gotState) === Buffer.byteLength(expectedState);
+				const stateMatches =
+					comparable &&
+					timingSafeEqual(Buffer.from(gotState), Buffer.from(expectedState));
+
+				if (oauthError !== null || returned === null || !stateMatches) {
+					const reason =
+						oauthError !== null
+							? `${label} reported: ${oauthError}`
+							: "The response did not match this sign-in attempt.";
+
+					response
+						.writeHead(400, { "content-type": "text/html; charset=utf-8" })
+						.end(LoopbackListener.callbackPage("Authorization failed", reason));
+
+					rejectCode(
+						new Error(
+							oauthError !== null
+								? `authorization denied: ${oauthError}`
+								: "state mismatch",
+						),
+					);
+
+					return;
+				}
+
+				response
+					.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+					.end(
+						LoopbackListener.callbackPage(
+							`Signed in to ${label}`,
+							"You can close this tab and return to DeepSeek Harness.",
+						),
+					);
+
+				resolveCode(returned);
+			});
+
+			try {
+				await new Promise<void>((resolve, reject) => {
+					server.once("error", reject);
+					server.listen(port, "127.0.0.1", resolve);
+				});
+			} catch (error) {
+				lastError = error;
+				continue;
+			}
+
+			return new LoopbackListener(
+				server,
+				port,
+				`http://127.0.0.1:${port}/callback`,
+				code,
+				rejectCode,
+			);
+		}
+
+		throw new Error(
+			`no free loopback port in ${preferredPort}..${preferredPort + PORT_ATTEMPTS - 1}: ${errorText(lastError)}`,
+		);
+	}
+
+	// `close()` alone only stops accepting: it waits for existing sockets,
+	// and a browser that used keep-alive would hold the flow open forever.
+	close = async () => {
+		this.server.closeAllConnections();
+
+		await new Promise<void>((resolve) => {
+			this.server.close(() => resolve());
+		});
+	};
+
+	private static callbackPage = (title: string, message: string): string => {
+		return (
+			`<!doctype html><meta charset="utf-8"><title>${title}</title>` +
+			'<body style="font:16px/1.5 system-ui;margin:4rem auto;max-width:32rem;text-align:center">' +
+			`<h1 style="font-size:1.25rem">${title}</h1><p>${message}</p></body>`
+		);
+	};
+}

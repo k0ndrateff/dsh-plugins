@@ -4,10 +4,6 @@
   "workspaces": {
     "": {
       "name": "dsh-atlassian",
-      "dependencies": {
-        "@modelcontextprotocol/client": "2.2.0",
-        "@vanilla-extract/css": "^1.21.3",
-      },
       "devDependencies": {
         "@biomejs/biome": "2.5.15",
         "@deepseek-ai/cordis": "~4.0.5",
@@ -34,6 +30,17 @@
         "esbuild": "^0.25.0",
         "typescript": "7",
       },
+    },
+    "packages/atlassian": {
+      "name": "dsh-atlassian-plugin",
+      "version": "0.3.0",
+      "dependencies": {
+        "@modelcontextprotocol/client": "2.2.0",
+        "@vanilla-extract/css": "^1.21.3",
+      },
+      "devDependencies": {
+        "dsh-mcp-oauth": "workspace:*",
+      },
       "peerDependencies": {
         "@deepseek-ai/cordis": "~4.0.5",
         "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
@@ -45,6 +52,20 @@
       "optionalPeers": [
         "@deepseek-ai/dsh-llm",
       ],
+    },
+    "packages/mcp-oauth": {
+      "name": "dsh-mcp-oauth",
+      "version": "0.1.0",
+      "dependencies": {
+        "@modelcontextprotocol/client": "2.2.0",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.0.5",
+        "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+      },
     },
   },
   "packages": {
@@ -417,6 +438,10 @@
     "deep-object-diff": ["deep-object-diff@1.1.9", "", {}, "sha512-Rn+RuwkmkDwCi2/oXOFS9Gsr5lJZu/yTGpK7wAaAIE75CC+LCGEZHpY6VQJa/RoJcrmaA/docWJZvYohlNkWPA=="],
 
     "deepmerge-ts": ["deepmerge-ts@8.0.2", "", {}, "sha512-uqbvqLUMrc6p0MO+WBRtTxY55hmyh94WRwI5a++PZe54X+bfVh59FSN7uWCBCW1CCVjzjnrwzfI8zidE2obMMw=="],
+
+    "dsh-atlassian-plugin": ["dsh-atlassian-plugin@workspace:packages/atlassian"],
+
+    "dsh-mcp-oauth": ["dsh-mcp-oauth@workspace:packages/mcp-oauth"],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.459", "", {}, "sha512-4SC9HHSFjO/liAhifpdOL5hG9b4BP7/5G3y3UPZVO8trlAXr1CaUEEJL0gWK3kOcYcZrOA5rkwG45Gra/lTIgg=="],
 

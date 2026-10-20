@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"jsx": "react-jsx",
+		"types": [],
+		"paths": {
+			"dsh-mcp-oauth": ["../mcp-oauth/src/index.ts"],
+			"dsh-mcp-oauth/tool-name": ["../mcp-oauth/src/tool-name.ts"]
+		}
+	},
+	"include": ["src/client/**/*.ts", "src/client/**/*.tsx"]
+}
