@@ -20,12 +20,18 @@ import type {} from "@deepseek-ai/dsh-commands";
 import type {} from "@deepseek-ai/dsh-tools";
 import {
 	AuthorizationFlow,
+	credentialKeyOf,
 	GrantStore,
 	loggerOf,
-	McpOAuthBridge,
+	McpBridge,
 } from "dsh-mcp-oauth";
 import { AtlassianAuth } from "./auth";
-import { atlassianProfile, type ConfigInput, resolveConfig } from "./config";
+import {
+	atlassianProfile,
+	type ConfigInput,
+	PLUGIN_NAME,
+	resolveConfig,
+} from "./config";
 import { PanelApi } from "./panels/panel";
 import { extractor } from "./presentation/extract";
 import { RuntimeState } from "./state";
@@ -33,7 +39,7 @@ import { commandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX, type RouteHost } from "./surface/http";
 import { presentTool } from "./tools/present";
 
-export const name = "dsh-atlassian";
+export const name = PLUGIN_NAME;
 
 /** Services this plugin needs before it can activate. */
 export const inject = ["tools", "credentials", "commands", "authorization"];
@@ -54,9 +60,9 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const state = new RuntimeState();
 	const logger = loggerOf(ctx);
 
-	const store = new GrantStore(ctx, profile.credentialKey);
+	const store = new GrantStore(ctx, credentialKeyOf(profile));
 	const flow = new AuthorizationFlow(profile, store);
-	const bridge = new McpOAuthBridge({
+	const bridge = new McpBridge({
 		profile,
 		store,
 		clientInfo: CLIENT_INFO,

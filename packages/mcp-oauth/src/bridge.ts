@@ -1,5 +1,5 @@
 /**
- * The bridge to one OAuth-protected remote MCP server.
+ * The bridge to one remote MCP server.
  *
  * The stock MCP client takes its HTTP headers from static configuration, and an
  * OAuth access token changes over the life of the process. So the transport is
@@ -7,6 +7,10 @@
  * request — a refresh therefore needs no reconnect — and each discovered tool is
  * published through the harness's own MCP adapter, so results keep the canonical
  * shape.
+ *
+ * A profile without OAuth facts is a server that needs no credentials at all,
+ * such as a local MCP server; the same transport is built without an
+ * `authProvider`, and the bridge holds no record.
  *
  * The bridge owns its connection: the client, the published tools, and the
  * authorization server it discovered. A caller that wants provider-specific
@@ -23,7 +27,12 @@ import type {
 import { discover } from "./discovery";
 import type { GrantStore } from "./grant";
 import { errorText, loggerOf } from "./log";
-import type { ProviderProfile } from "./provider";
+import {
+	accountLabel,
+	needsOAuth,
+	type OAuthProviderProfile,
+	type ProviderProfile,
+} from "./provider";
 import type { OAuthServer } from "./server";
 import { publicToolName } from "./tool-name";
 
@@ -31,10 +40,13 @@ import { publicToolName } from "./tool-name";
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 
 export interface McpBridgeOptions {
-	/** The provider whose server this bridge talks to. */
+	/** The provider account whose server this bridge talks to. */
 	readonly profile: ProviderProfile;
-	/** The record the access token is read and refreshed through. */
-	readonly store: GrantStore;
+	/**
+	 * The record the access token is read and refreshed through. Required for a
+	 * profile with OAuth facts, refused without one at construction.
+	 */
+	readonly store?: GrantStore;
 	/** How the server sees this client; some gate capabilities on the name. */
 	readonly clientInfo: { readonly name: string; readonly version: string };
 	/** Called once per discovered tool, before it is registered. */
@@ -46,14 +58,19 @@ export interface McpBridgeOptions {
 	readonly onConnected?: () => Promise<void>;
 }
 
-export class McpOAuthBridge {
+export class McpBridge {
 	private client: Client | undefined;
 	private oauth: OAuthServer | undefined;
 	private disposers = new Map<string, () => void>();
 	private names: string[] = [];
 	private ready = false;
 
-	constructor(private readonly options: McpBridgeOptions) {}
+	constructor(private readonly options: McpBridgeOptions) {
+		if (needsOAuth(options.profile) && options.store === undefined)
+			throw new TypeError(
+				`the ${accountLabel(options.profile)} bridge needs a grant store for its OAuth profile`,
+			);
+	}
 
 	/** Public names of the published tools, in discovery order. */
 	get toolNames(): readonly string[] {
@@ -66,29 +83,34 @@ export class McpOAuthBridge {
 	}
 
 	/**
-	 * Connect and publish tools when the user is signed in.
+	 * Connect and publish tools, once the account is signed in if it needs to be.
 	 * @param ctx - host context, for logging.
 	 * @returns whether the bridge is usable; failures are logged, never thrown.
 	 */
 	async ensure(ctx: Context): Promise<boolean> {
-		const grant = await this.options.store.read();
+		const { profile, store } = this.options;
 
-		if (grant === undefined || !grant.isSignedIn()) return false;
+		if (needsOAuth(profile)) {
+			const grant = await store?.read();
+
+			if (grant === undefined || !grant.isSignedIn()) return false;
+		}
 
 		try {
-			const oauth = this.oauth ?? (await discover(this.options.profile));
-			this.oauth = oauth;
+			const oauth = needsOAuth(profile)
+				? await this.authorizationServer(profile)
+				: undefined;
 
-			if (this.client === undefined) await this.connect(oauth);
+			if (this.client === undefined) await this.connect(profile, store, oauth);
 
 			await this.publishTools(ctx);
 			await this.options.onConnected?.();
 
 			loggerOf(ctx).info(
 				"[%s] %d tools available from %s",
-				this.options.profile.id,
+				accountLabel(profile),
 				this.names.length,
-				this.options.profile.endpoint,
+				profile.endpoint,
 			);
 
 			return true;
@@ -98,7 +120,7 @@ export class McpOAuthBridge {
 			await this.drop();
 			loggerOf(ctx).warn(
 				"[%s] MCP bridge unavailable: %s",
-				this.options.profile.id,
+				accountLabel(profile),
 				errorText(error),
 			);
 
@@ -143,25 +165,39 @@ export class McpOAuthBridge {
 		);
 	}
 
-	/** Open the MCP connection over an authenticated transport. */
-	private async connect(oauth: OAuthServer): Promise<void> {
+	/** The discovered authorization server, remembered across reconnects. */
+	private async authorizationServer(
+		profile: OAuthProviderProfile,
+	): Promise<OAuthServer> {
+		const oauth = this.oauth ?? (await discover(profile));
+		this.oauth = oauth;
+
+		return oauth;
+	}
+
+	/** Open the MCP connection, authenticated when the profile has OAuth facts. */
+	private async connect(
+		profile: ProviderProfile,
+		store: GrantStore | undefined,
+		oauth: OAuthServer | undefined,
+	): Promise<void> {
 		const { Client: McpClient, StreamableHTTPClientTransport } = await import(
 			"@modelcontextprotocol/client"
 		);
 
-		const store = this.options.store;
-
 		const transport = new StreamableHTTPClientTransport(
-			new URL(oauth.resource),
-			{
-				authProvider: {
-					// Asked for before every request, so a refreshed token needs no reconnect.
-					token: async () => await store.accessToken(oauth),
-					onUnauthorized: async () => {
-						await store.refresh(oauth);
+			new URL(profile.endpoint),
+			oauth === undefined || store === undefined
+				? {}
+				: {
+						authProvider: {
+							// Asked for before every request, so a refreshed token needs no reconnect.
+							token: async () => await store.accessToken(oauth),
+							onUnauthorized: async () => {
+								await store.refresh(oauth);
+							},
+						},
 					},
-				},
-			},
 		);
 
 		const client = new McpClient(this.options.clientInfo, { capabilities: {} });

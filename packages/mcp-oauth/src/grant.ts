@@ -14,7 +14,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { CredentialKey } from "@deepseek-ai/dsh-credentials";
 import { REFRESH_MARGIN_MS } from "./config";
 import { type JsonValue, jsonSafe } from "./json";
-import type { OAuthServer } from "./server";
+import type { OAuthServer, TokenAuthMethod } from "./server";
 
 /** Provider-owned facts kept beside the tokens. */
 export type GrantExtra = Readonly<Record<string, JsonValue>>;
@@ -33,6 +33,8 @@ export class Grant {
 	readonly clientId?: string;
 	/** Present only for a server that issues one, which a confidential client requires. */
 	readonly clientSecret?: string;
+	/** How this client authenticates at the token endpoint. */
+	readonly tokenAuthMethod?: TokenAuthMethod;
 	/** The exact redirect URI the client was registered with. */
 	readonly redirectUri?: string;
 	/** Application data the provider keeps with its tokens. */
@@ -49,6 +51,7 @@ export class Grant {
 		this.resource = params.resource;
 		this.clientId = params.clientId;
 		this.clientSecret = params.clientSecret;
+		this.tokenAuthMethod = params.tokenAuthMethod;
 		this.redirectUri = params.redirectUri;
 		this.extra = params.extra;
 		this.accessToken = params.accessToken;

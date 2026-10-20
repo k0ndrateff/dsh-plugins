@@ -7,11 +7,23 @@
  * whose tokens keep changing. A plugin supplies a {@link ProviderProfile} and a
  * {@link GrantStore} key, and nothing else about OAuth.
  *
+ * One profile is one account. A plugin that holds several accounts of the same
+ * provider builds one profile per account, and {@link credentialKeyOf} gives
+ * each its own record, so a work GitLab and a personal one never share a token.
+ * A profile with no OAuth facts is a server that needs no credentials at all,
+ * and the same bridge reaches it.
+ *
  * The harness itself has no OAuth for MCP: its stock client takes a static
  * `Authorization` header from configuration. This is the missing half.
  */
 
-export { type McpBridgeOptions, McpOAuthBridge } from "./bridge";
+export {
+	credentialKeyFor,
+	DEFAULT_INSTANCE,
+	instanceOfKey,
+	instancesOf,
+} from "./account";
+export { McpBridge, type McpBridgeOptions } from "./bridge";
 export { openBrowser } from "./browser";
 export {
 	PORT_ATTEMPTS,
@@ -37,6 +49,20 @@ export {
 	pickNumber,
 	pickString,
 } from "./payload";
-export { credentialKeyFor, type ProviderProfile } from "./provider";
-export { OAuthServer } from "./server";
+export {
+	accountLabel,
+	credentialKeyOf,
+	type NoAuthProviderProfile,
+	needsOAuth,
+	type OAuthProfile,
+	type OAuthProviderProfile,
+	type ProviderProfile,
+} from "./provider";
+export {
+	authMethodOf,
+	chooseTokenAuthMethod,
+	OAuthServer,
+	type RegisteredClient,
+	type TokenAuthMethod,
+} from "./server";
 export { publicToolName, toolPrefix } from "./tool-name";

@@ -18,7 +18,7 @@ import {
 	AuthorizationFlow,
 	Grant,
 	GrantStore,
-	type McpOAuthBridge,
+	type McpBridge,
 } from "dsh-mcp-oauth";
 import { AtlassianAuth } from "../src/host/auth";
 import { atlassianProfile, resolveConfig } from "../src/host/config";
@@ -89,11 +89,11 @@ function assertJsonRepresentable(record: unknown): unknown {
 /** A bridge that answers from one function, for the tool and panel tests. */
 function fakeBridge(
 	call: (name: string, args: Record<string, unknown>) => unknown,
-): McpOAuthBridge {
+): McpBridge {
 	return {
 		callTool: async (name: string, args: Record<string, unknown>) =>
 			call(name, args),
-	} as unknown as McpOAuthBridge;
+	} as unknown as McpBridge;
 }
 
 /** The record key this plugin owns. */

@@ -16,15 +16,16 @@ import { discover } from "./discovery";
 import { Grant, type GrantStore } from "./grant";
 import { jsonSafe } from "./json";
 import { LoopbackListener } from "./loopback";
-import type { ProviderProfile } from "./provider";
+import type { OAuthProviderProfile } from "./provider";
+import { authMethodOf, type RegisteredClient } from "./server";
 
 export class AuthorizationFlow {
 	/**
-	 * @param profile - the provider to sign in to.
+	 * @param profile - the provider account to sign in to.
 	 * @param store - the record the finished grant is committed through.
 	 */
 	constructor(
-		private readonly profile: ProviderProfile,
+		private readonly profile: OAuthProviderProfile,
 		private readonly store: GrantStore,
 	) {}
 
@@ -42,7 +43,7 @@ export class AuthorizationFlow {
 		const challenge = b64url(createHash("sha256").update(verifier).digest());
 
 		const listener = await LoopbackListener.listenForCode(
-			this.profile.redirectPort,
+			this.profile.oauth.redirectPort,
 			expectedState,
 			this.profile.label,
 		);
@@ -137,20 +138,27 @@ export class AuthorizationFlow {
 		oauth: Awaited<ReturnType<typeof discover>>,
 		redirectUri: string,
 		existing: Grant | undefined,
-	): Promise<{ clientId: string; clientSecret?: string }> {
+	): Promise<RegisteredClient> {
 		if (
 			existing !== undefined &&
 			existing.resource === this.profile.endpoint &&
 			existing.redirectUri === redirectUri &&
 			typeof existing.clientId === "string"
-		)
+		) {
+			const tokenAuthMethod = authMethodOf(existing);
+
 			return existing.clientSecret === undefined
-				? { clientId: existing.clientId }
-				: { clientId: existing.clientId, clientSecret: existing.clientSecret };
+				? { clientId: existing.clientId, tokenAuthMethod }
+				: {
+						clientId: existing.clientId,
+						clientSecret: existing.clientSecret,
+						tokenAuthMethod,
+					};
+		}
 
 		const registered = await oauth.registerClient(
 			redirectUri,
-			this.profile.clientName,
+			this.profile.oauth.clientName,
 		);
 
 		await this.store.mutate(

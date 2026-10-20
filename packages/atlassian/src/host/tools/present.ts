@@ -12,7 +12,7 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
-import type { JsonValue, McpOAuthBridge } from "dsh-mcp-oauth";
+import type { JsonValue, McpBridge } from "dsh-mcp-oauth";
 import type { AtlassianMeta, IssueCard, PageCard } from "../../shared/meta";
 import type {
 	AtlassianPresentation,
@@ -27,7 +27,7 @@ import type { RuntimeState } from "../state";
 /** What the tool needs from the plugin to resolve and record one card. */
 export interface PresentDeps {
 	readonly ctx: Context;
-	readonly bridge: McpOAuthBridge;
+	readonly bridge: McpBridge;
 	readonly state: RuntimeState;
 }
 

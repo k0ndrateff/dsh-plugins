@@ -1,16 +1,37 @@
 /**
- * Conformance run against real authorization servers.
+ * Conformance against real authorization servers.
  *
- * Discovery needs no credentials, so every provider on the roadmap is checked
- * here: the library is provider-agnostic only if it can resolve each one's
- * endpoints and pick a workable scope set. Nothing in this file registers a
- * client or completes a sign-in, so it is safe to run at any time.
+ * Discovery is read-only. Registration is not: a server that offers dynamic
+ * client registration gets one throwaway client per run, because a registration
+ * endpoint can only be verified by registering with it. The run then probes the
+ * token endpoint with a code no server issued and reads the error — a client
+ * the server refused answers `invalid_client`, one it accepted answers
+ * `invalid_grant` — which is what makes the confidential path checkable without
+ * a human at a consent screen.
+ *
+ * The expectations below are recorded facts, not wishes: what each server was
+ * seen doing when this file was last written. A mismatch means either a
+ * provider changed or the library regressed, and the label says which check
+ * disagreed, so the fact can be re-recorded rather than guessed at.
  *
  *   bun run test/conformance.ts
  */
 
-import { discover } from "../src/index";
-import type { ProviderProfile } from "../src/provider";
+import {
+	DEFAULT_INSTANCE,
+	discover,
+	errorText,
+	type OAuthProviderProfile,
+	type OAuthServer,
+	type RegisteredClient,
+	type TokenAuthMethod,
+} from "../src/index";
+
+/** The redirect URI every registration here is bound to. */
+const REDIRECT_URI = "http://127.0.0.1:8143/callback";
+
+/** The name a consent screen shows for a conformance client. */
+const CLIENT_NAME = "DeepSeek Harness conformance";
 
 let failures = 0;
 let checks = 0;
@@ -25,24 +46,40 @@ function check(label: string, ok: boolean, detail = ""): void {
 	);
 }
 
-/** A profile with only the facts discovery reads. */
+/** One endpoint under test and what it was recorded doing. */
+interface Provider {
+	readonly name: string;
+	readonly profile: OAuthProviderProfile;
+	/** Whether the server was recorded accepting an anonymous registration. */
+	readonly registration: "open" | "closed";
+	/** The client authentication a successful registration was recorded issuing. */
+	readonly issued?: TokenAuthMethod;
+	/** Whether the server was recorded handing a secret to that client anyway. */
+	readonly issuedSecret?: boolean;
+	/** Whether this server was recorded handing a secret to a client that asks. */
+	readonly confidential?: boolean;
+}
+
+/** A profile with only the facts discovery and registration read. */
 function profile(
-	id: string,
+	scope: string,
 	endpoint: string,
 	scopes: string[],
 	fallbackScopes: string[] = [],
-): ProviderProfile {
+): OAuthProviderProfile {
 	return {
-		id,
-		label: id,
+		scope,
+		label: scope,
+		instance: DEFAULT_INSTANCE,
 		endpoint,
-		redirectPort: 8143,
-		scopes,
-		fallbackScopes,
-		clientName: "DeepSeek Harness",
-		toolNamespace: id,
-		credentialKey: `${id}/mcp`,
+		toolNamespace: scope,
 		debug: false,
+		oauth: {
+			redirectPort: 8143,
+			scopes,
+			fallbackScopes,
+			clientName: CLIENT_NAME,
+		},
 	};
 }
 
@@ -53,10 +90,14 @@ const ATLASSIAN_CLASSIC = [
 	"read:jira-user",
 ];
 
-const PROVIDERS: { name: string; target: ProviderProfile }[] = [
+const PROVIDERS: Provider[] = [
 	{
 		name: "Atlassian v1",
-		target: profile(
+		registration: "open",
+		issued: "none",
+		issuedSecret: false,
+		confidential: true,
+		profile: profile(
 			"atlassian-v1",
 			"https://mcp.atlassian.com/v1/mcp",
 			[...ATLASSIAN_CLASSIC, "read:jira:agent-interface"],
@@ -64,8 +105,14 @@ const PROVIDERS: { name: string; target: ProviderProfile }[] = [
 		),
 	},
 	{
+		// This generation hands a secret to a public client anyway, and says so
+		// in the registration response; the library keeps it and still
+		// authenticates as `none`, which is what the token endpoint accepts.
 		name: "Atlassian v2",
-		target: profile(
+		registration: "open",
+		issued: "none",
+		issuedSecret: true,
+		profile: profile(
 			"atlassian-v2",
 			"https://mcp.atlassian.com/v2/mcp",
 			["offline_access", "read:jira:agent-interface", "read:jira-work"],
@@ -74,57 +121,302 @@ const PROVIDERS: { name: string; target: ProviderProfile }[] = [
 	},
 	{
 		name: "Sentry",
-		target: profile("sentry", "https://mcp.sentry.dev/mcp", [
+		registration: "open",
+		issued: "none",
+		issuedSecret: false,
+		profile: profile("sentry", "https://mcp.sentry.dev/mcp", [
 			"org:read",
 			"project:write",
 		]),
 	},
 	{
+		// GitLab advertises only confidential methods, and its registration
+		// endpoint hands back a public client anyway: the response is the fact.
 		name: "GitLab",
-		target: profile("gitlab", "https://gitlab.com/api/v4/mcp", ["mcp"]),
+		registration: "open",
+		issued: "none",
+		issuedSecret: false,
+		profile: profile("gitlab", "https://gitlab.com/api/v4/mcp", ["mcp"]),
 	},
 	{
+		// Figma advertises a registration endpoint and refuses anonymous calls
+		// to it, so its clients have to come from somewhere else.
 		name: "Figma",
-		target: profile("figma", "https://mcp.figma.com/mcp", ["mcp:connect"]),
+		registration: "closed",
+		profile: profile("figma", "https://mcp.figma.com/mcp", ["mcp:connect"]),
 	},
 ];
 
-for (const { name, target } of PROVIDERS) {
-	console.log(`\n=== ${name} ===`);
+/** The body of a token request whose code no server ever issued. */
+const probe = (): Record<string, string> => ({
+	grant_type: "authorization_code",
+	code: "conformance-not-a-code",
+	redirect_uri: REDIRECT_URI,
+	code_verifier: "x".repeat(43),
+});
+
+/**
+ * The OAuth error a token request answered with.
+ * @returns the error code, or undefined when the request unexpectedly succeeded.
+ */
+async function tokenError(
+	oauth: OAuthServer,
+	client: Pick<
+		RegisteredClient,
+		"clientId" | "clientSecret" | "tokenAuthMethod"
+	>,
+): Promise<string | undefined> {
+	try {
+		await oauth.tokenRequest(client, probe());
+
+		return undefined;
+	} catch (error) {
+		const message = errorText(error);
+
+		return message.match(/"error"\s*:\s*"([a-z_]+)"/u)?.[1] ?? message;
+	}
+}
+
+/**
+ * Whether the token endpoint accepted the registered client.
+ *
+ * A server that refuses a client it does not know answers `invalid_client`, so
+ * running the same probe with an impossible client id says whether the answer
+ * for the registered one means anything. A server that validates the grant
+ * first — Atlassian's second generation does — answers the same way for both,
+ * and then the authorize endpoint is what proves the client is usable.
+ */
+async function checkClientAccepted(
+	oauth: OAuthServer,
+	client: Pick<
+		RegisteredClient,
+		"clientId" | "clientSecret" | "tokenAuthMethod"
+	>,
+	label = "the registered client is accepted at the token endpoint",
+): Promise<void> {
+	const accepted = await tokenError(oauth, client);
+	const unknown = await tokenError(oauth, {
+		...client,
+		clientId: "conformance-unknown-client",
+	});
+
+	if (unknown === "invalid_client")
+		check(label, accepted !== "invalid_client", String(accepted));
+	else
+		check(
+			"the token endpoint validates the grant before the client, as recorded",
+			accepted === unknown,
+			`registered: ${String(accepted)}, unknown: ${String(unknown)}`,
+		);
+}
+
+/** Register a client asking for one method, whatever the server prefers. */
+async function registerConfidential(
+	oauth: OAuthServer,
+	method: TokenAuthMethod,
+): Promise<RegisteredClient> {
+	if (oauth.registrationEndpoint === undefined)
+		throw new Error(`${oauth.issuer} offers no registration`);
+
+	const response = await fetch(oauth.registrationEndpoint, {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			accept: "application/json",
+		},
+		body: JSON.stringify({
+			client_name: CLIENT_NAME,
+			redirect_uris: [REDIRECT_URI],
+			grant_types: ["authorization_code", "refresh_token"],
+			response_types: ["code"],
+			token_endpoint_auth_method: method,
+			scope: oauth.scopeString,
+		}),
+		signal: AbortSignal.timeout(30_000),
+	});
+	const body = (await response.json()) as Record<string, unknown>;
+
+	if (!response.ok)
+		throw new Error(`${method} registration failed (${response.status})`);
+
+	const clientId = body.client_id;
+	const clientSecret = body.client_secret;
+
+	if (typeof clientId !== "string" || typeof clientSecret !== "string")
+		throw new Error(`${method} registration issued no secret`);
+
+	return { clientId, clientSecret, tokenAuthMethod: method };
+}
+
+/** The confidential half: a secret from registration, used and misused. */
+async function conformConfidential(oauth: OAuthServer): Promise<void> {
+	for (const method of [
+		"client_secret_post",
+		"client_secret_basic",
+	] as TokenAuthMethod[]) {
+		try {
+			const client = await registerConfidential(oauth, method);
+
+			await checkClientAccepted(
+				oauth,
+				client,
+				`a ${method} client authenticates with the secret from registration`,
+			);
+
+			const refused = await tokenError(oauth, {
+				...client,
+				clientSecret: "not-the-secret",
+			});
+
+			check(
+				`a wrong ${method} secret is refused as a client error`,
+				refused === "invalid_client",
+				String(refused),
+			);
+		} catch (error) {
+			check(`${method} registration issued a secret`, false, errorText(error));
+		}
+	}
+}
+
+/** The authorize URL a real sign-in would open, to see the server accept it. */
+async function conformAuthorize(
+	oauth: OAuthServer,
+	client: RegisteredClient,
+): Promise<void> {
+	const authorize = new URL(oauth.authorizationEndpoint);
+
+	for (const [key, value] of Object.entries({
+		response_type: "code",
+		client_id: client.clientId,
+		redirect_uri: REDIRECT_URI,
+		scope: oauth.scopeString,
+		state: "conformance",
+		code_challenge: "x".repeat(43),
+		code_challenge_method: "S256",
+		resource: oauth.resource,
+	}))
+		authorize.searchParams.set(key, value);
 
 	try {
-		const server = await discover(target);
+		const page = await fetch(authorize, {
+			redirect: "manual",
+			signal: AbortSignal.timeout(30_000),
+		});
 
-		check("issuer resolved", server.issuer !== "", server.issuer);
 		check(
-			"authorization endpoint is absolute",
-			server.authorizationEndpoint.startsWith("https://"),
-			server.authorizationEndpoint,
-		);
-		check(
-			"token endpoint is absolute",
-			server.tokenEndpoint.startsWith("https://"),
-			server.tokenEndpoint,
-		);
-		check(
-			"the resource is the one asked for",
-			server.resource === target.endpoint,
-			server.resource,
-		);
-		check(
-			"the scopes are the provider's, narrowed to what was advertised",
-			server.scopes.length > 0 &&
-				server.scopes.every((scope) => target.scopes.includes(scope)),
-			server.scopes.join(" "),
-		);
-		check(
-			"dynamic client registration is advertised",
-			typeof server.registrationEndpoint === "string",
-			String(server.registrationEndpoint),
+			"the authorize endpoint accepts the registered client",
+			page.status < 400,
+			`HTTP ${page.status}`,
 		);
 	} catch (error) {
-		check("discovery succeeded", false, String(error));
+		check(
+			"the authorize endpoint accepts the registered client",
+			false,
+			errorText(error),
+		);
 	}
+}
+
+async function conform(provider: Provider): Promise<void> {
+	let oauth: OAuthServer;
+
+	try {
+		oauth = await discover(provider.profile);
+	} catch (error) {
+		check("discovery succeeded", false, errorText(error));
+
+		return;
+	}
+
+	check("issuer resolved", oauth.issuer !== "", oauth.issuer);
+	check(
+		"authorization endpoint is absolute",
+		oauth.authorizationEndpoint.startsWith("https://"),
+		oauth.authorizationEndpoint,
+	);
+	check(
+		"token endpoint is absolute",
+		oauth.tokenEndpoint.startsWith("https://"),
+		oauth.tokenEndpoint,
+	);
+	check(
+		"the resource is the one asked for",
+		oauth.resource === provider.profile.endpoint,
+		oauth.resource,
+	);
+	check(
+		"the scopes are the provider's, narrowed to what was advertised",
+		oauth.scopes.length > 0 &&
+			oauth.scopes.every((scope) =>
+				provider.profile.oauth.scopes.includes(scope),
+			),
+		oauth.scopes.join(" "),
+	);
+	check(
+		"dynamic client registration is advertised",
+		typeof oauth.registrationEndpoint === "string",
+		String(oauth.registrationEndpoint),
+	);
+
+	if (provider.registration === "closed") {
+		let refusal = "";
+
+		try {
+			await oauth.registerClient(REDIRECT_URI, CLIENT_NAME);
+		} catch (error) {
+			refusal = errorText(error);
+		}
+
+		check(
+			"registration is refused, as recorded",
+			/failed \((401|403)\)/u.test(refusal),
+			refusal === "" ? "registration unexpectedly succeeded" : refusal,
+		);
+
+		return;
+	}
+
+	let client: RegisteredClient;
+
+	try {
+		client = await oauth.registerClient(REDIRECT_URI, CLIENT_NAME);
+	} catch (error) {
+		check("registration issued a client", false, errorText(error));
+
+		return;
+	}
+
+	check(
+		"registration issued a client id",
+		client.clientId !== "",
+		client.clientId,
+	);
+	check(
+		"the issued client authentication is the one recorded",
+		client.tokenAuthMethod === provider.issued,
+		`${client.tokenAuthMethod}, recorded ${String(provider.issued)}`,
+	);
+	check(
+		"whether a secret came with it is the one recorded",
+		(client.clientSecret !== undefined) === (provider.issuedSecret === true),
+		client.clientSecret === undefined ? "no secret" : "a secret",
+	);
+
+	await checkClientAccepted(
+		oauth,
+		client,
+		"the registered client authenticates at the token endpoint",
+	);
+	await conformAuthorize(oauth, client);
+
+	if (provider.confidential === true) await conformConfidential(oauth);
+}
+
+for (const provider of PROVIDERS) {
+	console.log(`\n=== ${provider.name} ===`);
+
+	await conform(provider);
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

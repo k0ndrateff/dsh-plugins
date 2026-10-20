@@ -22,7 +22,7 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run test/conformance.ts"
+		"test": "bun run test/unit.ts && bun run test/bridge.ts && bun run test/conformance.ts"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/client": "2.2.0"

@@ -13,7 +13,7 @@
  * because silence there would look like success.
  */
 
-import type { McpOAuthBridge } from "dsh-mcp-oauth";
+import type { McpBridge } from "dsh-mcp-oauth";
 import { asRecord, mcpJson, pickNumber, pickString } from "dsh-mcp-oauth";
 import type {
 	IssuePanel,
@@ -32,7 +32,7 @@ const COMMENT_LIMIT = 25;
 const PEOPLE_LIMIT = 8;
 
 export interface PanelDeps {
-	readonly bridge: McpOAuthBridge;
+	readonly bridge: McpBridge;
 	readonly state: RuntimeState;
 }
 

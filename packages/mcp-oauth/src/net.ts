@@ -13,12 +13,11 @@ class Network {
 	/** A JSON GET, or undefined when the document is absent or unreadable. */
 	getJSON = async (
 		url: string,
-		timeoutMs = REQUEST_TIMEOUT_MS,
 	): Promise<Record<string, unknown> | undefined> => {
 		try {
 			const response = await fetch(url, {
 				headers: { accept: "application/json" },
-				signal: AbortSignal.timeout(timeoutMs),
+				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 			});
 
 			if (!response.ok) return undefined;
@@ -38,7 +37,6 @@ class Network {
 		url: string,
 		body: unknown,
 		what: string,
-		timeoutMs = REQUEST_TIMEOUT_MS,
 	): Promise<Record<string, unknown>> => {
 		let response: Response;
 
@@ -50,7 +48,7 @@ class Network {
 					accept: "application/json",
 				},
 				body: JSON.stringify(body),
-				signal: AbortSignal.timeout(timeoutMs),
+				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 			});
 		} catch (error) {
 			throw new Error(`${what} failed: ${errorText(error)}`);
@@ -74,7 +72,7 @@ class Network {
 		url: string,
 		fields: Record<string, string>,
 		what: string,
-		timeoutMs = REQUEST_TIMEOUT_MS,
+		authorization?: string,
 	): Promise<Record<string, unknown>> => {
 		let response: Response;
 
@@ -84,9 +82,10 @@ class Network {
 				headers: {
 					"content-type": "application/x-www-form-urlencoded",
 					accept: "application/json",
+					...(authorization === undefined ? {} : { authorization }),
 				},
 				body: new URLSearchParams(fields),
-				signal: AbortSignal.timeout(timeoutMs),
+				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 			});
 		} catch (error) {
 			throw new Error(`${what} failed: ${errorText(error)}`);

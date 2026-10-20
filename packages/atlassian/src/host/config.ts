@@ -6,7 +6,7 @@
  * narrows whichever list it is given to what the server actually advertises.
  */
 
-import { credentialKeyFor, type ProviderProfile } from "dsh-mcp-oauth";
+import { DEFAULT_INSTANCE, type OAuthProviderProfile } from "dsh-mcp-oauth";
 
 /** Atlassian's v1 MCP resource; the default because it needs no extra setup. */
 export const DEFAULT_ENDPOINT = "https://mcp.atlassian.com/v1/mcp";
@@ -14,8 +14,8 @@ export const DEFAULT_ENDPOINT = "https://mcp.atlassian.com/v1/mcp";
 /** First loopback port tried for the OAuth redirect. */
 export const DEFAULT_REDIRECT_PORT = 8143;
 
-/** The name this plugin owns in the credential store and in logs. */
-const PLUGIN_NAME = "dsh-atlassian";
+/** The name this plugin is registered under; it owns the credential record. */
+export const PLUGIN_NAME = "dsh-atlassian";
 
 /** Scopes wanted across both generations; whatever is not advertised is dropped. */
 const DESIRED_SCOPES = [
@@ -85,17 +85,19 @@ export function resolveConfig(input: ConfigInput | undefined): Config {
 }
 
 /** The profile every library call of this plugin is parameterized with. */
-export const atlassianProfile = (config: Config): ProviderProfile => {
+export const atlassianProfile = (config: Config): OAuthProviderProfile => {
 	return {
-		id: "atlassian",
+		scope: PLUGIN_NAME,
 		label: "Atlassian",
+		instance: DEFAULT_INSTANCE,
 		endpoint: config.endpoint,
-		redirectPort: config.redirectPort,
-		scopes: DESIRED_SCOPES,
-		fallbackScopes: FALLBACK_SCOPES,
-		clientName: "DeepSeek Harness",
 		toolNamespace: "atlassian",
-		credentialKey: credentialKeyFor(PLUGIN_NAME),
 		debug: config.debug,
+		oauth: {
+			redirectPort: config.redirectPort,
+			scopes: DESIRED_SCOPES,
+			fallbackScopes: FALLBACK_SCOPES,
+			clientName: "DeepSeek Harness",
+		},
 	};
 };

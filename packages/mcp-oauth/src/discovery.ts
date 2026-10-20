@@ -13,8 +13,8 @@
  */
 
 import { network } from "./net";
-import type { ProviderProfile } from "./provider";
-import { OAuthServer } from "./server";
+import type { OAuthProviderProfile } from "./provider";
+import { chooseTokenAuthMethod, OAuthServer } from "./server";
 
 /**
  * Resolve the authorization server for one MCP resource.
@@ -22,7 +22,9 @@ import { OAuthServer } from "./server";
  * @returns the discovered server, its endpoints, and the chosen scopes.
  * @throws when no authorization-server metadata can be read at all.
  */
-export async function discover(profile: ProviderProfile): Promise<OAuthServer> {
+export async function discover(
+	profile: OAuthProviderProfile,
+): Promise<OAuthServer> {
 	const endpoint = profile.endpoint;
 	let protectedResource: Record<string, unknown> | undefined;
 	let issuer = new URL(endpoint).origin;
@@ -73,6 +75,9 @@ export async function discover(profile: ProviderProfile): Promise<OAuthServer> {
 		tokenEndpoint,
 		scopes,
 		scopeString: scopes.join(" "),
+		tokenAuthMethod: chooseTokenAuthMethod(
+			stringList(metadata.token_endpoint_auth_methods_supported),
+		),
 		...(registrationEndpoint === undefined ? {} : { registrationEndpoint }),
 		...(revocationEndpoint === undefined ? {} : { revocationEndpoint }),
 	});
@@ -116,19 +121,21 @@ function authorizationServerCandidates(issuer: string): string[] {
  * because that is what buys a refresh token.
  */
 function chooseScopes(
-	profile: ProviderProfile,
+	profile: OAuthProviderProfile,
 	advertised: readonly string[] | undefined,
 ): string[] {
+	const wanted = profile.oauth.scopes;
+
 	if (advertised === undefined || advertised.length === 0)
-		return [...profile.fallbackScopes];
+		return [...profile.oauth.fallbackScopes];
 
-	const wanted = profile.scopes.filter((scope) => advertised.includes(scope));
+	const chosen = wanted.filter((scope) => advertised.includes(scope));
 
-	if (wanted.length > 0) return wanted;
+	if (chosen.length > 0) return chosen;
 
 	return advertised.includes("offline_access")
 		? ["offline_access"]
-		: [...profile.fallbackScopes];
+		: [...profile.oauth.fallbackScopes];
 }
 
 function stringList(value: unknown): string[] | undefined {

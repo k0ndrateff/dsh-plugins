@@ -18,12 +18,23 @@ Built and verified against DSH `0.2.1-rc.2`.
 The library carries RFC 9728/8414 discovery, RFC 7591 dynamic client
 registration, PKCE over a loopback redirect, token lifetime with cross-process
 refresh, and the MCP connection whose tokens keep changing. A plugin supplies a
-provider profile and a credential-record key, and nothing else about OAuth. Its
-conformance run resolves the endpoints of every provider on the roadmap:
+provider profile and a credential-record key, and nothing else about OAuth. One
+profile is one account, so a plugin can hold a work and a personal account of the
+same provider side by side; a profile with no OAuth facts is a local MCP server
+that needs no credentials at all.
+
+Its conformance run resolves the endpoints of every provider on the roadmap,
+registers a throwaway client wherever registration is open, and probes the token
+endpoint to see which client authentication the server actually accepted:
 
 ```sh
 cd packages/mcp-oauth && bun run test
 ```
+
+That run needs the network and does register clients — at Atlassian, Sentry and
+GitLab, once per run — so it is not one to put on a loop. The other two thirds of
+the same command (the account grammar, the client-authentication policy, and the
+bridge against a local MCP server) need nothing but bun.
 
 Where this is going — Sentry, GitLab, Figma, the checks plugin, and the digest —
 is written down in [docs/roadmap.md](docs/roadmap.md). How to work in this

@@ -16,7 +16,7 @@ import {
 	errorText,
 	type GrantStore,
 	loggerOf,
-	type McpOAuthBridge,
+	type McpBridge,
 	openBrowser,
 } from "dsh-mcp-oauth";
 import type { AtlassianStatus, StatusNotice } from "../shared/status";
@@ -33,7 +33,7 @@ export interface AuthDeps {
 	readonly state: RuntimeState;
 	readonly store: GrantStore;
 	readonly flow: AuthorizationFlow;
-	readonly bridge: McpOAuthBridge;
+	readonly bridge: McpBridge;
 }
 
 export class AtlassianAuth {
