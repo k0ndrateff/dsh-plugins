@@ -7,6 +7,10 @@
  *  - a **turn tail seat**, so the card with the failures sits under the agent's
  *    answer, where the user is reading, and a click opens the file.
  *
+ * The seats themselves — the card's chrome, the tool row, and the stylesheet
+ * they are drawn with — come from `dsh-integration-ui`; this half says what is
+ * devkit's and registers each seat under this plugin's own tool name.
+ *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
@@ -18,14 +22,14 @@ import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
-import { ChecksTail } from "./components/checks-card";
+import { ChecksTail } from "./components/checks-tail";
 import { ChecksToolRow } from "./components/tool-row";
 import {
 	CHECKS_TOOL_NAME,
-	checksDefinition,
+	checksPresentation,
 } from "./conversation/card-definition";
 import { PLUGIN_ID } from "./plugin-id";
-import { installStyles } from "./styles/styles-runtime";
+import { installDevkitStyles } from "./styles/styles-runtime";
 
 /** The client services this half needs. */
 export const inject = ["slots", "uiConversation"];
@@ -37,11 +41,11 @@ export const inject = ["slots", "uiConversation"];
 export const apply = (ctx: Context): void => {
 	// The compiled stylesheet is inlined into this bundle at build time and
 	// tagged with the plugin id, so turning the plugin off removes it too.
-	ctx.effect(() => installStyles(), "devkit: stylesheet");
+	ctx.effect(() => installDevkitStyles(), "devkit: stylesheet");
 
 	// The card's payload arrives as a durable session record; this definition
 	// turns it into a Chat node the turn tail can select.
-	ctx.uiConversation.events.register(checksDefinition);
+	ctx.uiConversation.events.register(checksPresentation.definition);
 
 	// `inject` waits for the owning package to declare the slot, so these
 	// registrations survive a page that composes the Chat without a tool group.

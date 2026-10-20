@@ -1,0 +1,35 @@
+{
+	"name": "dsh-integration-host",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "The host-half shell every integration plugin shares: endpoint configuration, sign-in state, the settings route, and the slash command",
+	"license": "MIT",
+	"main": "lib/index.js",
+	"types": "lib/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./lib/index.d.ts",
+			"default": "./lib/index.js"
+		},
+		"./status": {
+			"types": "./lib/status.d.ts",
+			"default": "./lib/status.js"
+		}
+	},
+	"files": [
+		"lib"
+	],
+	"scripts": {
+		"build": "node build.mjs && tsc -p tsconfig.build.json",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "bun run test/unit.ts"
+	},
+	"dependencies": {
+		"dsh-mcp-oauth": "workspace:*"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "~4.0.5",
+		"@deepseek-ai/dsh-authorization": "0.2.1-rc.2"
+	}
+}

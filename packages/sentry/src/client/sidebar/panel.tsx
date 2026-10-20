@@ -2,21 +2,25 @@
  * The Sentry panel: one issue, and the actions that change it.
  *
  * The body is a right-Sidebar tab of this plugin's own kind, so it renders
- * inside the harness's panel and follows its theme. It reads what to show from
- * its tab's navigation parameters — the Sidebar hands those to every body — and
- * fetches the issue through the host's `/dsh-sentry` route, because only the
- * host half holds the MCP connection.
+ * inside the harness's panel and follows its theme. What to show arrives in the
+ * tab's navigation parameters, the issue itself comes through the host's
+ * `/dsh-sentry` route — only the host half holds the MCP connection — and the
+ * loading, failing, retrying and writing belong to `dsh-integration-ui`.
  *
- * Writes are the same channel, one step at a time: run it, and the host answers
- * with the issue as it now stands, so the panel never renders an assumption
- * about what a change did.
+ * Writes are one step at a time: run it, and the host answers with the issue as
+ * it now stands, so the panel never renders an assumption about what a change
+ * did.
  */
 
 import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
-import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
-import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
+import {
+	createPanelBody,
+	createPanelTitle,
+	type PanelActions,
+	type PanelProvider,
+} from "dsh-integration-ui";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
 	asIssuePanel,
 	type CodeLocation,
@@ -28,21 +32,7 @@ import { Fact } from "../components/fact";
 import { SuspectRow } from "../components/suspect-row";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
-import { asPanelTarget } from "./definition";
-
-/** What the panel currently knows. */
-type Load =
-	| { readonly status: "loading" }
-	| { readonly status: "ready"; readonly panel: IssuePanel }
-	| { readonly status: "error"; readonly message: string };
-
-/** The one write the panel may ask the host to perform. */
-type Write = (id: string) => Promise<IssuePanel>;
-
-/** The reason inside an unknown thrown value, as a sentence. */
-function messageOf(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
+import { asPanelTarget, type PanelTarget } from "./definition";
 
 /** One date as the reader's own locale writes it. */
 function whenText(value: string): string {
@@ -84,7 +74,7 @@ const Section = ({
 
 interface Actions {
 	readonly busy: boolean;
-	run: (write: Write) => void;
+	run: PanelActions<PanelTarget>["run"];
 }
 
 /** The status changes Sentry's own vocabulary offers. */
@@ -96,7 +86,7 @@ const StatusActions = ({ actions }: { actions: Actions }) => (
 				variant="outline"
 				disabled={actions.busy}
 				onClick={() => {
-					actions.run((id) => hostApi.setStatus(id, "resolved"));
+					actions.run((target) => hostApi.setStatus(target.id, "resolved"));
 				}}
 			>
 				Resolve
@@ -107,8 +97,8 @@ const StatusActions = ({ actions }: { actions: Actions }) => (
 				variant="outline"
 				disabled={actions.busy}
 				onClick={() => {
-					actions.run((id) =>
-						hostApi.setStatus(id, "ignored", "untilEscalating"),
+					actions.run((target) =>
+						hostApi.setStatus(target.id, "ignored", "untilEscalating"),
 					);
 				}}
 			>
@@ -120,7 +110,7 @@ const StatusActions = ({ actions }: { actions: Actions }) => (
 				variant="outline"
 				disabled={actions.busy}
 				onClick={() => {
-					actions.run((id) => hostApi.setStatus(id, "unresolved"));
+					actions.run((target) => hostApi.setStatus(target.id, "unresolved"));
 				}}
 			>
 				Reopen
@@ -157,7 +147,7 @@ const Assignee = ({ actions }: { actions: Actions }) => {
 					variant="outline"
 					disabled={actions.busy || reference === ""}
 					onClick={() => {
-						actions.run((id) => hostApi.assign(id, reference));
+						actions.run((target) => hostApi.assign(target.id, reference));
 					}}
 				>
 					Assign
@@ -168,7 +158,7 @@ const Assignee = ({ actions }: { actions: Actions }) => {
 					variant="ghost"
 					disabled={actions.busy}
 					onClick={() => {
-						actions.run((id) => hostApi.assign(id, null));
+						actions.run((target) => hostApi.assign(target.id, null));
 					}}
 				>
 					Unassign
@@ -310,128 +300,19 @@ const IssueView = ({
 	);
 };
 
-/**
- * The panel's body seat.
- * @param props - the tab's live information, including what it was opened on.
- * @returns the panel, filling the pane it was given.
- */
-export const SentryPanel = (
-	props: PropsRuntime<"sidebar.right.pane.tab">,
-): ReactNode => {
-	const { tab } = props.useTabInfo();
-	const target = asPanelTarget(tab.navigation.params);
-	const revision = tab.navigation.revision;
-	const identity = target?.id ?? "";
-
-	const [load, setLoad] = useState<Load>({ status: "loading" });
-	const [failure, setFailure] = useState<string | undefined>(undefined);
-	const [busy, setBusy] = useState(false);
-
-	// The effect below is keyed by identity, so the fetch reads the target from a
-	// ref rather than closing over one render's copy of it.
-	const current = useRef(identity);
-	current.current = identity;
-
-	const fetchPanel = useCallback(
-		async (signal?: AbortSignal): Promise<void> => {
-			const wanted = current.current;
-
-			if (wanted === "") {
-				setLoad({
-					status: "error",
-					message: "This panel was opened without an issue.",
-				});
-				return;
-			}
-
-			setLoad({ status: "loading" });
-
-			try {
-				const panel = asIssuePanel(await hostApi.issue(wanted, signal));
-
-				if (panel === undefined)
-					throw new Error(
-						"the host answered with an issue this version cannot draw",
-					);
-				if (signal?.aborted !== true) setLoad({ status: "ready", panel });
-			} catch (error) {
-				if (signal?.aborted !== true)
-					setLoad({ status: "error", message: messageOf(error) });
-			}
-		},
-		[],
-	);
-
-	useEffect(() => {
-		const controller = new AbortController();
-		setFailure(undefined);
-		void fetchPanel(controller.signal);
-
-		return () => {
-			controller.abort();
-		};
-	}, [identity, revision, fetchPanel]);
-
-	/** One write, then the truth about what it did. */
-	const run = useCallback(
-		(write: Write): void => {
-			const wanted = current.current;
-			if (wanted === "") return;
-
-			setBusy(true);
-			setFailure(undefined);
-
-			write(wanted)
-				.then((answer) => {
-					const panel = asIssuePanel(answer);
-
-					if (panel === undefined)
-						throw new Error(
-							"the host answered with an issue this version cannot draw",
-						);
-					setLoad({ status: "ready", panel });
-				})
-				.catch((error: unknown) => {
-					setFailure(messageOf(error));
-					// The write may have failed after Sentry changed nothing; asking
-					// again is what tells the two apart.
-					void fetchPanel();
-				})
-				.finally(() => {
-					setBusy(false);
-				});
-		},
-		[fetchPanel],
-	);
-
-	const actions: Actions = { busy, run };
-
-	return (
-		<div className={styles.panel}>
-			<div className={styles.panelScroll}>
-				{load.status === "loading" ? (
-					<span className={styles.caption}>Loading…</span>
-				) : null}
-
-				{load.status === "error" ? (
-					<>
-						<p className={styles.error}>{load.message}</p>
-						<div className={styles.actions}>
-							<Button size="sm" onClick={() => void fetchPanel()}>
-								Try again
-							</Button>
-						</div>
-					</>
-				) : null}
-
-				{failure === undefined ? null : (
-					<p className={styles.error}>{failure}</p>
-				)}
-
-				{load.status === "ready" ? (
-					<IssueView panel={load.panel} actions={actions} />
-				) : null}
-			</div>
-		</div>
-	);
+/** Everything the shared panel needs from this plugin. */
+const provider: PanelProvider<IssuePanel, PanelTarget> = {
+	emptyMessage: "This panel was opened without an issue.",
+	parseParams: (value) => asPanelTarget(value),
+	identity: (target) => target.id,
+	title: (target) => target.id,
+	fetch: async (target, signal) => await hostApi.issue(target.id, signal),
+	parse: (value) => asIssuePanel(value),
+	view: ({ data, actions }) => <IssueView panel={data} actions={actions} />,
 };
+
+/** The panel's body seat. */
+export const SentryPanel = createPanelBody(provider);
+
+/** The panel's title seat. */
+export const SentryPanelTitle = createPanelTitle(provider);

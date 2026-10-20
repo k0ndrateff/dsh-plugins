@@ -5,7 +5,12 @@
 		"moduleResolution": "Bundler",
 		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"jsx": "react-jsx",
-		"types": []
+		"types": [],
+		"paths": {
+			"dsh-integration-host/status": ["../integration-host/src/status.ts"],
+			"dsh-integration-ui": ["../integration-ui/src/index.ts"],
+			"dsh-integration-ui/styles": ["../integration-ui/src/styles/index.ts"]
+		}
 	},
 	"include": ["src/client/**/*.ts", "src/client/**/*.tsx"]
 }

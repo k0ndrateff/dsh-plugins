@@ -12,6 +12,7 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
+import type { RuntimeState } from "dsh-integration-host";
 import type { JsonValue, McpBridge } from "dsh-mcp-oauth";
 import type { AtlassianMeta, IssueCard, PageCard } from "../../shared/meta";
 import type {
@@ -22,13 +23,13 @@ import type {
 } from "../../shared/presentation";
 import { extractor } from "../presentation/extract";
 import { type Gist, modelRoute, summarizeGists } from "../presentation/gist";
-import type { RuntimeState } from "../state";
+import type { SiteFacts } from "../store/site";
 
 /** What the tool needs from the plugin to resolve and record one card. */
 export interface PresentDeps {
 	readonly ctx: Context;
 	readonly bridge: McpBridge;
-	readonly state: RuntimeState;
+	readonly state: RuntimeState<SiteFacts>;
 }
 
 /** One tool call's text answer, before it becomes blocks. */
@@ -234,7 +235,7 @@ class PresentTool {
 		args: PresentArgs,
 		exec: ToolExecution,
 	): Promise<PresentOutcome> => {
-		const cloudId = args.cloudId ?? deps.state.cloudId;
+		const cloudId = args.cloudId ?? deps.state.facts?.cloudId;
 
 		if (cloudId === undefined)
 			throw new Error(
@@ -260,7 +261,7 @@ class PresentTool {
 					fields: this.ISSUE_FIELDS,
 				});
 
-				const found = this.issuesOf(value, deps.state.siteUrl, key);
+				const found = this.issuesOf(value, deps.state.facts?.siteUrl, key);
 				push(found.items);
 				matched += found.total ?? found.items.length;
 			} catch {
@@ -276,7 +277,7 @@ class PresentTool {
 				maxResults: this.MAX_ITEMS,
 			});
 
-			const found = this.issuesOf(value, deps.state.siteUrl);
+			const found = this.issuesOf(value, deps.state.facts?.siteUrl);
 			push(found.items);
 			matched += found.total ?? found.items.length;
 		}
@@ -288,7 +289,7 @@ class PresentTool {
 					pageId: id,
 				});
 
-				const found = this.pagesOf(value, deps.state.siteUrl, id);
+				const found = this.pagesOf(value, deps.state.facts?.siteUrl, id);
 				push(found.items);
 				matched += found.total ?? found.items.length;
 			} catch {
@@ -303,7 +304,7 @@ class PresentTool {
 				limit: this.MAX_ITEMS,
 			});
 
-			const found = this.pagesOf(value, deps.state.siteUrl);
+			const found = this.pagesOf(value, deps.state.facts?.siteUrl);
 			push(found.items);
 			matched += found.total ?? found.items.length;
 		}

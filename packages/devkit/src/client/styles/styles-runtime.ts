@@ -1,31 +1,20 @@
 /**
  * Putting the compiled stylesheet into the page.
  *
- * vanilla-extract compiles `*.css.ts` to static CSS at build time, but the
- * client module system serves exactly one artifact — `client.js` — so there is
- * nowhere to put a stylesheet file. The build therefore compiles the CSS first
- * and substitutes its text for `__DSH_DEVKIT_STYLES__` here, which keeps the
- * bundle single-file with no style-injection runtime.
- *
- * The `data-plugin` tag is what the module system matches on when the plugin is
- * turned off, so the rules leave with it.
+ * The mechanism belongs to `dsh-integration-ui`; what stays here is this
+ * plugin's own placeholder, because the client module system serves exactly one
+ * artifact per package and the build substitutes the compiled CSS text into it.
  */
 
+import { installStyles } from "dsh-integration-ui";
 import { PLUGIN_ID } from "../plugin-id";
 
 /** Replaced with the compiled CSS text at build time. */
 declare const __DSH_DEVKIT_STYLES__: string;
 
 /**
- * Add the stylesheet to the document.
+ * Add the plugin's stylesheet to the document.
  * @returns a disposer that removes it again.
  */
-export const installStyles = (): (() => void) => {
-	const style = document.createElement("style");
-	style.setAttribute("data-plugin", PLUGIN_ID);
-	style.textContent = __DSH_DEVKIT_STYLES__;
-
-	document.head.append(style);
-
-	return () => style.remove();
-};
+export const installDevkitStyles = (): (() => void) =>
+	installStyles(PLUGIN_ID, __DSH_DEVKIT_STYLES__);

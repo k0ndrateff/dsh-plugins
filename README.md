@@ -16,6 +16,8 @@ Built and verified against DSH `0.2.1-rc.2`.
 | [`packages/sentry`](packages/sentry) | `dsh-sentry-plugin` — Sentry errors, with a card and a panel |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
+| [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
+| [`packages/integration-ui`](packages/integration-ui) | `dsh-integration-ui` — the browser-half shell: panel body, result card, tool row, settings section, stylesheet (a library) |
 
 The library carries RFC 9728/8414 discovery, RFC 7591 dynamic client
 registration, PKCE over a loopback redirect, token lifetime with cross-process
@@ -38,7 +40,17 @@ GitLab, once per run — so it is not one to put on a loop. The other two thirds
 the same command (the account grammar, the client-authentication policy, and the
 bridge against a local MCP server) need nothing but bun.
 
-Where this is going — Sentry, GitLab, Figma, and the digest — is written down in
+The other two libraries are the shared shell around an integration, so a new
+provider writes only what is its own. `dsh-integration-host` owns the endpoint
+patch, the sign-in state and the operations that change it, the settings route and
+the slash command; a plugin supplies its provider profile, how its own server
+names the account, and the paths its panel uses. `dsh-integration-ui` owns the
+side-panel body — loading, failing, retrying, one write at a time — the result
+card under the answer, the terse tool row, the settings card and the stylesheet
+they are drawn with; a plugin supplies its payload, its drawing rules, and its own
+tab kind. Atlassian, Sentry and devkit are built on both.
+
+Where this is going — GitLab, Figma, and the digest — is written down in
 [docs/roadmap.md](docs/roadmap.md). How to work in this
 repository is [AGENTS.md](AGENTS.md).
 

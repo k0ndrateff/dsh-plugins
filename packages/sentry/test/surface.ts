@@ -11,9 +11,10 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
+import { RuntimeState } from "dsh-integration-host";
 import type { McpBridge } from "dsh-mcp-oauth";
 import { PanelApi } from "../src/host/panels/panel";
-import { RuntimeState } from "../src/host/state";
+import { OrganizationFacts } from "../src/host/store/organization";
 import { createApiHandler, ROUTE_PREFIX } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
 import type { SentryStatus } from "../src/shared/status";
@@ -103,10 +104,13 @@ Found **2** issues:
 `;
 
 /** A runtime state that already knows its organization. */
-function signedIn(): RuntimeState {
-	const state = new RuntimeState();
+function signedIn(): RuntimeState<OrganizationFacts> {
+	const state = new RuntimeState<OrganizationFacts>();
 
-	state.applyOrganization({ slug: "acme", webUrl: "https://acme.sentry.io" });
+	state.facts = new OrganizationFacts({
+		slug: "acme",
+		webUrl: "https://acme.sentry.io",
+	});
 
 	return state;
 }
@@ -197,7 +201,7 @@ console.log("\n=== the panel ===");
 
 	const anonymous = new PanelApi({
 		bridge: fakeBridge(() => text(ISSUE_DOC)).bridge,
-		state: new RuntimeState(),
+		state: new RuntimeState<OrganizationFacts>(),
 	});
 
 	let refusal = "";
@@ -357,19 +361,14 @@ console.log("\n=== the route ===");
 	};
 
 	const handler = createApiHandler({
-		config: {
-			endpoint: "https://mcp.sentry.dev/mcp",
-			redirectPort: 8144,
-			debug: false,
-		},
-		state,
 		auth: {
 			getStatus: async () => status,
 			signIn: async () => ({}),
 			signOut: async () => {},
 			connect: async () => true,
+			loginMessage: () => "Opening your browser…",
 			settleNotice: async () => {},
-		} as never,
+		},
 		panel: new PanelApi({ bridge, state }),
 	});
 

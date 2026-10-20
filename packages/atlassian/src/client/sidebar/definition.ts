@@ -5,7 +5,8 @@
  * `ctx.sidebarRightTabs`, the body into the keyed `sidebar.right.pane.tab` seat,
  * and the chip title into `sidebar.right.pane.tab.title`, both under this
  * definition's `id`. Nothing here reaches into the Sidebar's store or panes —
- * the same two-stage registration a package shipped with the product uses.
+ * the same two-stage registration a package shipped with the product uses, with
+ * the shared shell of `dsh-integration-ui` doing the registering.
  *
  * No `multiple`: one panel per pane. Opening another issue navigates the one
  * that is there, which is what makes clicking through a search result feel like
@@ -13,6 +14,7 @@
  */
 
 import type { SidebarRightTabDefinition } from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
+import { createPanelDefinition } from "dsh-integration-ui";
 import type { PanelTarget } from "../../shared/panel";
 
 /** The tab kind this plugin owns; what `openTab` names. */
@@ -29,13 +31,5 @@ declare module "@deepseek-ai/dsh-client-ui-sidebar-right/client" {
 }
 
 /** The panel's registry definition; the body and title carry the rest. */
-export const panelDefinition = (): SidebarRightTabDefinition => {
-	return {
-		id: PANEL_ID,
-		kind: PANEL_KIND,
-		// A type from outside the product outranks the shipped ones, which is the
-		// band the Sidebar's own documentation reserves for exactly this.
-		priority: "extension",
-		title: () => "Atlassian",
-	};
-};
+export const panelDefinition = (): SidebarRightTabDefinition =>
+	createPanelDefinition({ id: PANEL_ID, kind: PANEL_KIND, title: "Atlassian" });

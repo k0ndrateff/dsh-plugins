@@ -11,6 +11,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { RuntimeState } from "dsh-integration-host";
 import { type JsonValue, type McpBridge, mcpText } from "dsh-mcp-oauth";
 import type {
 	IssueCard,
@@ -20,7 +21,7 @@ import type {
 	SuspectCommit,
 } from "../../shared/meta";
 import { parseIssueDetail, parseIssueSearch } from "../presentation/parse";
-import type { RuntimeState } from "../state";
+import type { OrganizationFacts } from "../store/organization";
 
 /** The tool that lists grouped issues. */
 const SEARCH_TOOL = "search_issues";
@@ -34,7 +35,7 @@ const MAX_ISSUES = 25;
 /** What the tool needs from the plugin. */
 export interface PresentDeps {
 	readonly bridge: McpBridge;
-	readonly state: RuntimeState;
+	readonly state: RuntimeState<OrganizationFacts>;
 }
 
 /** The arguments the model may send, after validation. */
@@ -230,7 +231,7 @@ class PresentTool {
 
 	/** Resolve every requested source into card rows. */
 	private async resolve(deps: PresentDeps, args: PresentArgs): Promise<Found> {
-		const organization = args.organization ?? deps.state.organization;
+		const organization = args.organization ?? deps.state.facts?.slug;
 
 		if (organization === undefined)
 			throw new Error(

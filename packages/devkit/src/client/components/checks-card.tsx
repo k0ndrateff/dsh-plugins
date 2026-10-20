@@ -6,21 +6,28 @@
  * beginning: this seat's `openFile` takes a path and nothing more, so a position
  * would be dropped — the tool row, inside the tool group, sits in the seat that
  * also takes a line.
+ *
+ * The card's chrome — its heading, its count, and the list its checks sit in —
+ * belongs to `dsh-integration-ui`; what is devkit's is what one check looks like.
  */
 
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
+import type { CardProvider } from "dsh-integration-ui";
 import {
 	type CheckFailure,
 	type CheckResult,
+	type ChecksCard,
 	checkLabel,
 	durationLabel,
 	locationLabel,
 } from "../../shared/checks";
-import { type CheckedRun, selectRuns } from "../conversation/card-definition";
 import * as styles from "../styles/styles.css";
 
 /** How many failures one card lists; the rest are counted. */
 const CARD_FAILURES = 20;
+
+/** What the turn-tail seat hands a card that needs more than its payload. */
+type TurnTailOwner = PropsRuntime<"conversation.chat.turnTail">;
 
 /** One failure, clickable when it names a file. */
 const Failure = ({
@@ -95,51 +102,21 @@ const Run = ({
 	</li>
 );
 
-/** One card: how the run went, then each check. */
-const Card = ({
-	run,
-	openFile,
-}: {
-	run: CheckedRun;
-	openFile: (path: string) => void;
-}) => {
-	const passed = run.checks.filter((check) => check.status === "passed").length;
+/** How one run of checks draws itself. */
+export const checksCard: CardProvider<ChecksCard, TurnTailOwner> = {
+	callId: (run) => run.callId,
+	title: () => "checks",
+	count: (run) => {
+		const passed = run.checks.filter(
+			(check) => check.status === "passed",
+		).length;
 
-	return (
-		<section className={styles.card} data-devkit-card={run.callId}>
-			<div className={styles.head}>
-				<span className={styles.title}>checks</span>
-				<span className={styles.count}>
-					{passed} of {run.checks.length} passed
-				</span>
-			</div>
-
-			<ul className={styles.runs}>
-				{run.checks.map((check) => (
-					<Run key={check.name} run={check} openFile={openFile} />
-				))}
-			</ul>
-		</section>
-	);
-};
-
-/**
- * Render every run one completed turn reported.
- * @param props - the closing turn, its sequence, and the file opener.
- * @returns the cards, or null for a turn that ran no check.
- */
-export const ChecksTail = (
-	props: PropsRuntime<"conversation.chat.turnTail">,
-) => {
-	const matched = selectRuns(props);
-
-	if (matched === null) return null;
-
-	return (
-		<div>
-			{matched.runs.map((run) => (
-				<Card key={run.callId} run={run} openFile={props.openFile} />
-			))}
-		</div>
-	);
+		return `${passed} of ${run.checks.length} passed`;
+	},
+	length: (run) => run.checks.length,
+	layout: () => "list",
+	items: (run, owner) =>
+		run.checks.map((check) => (
+			<Run key={check.name} run={check} openFile={owner.openFile} />
+		)),
 };

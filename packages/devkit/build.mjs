@@ -49,6 +49,44 @@ const PLATFORM_MODULES = [
 /** Packages the running harness supplies, so the plugin shares their instances. */
 const HARNESS_PACKAGES = ["@deepseek-ai/dsh-*", "@deepseek-ai/cordis"];
 
+/**
+ * Workspace libraries are bundled from source: their code is ours, and a build
+ * then never depends on build order.
+ */
+const WORKSPACE_LIBRARIES = {
+	"dsh-integration-host/status": new URL(
+		"../integration-host/src/status.ts",
+		import.meta.url,
+	).pathname,
+	"dsh-integration-ui": new URL(
+		"../integration-ui/src/index.ts",
+		import.meta.url,
+	).pathname,
+	"dsh-integration-ui/styles": new URL(
+		"../integration-ui/src/styles/index.ts",
+		import.meta.url,
+	).pathname,
+};
+
+/**
+ * Resolve this build's workspace libraries from source inside vanilla-extract.
+ *
+ * The plugin compiles every `*.css.ts` with its own esbuild run, which forwards
+ * `plugins` but not `alias`. Without this, a stylesheet that imports the shared
+ * one would evaluate that package's built bundle instead of its source, and
+ * inline a second copy of the vanilla-extract runtime with it.
+ */
+const workspaceResolver = {
+	name: "workspace-libraries",
+	setup(build) {
+		build.onResolve({ filter: /^dsh-/ }, (args) => {
+			const target = WORKSPACE_LIBRARIES[args.path];
+
+			return target === undefined ? null : { path: target };
+		});
+	},
+};
+
 /** Where the stylesheet pass writes before it is inlined. */
 const STYLE_DIR = ".build";
 
@@ -66,8 +104,8 @@ const clientWrapper = {
 async function compileStyles() {
 	rmSync(STYLE_DIR, { recursive: true, force: true });
 	await build({
-		// `styles.css.ts` imports the theme contract, so it carries every rule the
-		// plugin ships; the components only consume the class names it produces.
+		// `styles.css.ts` re-exports the shared stylesheet, so it carries every rule
+		// the plugin ships; the components only consume the class names it produces.
 		entryPoints: ["src/client/styles/styles.css.ts"],
 		outdir: STYLE_DIR,
 		entryNames: "styles",
@@ -75,7 +113,14 @@ async function compileStyles() {
 		format: "esm",
 		platform: "browser",
 		target: "es2022",
-		plugins: [vanillaExtractPlugin({ outputCss: true, identifiers: "short" })],
+		alias: WORKSPACE_LIBRARIES,
+		plugins: [
+			vanillaExtractPlugin({
+				outputCss: true,
+				identifiers: "short",
+				esbuildOptions: { plugins: [workspaceResolver] },
+			}),
+		],
 		logLevel: "warning",
 	});
 
@@ -118,9 +163,16 @@ function clientOptions(css) {
 		sourcemap: true,
 		// React must never be inlined: a second copy breaks hooks in the page.
 		external: [...PLATFORM_MODULES, ...(pkg.dsh?.client?.external ?? [])],
+		alias: WORKSPACE_LIBRARIES,
 		// Class names are still compiled here, but the CSS was collected above and
 		// is inlined by `define`, so this pass emits no stylesheet file.
-		plugins: [vanillaExtractPlugin({ outputCss: false, identifiers: "short" })],
+		plugins: [
+			vanillaExtractPlugin({
+				outputCss: false,
+				identifiers: "short",
+				esbuildOptions: { plugins: [workspaceResolver] },
+			}),
+		],
 		define: {
 			"process.env.NODE_ENV": '"production"',
 			__DSH_DEVKIT_STYLES__: JSON.stringify(css),

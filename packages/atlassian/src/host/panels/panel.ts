@@ -13,6 +13,7 @@
  * because silence there would look like success.
  */
 
+import type { RuntimeState } from "dsh-integration-host";
 import type { McpBridge } from "dsh-mcp-oauth";
 import { asRecord, mcpJson, pickNumber, pickString } from "dsh-mcp-oauth";
 import type {
@@ -23,7 +24,7 @@ import type {
 	PanelTransition,
 } from "../../shared/panel";
 import { extractor, formatDuration } from "../presentation/extract";
-import type { RuntimeState } from "../state";
+import type { SiteFacts } from "../store/site";
 
 /** How many comments to show on one panel. */
 const COMMENT_LIMIT = 25;
@@ -33,7 +34,7 @@ const PEOPLE_LIMIT = 8;
 
 export interface PanelDeps {
 	readonly bridge: McpBridge;
-	readonly state: RuntimeState;
+	readonly state: RuntimeState<SiteFacts>;
 }
 
 export class PanelApi {
@@ -114,9 +115,9 @@ export class PanelApi {
 			updated: pickString(fields, "updated"),
 			description: extractor.text(fields.description),
 			url:
-				this.deps.state.siteUrl === undefined
+				this.deps.state.facts?.siteUrl === undefined
 					? undefined
-					: `${this.deps.state.siteUrl}/browse/${identity}`,
+					: `${this.deps.state.facts?.siteUrl}/browse/${identity}`,
 			comments: this.commentsOf(fields.comment),
 			transitions,
 		};
@@ -155,10 +156,10 @@ export class PanelApi {
 			space: pickString(asRecord(record.space) ?? record.space, "name", "key"),
 			url:
 				webui === undefined
-					? this.deps.state.siteUrl === undefined
+					? this.deps.state.facts?.siteUrl === undefined
 						? undefined
-						: `${this.deps.state.siteUrl}/wiki/pages/viewpage.action?pageId=${id}`
-					: this.wikiUrl(webui, this.deps.state.siteUrl),
+						: `${this.deps.state.facts?.siteUrl}/wiki/pages/viewpage.action?pageId=${id}`
+					: this.wikiUrl(webui, this.deps.state.facts?.siteUrl),
 			body: extractor.text(record.body),
 			comments: this.commentsOf(asRecord(comments)?.results),
 		};
@@ -203,12 +204,12 @@ export class PanelApi {
 
 	/** The connected site's cloud id, or a message the user can act on. */
 	private cloudId = (): string => {
-		if (this.deps.state.cloudId === undefined)
+		if (this.deps.state.facts?.cloudId === undefined)
 			throw new Error(
 				"no Atlassian site known yet — sign in from Settings, then try again",
 			);
 
-		return this.deps.state.cloudId;
+		return this.deps.state.facts?.cloudId;
 	};
 
 	/** Jira's own estimate words, or a duration rendered from raw seconds. */

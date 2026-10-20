@@ -11,6 +11,11 @@
  *  - a right-Sidebar panel, where a click on a card opens the whole issue or
  *    page and the actions that change it.
  *
+ * The seats themselves — the panel body, the card, the tool row, the settings
+ * card, and the stylesheet they are drawn with — come from
+ * `dsh-integration-ui`; this half says what is Atlassian's and registers each
+ * seat under this plugin's own tab kind and tool names.
+ *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
@@ -29,13 +34,12 @@ import { PUBLIC_TOOL_NAMES } from "../shared/tool-names";
 import { PresentationTail } from "./components/presentation-tail";
 import { AtlassianSection } from "./components/settings-section";
 import { AtlassianToolRow } from "./components/tool-row";
-import { presentationDefinition } from "./conversation/presentation-definition";
+import { atlassianPresentation } from "./conversation/presentation-definition";
 import { PLUGIN_ID } from "./plugin-id";
 import { PANEL_ID, panelDefinition } from "./sidebar/definition";
 import { installPanelOpener } from "./sidebar/open";
-import { AtlassianPanel } from "./sidebar/panel";
-import { AtlassianPanelTitle } from "./sidebar/title";
-import { installStyles } from "./styles/styles-runtime";
+import { AtlassianPanel, AtlassianPanelTitle } from "./sidebar/panel";
+import { installAtlassianStyles } from "./styles/styles-runtime";
 
 /** The client services this half needs. */
 export const inject = ["slots", "uiConversation"];
@@ -47,11 +51,11 @@ export const inject = ["slots", "uiConversation"];
 export const apply = (ctx: Context): void => {
 	// The compiled stylesheet is inlined into this bundle at build time and
 	// tagged with the plugin id, so turning the plugin off removes it too.
-	ctx.effect(() => installStyles(), "atlassian: stylesheet");
+	ctx.effect(() => installAtlassianStyles(), "atlassian: stylesheet");
 
 	// The card's payload arrives as a durable session record; this definition
 	// turns it into a Chat node the turn tail can select.
-	ctx.uiConversation.events.register(presentationDefinition);
+	ctx.uiConversation.events.register(atlassianPresentation.definition);
 
 	// Cards open the panel through this, and it is a no-op in a build without
 	// one: the click then stays with the browser.

@@ -10,11 +10,11 @@
 и панели внутри харнесса вместо переключения в браузер.
 
 Текущее состояние — Atlassian (Jira + Confluence), Sentry и проект-плагин
-проверок. Куда идём — [docs/roadmap.md](docs/roadmap.md): GitLab, Figma, общая
-панель и дайджест. **M0–M3 сделаны**: `dsh-mcp-oauth` вынесена и умеет
-мультиаккаунт и no-auth, Atlassian и Sentry работают на ней, `dsh-devkit-plugin`
-запускает рецепты проверок проекта. Активная веха — **M4** (общая обвязка UI)
-перед GitLab.
+проверок. Куда идём — [docs/roadmap.md](docs/roadmap.md): GitLab, Figma,
+дайджест и market-индекс. **M0–M4 сделаны**: `dsh-mcp-oauth` вынесена и умеет
+мультиаккаунт и no-auth, `dsh-integration-host` и `dsh-integration-ui` держат
+общую обвязку интеграции, а Atlassian, Sentry и devkit работают на них.
+Активная веха — **M5** (GitLab).
 
 ## 2. Структура
 
@@ -23,10 +23,12 @@
 
 ```
 packages/
-├── mcp-oauth/     dsh-mcp-oauth         библиотека: OAuth для MCP-серверов
-├── devkit/        dsh-devkit-plugin     бандл: рецепты проверок проекта
-├── sentry/        dsh-sentry-plugin     бандл: ошибки Sentry
-└── atlassian/     dsh-atlassian-plugin  бандл: Jira и Confluence
+├── mcp-oauth/        dsh-mcp-oauth         библиотека: OAuth для MCP-серверов
+├── integration-host/ dsh-integration-host  библиотека: общий хостовый каркас
+├── integration-ui/   dsh-integration-ui    библиотека: общая обвязка UI
+├── devkit/           dsh-devkit-plugin     бандл: рецепты проверок проекта
+├── sentry/           dsh-sentry-plugin     бандл: ошибки Sentry
+└── atlassian/        dsh-atlassian-plugin  бандл: Jira и Confluence
 ```
 
 Внутри каждого пакета:
@@ -39,8 +41,8 @@ test/         проверки, запускаются bun
 lib/          собранное (в git не хранится)
 ```
 
-Плановые пакеты (`gitlab`, `figma`, `integration-ui`, `plugin-build`,
-`workflow`) появятся по мере вех — имена зарезервированы в roadmap.
+Плановые пакеты (`gitlab`, `figma`, `plugin-build`, `workflow`) появятся по
+мере вех — имена зарезервированы в roadmap.
 
 ## 3. Команды
 
@@ -157,11 +159,10 @@ factory})`; её `require` умеет **только** то, что перечи
   библиотеке, а не в плагине. Провайдер-специфичное — в плагине.
 - **Одинаковое поведение — один код.** Пример: `toTokenFields` существует в
   одном экземпляре, потому что его требуют и code-, и refresh-обмен.
-- **Копипаста build-обвязки** (`build.mjs`, `styles-runtime`) — известный долг;
-  выносится в `dsh-plugin-build` на M8. Пока новый пакет копирует её осознанно,
-  а не «потому что так вышло». Туда же карточка и определение turn-data:
-  `packages/devkit/src/client/conversation/card-definition.ts` — структурная
-  копия атласовского, и снимается она вместе с общей обвязкой UI на M4.
+- **Копипаста build-обвязки** (`build.mjs`) — известный долг; выносится в
+  `dsh-plugin-build` на M8. Пока новый пакет копирует её осознанно, а не
+  «потому что так вышло». Карточка и определение turn-data с M4 живут в
+  `dsh-integration-ui`, и devkit больше не держит своей копии.
 - **Переиспользуемая функция — та, у которой понятен вход и выход.** Если для
   повторного использования нужно знать внутренности — это не функция, а
   скрытая связность.
@@ -211,6 +212,12 @@ factory})`; её `require` умеет **только** то, что перечи
   должен давать только `react`, `react/jsx-runtime` и UI-кит.
 - **vanilla-extract не принимает селекторы-потомки** (`& > :first-child`,
   `& h1`) — только `&` с модификаторами и `globalStyle` для остального.
+- **vanilla-extract компилирует каждый `*.css.ts` своим esbuild-прогоном и
+  `alias` туда не пробрасывает.** Поэтому у каждого плагина в `build.mjs` есть
+  `workspaceResolver`, отданный в `esbuildOptions.plugins`: без него общий
+  стилевой лист разворачивался бы из собранного `lib/` библиотеки и тянул в
+  бандл вторую копию vanilla-extract runtime. Признак ошибки — `setAdapter`
+  в `lib/client.js`.
 - **`inject` — жёсткая зависимость.** Плагин, который ждёт сервис, отсутствующий
   в сборке, не активируется целиком. Необязательное берётся через
   `ctx.get(...)` в момент использования или через scoped `ctx.inject([...])`.
@@ -242,8 +249,8 @@ factory})`; её `require` умеет **только** то, что перечи
 
 ## 8. Куда идти дальше
 
-- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0–M3, дальше — M4
-  (общая обвязка UI) перед GitLab.
+- План и вехи — [docs/roadmap.md](docs/roadmap.md). Сделаны M0–M4, дальше — M5
+  (GitLab).
 - Описание для пользователя — [README.md](README.md).
 - Принятые решения (монорепа, имена без скоупа, gitlab.com, дайджест с
   настройкой, социальные действия через `confirm`) — раздел 8 в roadmap.

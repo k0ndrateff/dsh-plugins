@@ -7,7 +7,11 @@
  * remembered in the credential record, and restored on the next start.
  */
 
+import type { FactsReader } from "dsh-integration-host";
 import { asRecord, type Grant, mcpText, pickString } from "dsh-mcp-oauth";
+
+/** The tool whose answer names the account's site. */
+export const SITE_TOOL = "getAccessibleAtlassianResources";
 
 export class SiteFacts {
 	readonly siteUrl?: string;
@@ -58,7 +62,28 @@ export class SiteFacts {
 	get isEmpty(): boolean {
 		return this.siteUrl === undefined && this.cloudId === undefined;
 	}
+
+	/** Whether both the site and the cloud id are known, so nothing is left to learn. */
+	get isComplete(): boolean {
+		return this.siteUrl !== undefined && this.cloudId !== undefined;
+	}
 }
+
+/** How Atlassian's own site list is read, merged, and remembered. */
+export const siteFacts: FactsReader<SiteFacts> = {
+	toolName: SITE_TOOL,
+	from: (grant) => SiteFacts.from(grant),
+	parse: (value) => SiteFacts.parse(value),
+	merge: (known, learned) =>
+		new SiteFacts({
+			siteUrl: learned.siteUrl ?? known?.siteUrl,
+			cloudId: learned.cloudId ?? known?.cloudId,
+		}),
+	remember: (facts) => ({
+		...(facts.siteUrl === undefined ? {} : { siteUrl: facts.siteUrl }),
+		...(facts.cloudId === undefined ? {} : { cloudId: facts.cloudId }),
+	}),
+};
 
 function parseJson(text: string): unknown {
 	try {

@@ -2,11 +2,11 @@
  * dsh-atlassian — Jira and Confluence for DeepSeek Harness.
  *
  * The plugin is a bundle: this host half owns what is Atlassian's — the site
- * facts, the card extractor, the panel data, the `/atlassian` command, and the
- * settings route — while `dsh-mcp-oauth` owns the OAuth flow, the credential
- * record, and the bridge to Atlassian's remote MCP server. `lib/client.js`
- * contributes the settings card, the result cards, and the side panel to the
- * Web Client.
+ * facts, the card extractor, the panel data, and the `/atlassian` command's own
+ * wording — while `dsh-mcp-oauth` owns the OAuth flow and the bridge to
+ * Atlassian's remote MCP server, and `dsh-integration-host` owns the shell every
+ * integration shares. `lib/client.js` contributes the settings card, the result
+ * cards, and the side panel to the Web Client.
  *
  * This module is the composition root: it builds one of each collaborator and
  * hands them to the surfaces that need them.
@@ -19,13 +19,20 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-commands";
 import type {} from "@deepseek-ai/dsh-tools";
 import {
+	IntegrationAuth,
+	type IntegrationAuthFace,
+	type RouteHost,
+	RuntimeState,
+} from "dsh-integration-host";
+import {
 	AuthorizationFlow,
 	credentialKeyOf,
 	GrantStore,
 	loggerOf,
 	McpBridge,
 } from "dsh-mcp-oauth";
-import { AtlassianAuth } from "./auth";
+import type { AtlassianStatus } from "../shared/status";
+import { atlassianAuthSpec } from "./auth";
 import {
 	atlassianProfile,
 	type ConfigInput,
@@ -34,9 +41,9 @@ import {
 } from "./config";
 import { PanelApi } from "./panels/panel";
 import { extractor } from "./presentation/extract";
-import { RuntimeState } from "./state";
-import { commandHandler } from "./surface/command";
-import { createApiHandler, ROUTE_PREFIX, type RouteHost } from "./surface/http";
+import type { SiteFacts } from "./store/site";
+import { COMMAND_NAME, createCommandHandler } from "./surface/command";
+import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
 import { presentTool } from "./tools/present";
 
 export const name = PLUGIN_NAME;
@@ -57,7 +64,7 @@ const CLIENT_INFO = { name: "dsh-atlassian", version: "0.3.0" };
 export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const config = resolveConfig(configInput);
 	const profile = atlassianProfile(config);
-	const state = new RuntimeState();
+	const state = new RuntimeState<SiteFacts>();
 	const logger = loggerOf(ctx);
 
 	const store = new GrantStore(ctx, credentialKeyOf(profile));
@@ -76,12 +83,15 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 						tool: tool.name,
 						args,
 						value,
-						siteUrl: state.siteUrl,
+						siteUrl: state.facts?.siteUrl,
 					}),
 			},
 		}),
 	});
-	const auth = new AtlassianAuth({ ctx, config, state, store, flow, bridge });
+	const auth: IntegrationAuthFace<AtlassianStatus> = new IntegrationAuth<
+		AtlassianStatus,
+		SiteFacts
+	>({ ctx, config, state, store, flow, bridge, spec: atlassianAuthSpec });
 	const panel = new PanelApi({ bridge, state });
 
 	// Registering the flow tells the harness this credential can be authorized,
@@ -99,10 +109,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	// withdrawn with the plugin; only the resources that outlive a plain
 	// registration need an explicit disposer.
 	ctx.commands.register({
-		name: commandHandler.COMMAND_NAME,
+		name: COMMAND_NAME,
 		description: "Jira and Confluence: status | login | logout | sync",
 		input: { hint: "status | login | logout | sync" },
-		handler: commandHandler.create(auth),
+		handler: createCommandHandler(auth),
 	});
 
 	// The presentation tool is registered beside the MCP tools it resolves
@@ -118,7 +128,7 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const disposeRoute = webServer?.register({
 		kind: "prefix",
 		path: ROUTE_PREFIX,
-		handler: createApiHandler({ ctx, config, state, auth, panel }),
+		handler: createApiHandler({ auth, panel }),
 	});
 
 	if (disposeRoute === undefined) {

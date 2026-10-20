@@ -1,50 +1,19 @@
 /**
  * The checks card and its tool row.
  *
+ * What every integration draws — the card material, the tool row — is
+ * re-exported from `dsh-integration-ui`, so this file holds only what is
+ * devkit's: one check's line, its failures, and the output nothing parsed.
+ *
  * Flat classes only: vanilla-extract in this build accepts `&` with modifiers
  * and nothing else, so every element the card draws has a name here rather than
  * being reached through a parent selector.
  */
 
 import { style } from "@vanilla-extract/css";
-import { theme } from "./theme.css";
+import { theme } from "dsh-integration-ui/styles";
 
-export const card = style({
-	display: "flex",
-	flexDirection: "column",
-	gap: "8px",
-	marginTop: "12px",
-	padding: "12px",
-	border: `1px solid ${theme.color.cardStroke}`,
-	borderRadius: theme.radius.lg,
-	background: theme.color.cardFill,
-});
-
-export const head = style({
-	display: "flex",
-	alignItems: "baseline",
-	gap: "8px",
-});
-
-export const title = style({
-	fontSize: "13px",
-	fontWeight: 600,
-	color: theme.color.labelPrimary,
-});
-
-export const count = style({
-	fontSize: "12px",
-	color: theme.color.labelTertiary,
-});
-
-export const runs = style({
-	display: "flex",
-	flexDirection: "column",
-	gap: "10px",
-	margin: 0,
-	padding: 0,
-	listStyle: "none",
-});
+export * from "dsh-integration-ui/styles";
 
 export const run = style({
 	display: "flex",
@@ -147,25 +116,4 @@ export const output = style({
 	lineHeight: 1.45,
 	color: theme.color.labelSecondary,
 	whiteSpace: "pre-wrap",
-});
-
-export const toolRow = style({
-	display: "flex",
-	alignItems: "baseline",
-	gap: "8px",
-});
-
-export const toolName = style({
-	fontFamily: theme.font.code,
-	fontSize: "12px",
-	color: theme.color.labelPrimary,
-});
-
-export const caption = style({
-	fontSize: "12px",
-	color: theme.color.labelSecondary,
-});
-
-export const error = style({
-	color: theme.color.danger,
 });

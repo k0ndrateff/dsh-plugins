@@ -2,202 +2,99 @@
  * The localhost API the browser half calls.
  *
  * The settings card and the side panel live in the page, so they need a channel
- * to the host. A named route on the harness web server is that channel: it needs
- * no generated remote namespace, it is structured JSON in both directions, and
- * it is bound to loopback exactly like the rest of the web server.
+ * to the host. A named route on the harness web server is that channel, and the
+ * four paths every integration answers — status, login, logout, sync — come
+ * from `dsh-integration-host`. What is left here is what is Sentry's: the reads
+ * and writes its side panel makes.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { errorText } from "dsh-mcp-oauth";
-import type { SentryAuth } from "../auth";
-import type { Config } from "../config";
+import {
+	BadRequest,
+	createIntegrationRoute,
+	type IntegrationAuthFace,
+	type RouteHandler,
+} from "dsh-integration-host";
+import type { SentryStatus } from "../../shared/status";
 import type { PanelApi } from "../panels/panel";
-import type { RuntimeState } from "../state";
 
 /** The route prefix this plugin owns. */
 export const ROUTE_PREFIX = "/dsh-sentry";
 
-/** Longest write body this route accepts, in bytes. */
-const MAX_BODY_BYTES = 8 * 1024;
-
-/**
- * Read one small JSON request body.
- * @param request - the incoming request.
- * @returns the parsed body, or undefined when it is not a JSON object.
- */
-async function readJson(
-	request: IncomingMessage,
-): Promise<Record<string, unknown> | undefined> {
-	const chunks: Buffer[] = [];
-	let size = 0;
-
-	for await (const chunk of request) {
-		const buffer = chunk as Buffer;
-		size += buffer.length;
-
-		if (size > MAX_BODY_BYTES)
-			throw new Error("request body is larger than this route accepts");
-		chunks.push(buffer);
-	}
-
-	if (chunks.length === 0) return undefined;
-
-	try {
-		const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-
-		return parsed !== null &&
-			typeof parsed === "object" &&
-			!Array.isArray(parsed)
-			? (parsed as Record<string, unknown>)
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/** A request this route cannot act on, as opposed to a failure behind it. */
-class BadRequest extends Error {}
-
-/** One required string field of a request body. */
-function required(
-	body: Record<string, unknown> | undefined,
-	name: string,
-): string {
-	const value = body?.[name];
-
-	if (typeof value !== "string" || value === "")
-		throw new BadRequest(`the request needs a "${name}"`);
-
-	return value;
-}
-
-/** Mount a route the web server can serve. */
-export interface RouteHost {
-	register(route: {
-		kind: "exact" | "prefix";
-		path: string;
-		handler: (request: IncomingMessage, response: ServerResponse) => void;
-	}): () => void;
-}
-
 /** Everything the route answers with, wired once at apply time. */
 export interface ApiDeps {
-	readonly config: Config;
-	readonly state: RuntimeState;
-	readonly auth: SentryAuth;
+	readonly auth: IntegrationAuthFace<SentryStatus>;
 	readonly panel: PanelApi;
 }
+
+/** The side panel's own paths, tried after the four shared ones. */
+const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
+	async (route) => {
+		if (
+			route.url.pathname !== `${ROUTE_PREFIX}/issue` ||
+			route.method !== "GET"
+		)
+			return false;
+
+		const id = route.url.searchParams.get("id") ?? "";
+
+		await route.sendData(() => panel.issue(id));
+
+		return true;
+	},
+
+	async (route) => {
+		if (
+			route.url.pathname !== `${ROUTE_PREFIX}/issue/status` ||
+			route.method !== "POST"
+		)
+			return false;
+
+		// The request is read and validated before any work starts, so a caller's
+		// mistake is answered as one instead of as a bad gateway.
+		const body = await route.read();
+		const id = body.required("id");
+		const status = body.required("status");
+		const ignoreMode = body.fields?.ignoreMode;
+
+		if (ignoreMode !== undefined && typeof ignoreMode !== "string")
+			throw new BadRequest('"ignoreMode" must be a string');
+
+		await route.sendData(() => panel.setStatus(id, status, ignoreMode));
+
+		return true;
+	},
+
+	async (route) => {
+		if (
+			route.url.pathname !== `${ROUTE_PREFIX}/issue/assign` ||
+			route.method !== "POST"
+		)
+			return false;
+
+		const body = await route.read();
+		const id = body.required("id");
+		const assignedTo = body.fields?.assignedTo;
+
+		if (assignedTo !== null && typeof assignedTo !== "string")
+			throw new BadRequest('the request needs an "assignedTo" or null');
+
+		await route.sendData(() => panel.assign(id, assignedTo));
+
+		return true;
+	},
+];
 
 /**
  * Build the request handler.
  * @param deps - the plugin's collaborators.
  */
-export function createApiHandler(
+export const createApiHandler = (
 	deps: ApiDeps,
-): (request: IncomingMessage, response: ServerResponse) => Promise<void> {
-	const { auth, panel } = deps;
-
-	return async (request, response) => {
-		const url = new URL(request.url ?? "/", "http://127.0.0.1");
-		const method = request.method ?? "GET";
-
-		const send = (status: number, body: unknown): void => {
-			response.writeHead(status, {
-				"content-type": "application/json; charset=utf-8",
-				"cache-control": "no-store",
-			});
-
-			response.end(JSON.stringify(body));
-		};
-
-		/** Answer a read the settings card or the side panel asked for. */
-		const sendData = async (load: () => Promise<unknown>): Promise<void> => {
-			try {
-				send(200, await load());
-			} catch (error) {
-				send(502, { error: errorText(error) });
-			}
-		};
-
-		try {
-			if (url.pathname === `${ROUTE_PREFIX}/status` && method === "GET") {
-				send(200, await auth.getStatus());
-				return;
-			}
-
-			if (url.pathname === `${ROUTE_PREFIX}/login` && method === "POST") {
-				// Start and answer immediately: the user finishes in a browser, and the
-				// card follows `inFlight` until the attempt settles.
-				void auth.signIn();
-				await auth.settleNotice(300);
-
-				send(202, await auth.getStatus());
-				return;
-			}
-
-			if (url.pathname === `${ROUTE_PREFIX}/logout` && method === "POST") {
-				await auth.signOut();
-
-				send(200, await auth.getStatus());
-				return;
-			}
-
-			if (url.pathname === `${ROUTE_PREFIX}/sync` && method === "POST") {
-				await auth.connect();
-
-				send(200, await auth.getStatus());
-				return;
-			}
-
-			// --- The side panel's reads -------------------------------------
-
-			if (url.pathname === `${ROUTE_PREFIX}/issue` && method === "GET") {
-				const id = url.searchParams.get("id") ?? "";
-
-				await sendData(() => panel.issue(id));
-				return;
-			}
-
-			// --- The side panel's writes ------------------------------------
-
-			if (
-				url.pathname === `${ROUTE_PREFIX}/issue/status` &&
-				method === "POST"
-			) {
-				// The request is read and validated before any work starts, so a
-				// caller's mistake is answered as one instead of as a bad gateway.
-				const body = await readJson(request);
-				const id = required(body, "id");
-				const status = required(body, "status");
-				const ignoreMode = body?.ignoreMode;
-
-				if (ignoreMode !== undefined && typeof ignoreMode !== "string")
-					throw new BadRequest('"ignoreMode" must be a string');
-
-				await sendData(() => panel.setStatus(id, status, ignoreMode));
-				return;
-			}
-
-			if (
-				url.pathname === `${ROUTE_PREFIX}/issue/assign` &&
-				method === "POST"
-			) {
-				const body = await readJson(request);
-				const id = required(body, "id");
-				const assignedTo = body?.assignedTo;
-
-				if (assignedTo !== null && typeof assignedTo !== "string")
-					throw new BadRequest('the request needs an "assignedTo" or null');
-
-				await sendData(() => panel.assign(id, assignedTo));
-				return;
-			}
-
-			send(404, { error: "not-found", path: url.pathname });
-		} catch (error) {
-			send(error instanceof BadRequest ? 400 : 500, {
-				error: errorText(error),
-			});
-		}
-	};
-}
+): ((request: IncomingMessage, response: ServerResponse) => Promise<void>) => {
+	return createIntegrationRoute({
+		prefix: ROUTE_PREFIX,
+		auth: deps.auth,
+		routes: panelRoutes(deps.panel),
+	});
+};

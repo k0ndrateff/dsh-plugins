@@ -9,10 +9,11 @@
  * the agent's own tools use — the panel has no second path to Sentry.
  */
 
+import type { RuntimeState } from "dsh-integration-host";
 import { type McpBridge, mcpText } from "dsh-mcp-oauth";
 import type { IssueDetail, IssuePanel } from "../../shared/meta";
 import { parseIssueDetail } from "../presentation/parse";
-import type { RuntimeState } from "../state";
+import type { OrganizationFacts } from "../store/organization";
 
 /** The tool that reads one issue. */
 const RESOURCE_TOOL = "get_sentry_resource";
@@ -23,7 +24,7 @@ const UPDATE_TOOL = "update_issue";
 /** What the panel needs from the plugin. */
 export interface PanelDeps {
 	readonly bridge: McpBridge;
-	readonly state: RuntimeState;
+	readonly state: RuntimeState<OrganizationFacts>;
 }
 
 export class PanelApi {
@@ -91,7 +92,7 @@ export class PanelApi {
 
 	/** The organization slug, when the plugin has learned one. */
 	private organization(): string | null {
-		return this.deps.state.organization ?? null;
+		return this.deps.state.facts?.slug ?? null;
 	}
 
 	/** The organization slug a tool call must name. */

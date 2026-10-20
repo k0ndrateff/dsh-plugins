@@ -11,6 +11,11 @@
  *  - a right-Sidebar panel, where a click on a card opens the whole issue and
  *    the actions that change it.
  *
+ * The seats themselves — the panel body, the card, the tool row, the settings
+ * card, and the stylesheet they are drawn with — come from
+ * `dsh-integration-ui`; this half says what is Sentry's and registers each seat
+ * under this plugin's own tab kind and tool names.
+ *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
@@ -25,19 +30,18 @@ import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
-import { SentryTail } from "./components/issue-card";
+import { SentryTail } from "./components/presentation-tail";
 import { SentrySection } from "./components/settings-section";
 import { SentryToolRow } from "./components/tool-row";
 import {
 	SENTRY_TOOL_NAME,
-	sentryDefinition,
+	sentryPresentation,
 } from "./conversation/card-definition";
 import { PLUGIN_ID } from "./plugin-id";
 import { PANEL_ID, panelDefinition } from "./sidebar/definition";
 import { installPanelOpener } from "./sidebar/open";
-import { SentryPanel } from "./sidebar/panel";
-import { SentryPanelTitle } from "./sidebar/title";
-import { installStyles } from "./styles/styles-runtime";
+import { SentryPanel, SentryPanelTitle } from "./sidebar/panel";
+import { installSentryStyles } from "./styles/styles-runtime";
 
 /** The client services this half needs. */
 export const inject = ["slots", "uiConversation"];
@@ -49,11 +53,11 @@ export const inject = ["slots", "uiConversation"];
 export const apply = (ctx: Context): void => {
 	// The compiled stylesheet is inlined into this bundle at build time and
 	// tagged with the plugin id, so turning the plugin off removes it too.
-	ctx.effect(() => installStyles(), "sentry: stylesheet");
+	ctx.effect(() => installSentryStyles(), "sentry: stylesheet");
 
 	// The card's payload arrives as a durable session record; this definition
 	// turns it into a Chat node the turn tail can select.
-	ctx.uiConversation.events.register(sentryDefinition);
+	ctx.uiConversation.events.register(sentryPresentation.definition);
 
 	// Cards open the panel through this, and it is a no-op in a build without
 	// one: the click then stays with the browser.

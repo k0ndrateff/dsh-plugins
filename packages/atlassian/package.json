@@ -61,6 +61,8 @@
 		}
 	},
 	"devDependencies": {
+		"dsh-integration-host": "workspace:*",
+		"dsh-integration-ui": "workspace:*",
 		"dsh-mcp-oauth": "workspace:*"
 	}
 }

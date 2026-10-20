@@ -6,6 +6,11 @@
  * narrows whichever list it is given to what the server actually advertises.
  */
 
+import {
+	type ConfigInput,
+	type EndpointConfig,
+	resolveEndpointConfig,
+} from "dsh-integration-host";
 import { DEFAULT_INSTANCE, type OAuthProviderProfile } from "dsh-mcp-oauth";
 
 /** Atlassian's v1 MCP resource; the default because it needs no extra setup. */
@@ -47,45 +52,25 @@ const FALLBACK_SCOPES = [
 	"read:space:confluence",
 ];
 
-/** Raw shape accepted from the profile patch. */
-export interface ConfigInput {
-	readonly endpoint?: unknown;
-	readonly redirectPort?: unknown;
-	readonly debug?: unknown;
-}
-
-/** Resolved configuration: every field present and of the right type. */
-export interface Config {
-	readonly endpoint: string;
-	readonly redirectPort: number;
-	readonly debug: boolean;
-}
+export type { ConfigInput };
 
 /**
- * Normalize whatever the loader passed. Unknown or malformed fields fall back
- * to the defaults rather than failing activation, because a typo in a profile
- * patch should not take the plugin down.
+ * Normalize whatever the loader passed against Atlassian's own defaults.
+ * @param input - `endpoint`, `redirectPort`, and `debug` from the bundle patch.
  */
-export function resolveConfig(input: ConfigInput | undefined): Config {
-	const endpoint =
-		typeof input?.endpoint === "string" && input.endpoint !== ""
-			? input.endpoint
-			: DEFAULT_ENDPOINT;
-
-	const port = Number(input?.redirectPort);
-
-	return {
-		endpoint,
-		redirectPort:
-			Number.isInteger(port) && port > 0 && port < 65_536
-				? port
-				: DEFAULT_REDIRECT_PORT,
-		debug: input?.debug === true,
-	};
-}
+export const resolveConfig = (
+	input: ConfigInput | undefined,
+): EndpointConfig => {
+	return resolveEndpointConfig(input, {
+		endpoint: DEFAULT_ENDPOINT,
+		redirectPort: DEFAULT_REDIRECT_PORT,
+	});
+};
 
 /** The profile every library call of this plugin is parameterized with. */
-export const atlassianProfile = (config: Config): OAuthProviderProfile => {
+export const atlassianProfile = (
+	config: EndpointConfig,
+): OAuthProviderProfile => {
 	return {
 		scope: PLUGIN_NAME,
 		label: "Atlassian",

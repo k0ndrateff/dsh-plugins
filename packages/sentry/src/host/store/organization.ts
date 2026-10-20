@@ -7,6 +7,7 @@
  * `{organizations: [{slug, webUrl, regionUrl}], hasMore, nextCursor}`.
  */
 
+import type { FactsReader } from "dsh-integration-host";
 import { asRecord, type Grant, mcpJson, pickString } from "dsh-mcp-oauth";
 
 /** The tool whose answer names the account's organizations. */
@@ -67,4 +68,25 @@ export class OrganizationFacts {
 	get isEmpty(): boolean {
 		return this.slug === undefined && this.webUrl === undefined;
 	}
+
+	/** Whether both the slug and the URL are known, so nothing is left to learn. */
+	get isComplete(): boolean {
+		return this.slug !== undefined && this.webUrl !== undefined;
+	}
 }
+
+/** How Sentry's own organization list is read, merged, and remembered. */
+export const organizationFacts: FactsReader<OrganizationFacts> = {
+	toolName: ORGANIZATIONS_TOOL,
+	from: (grant) => OrganizationFacts.from(grant),
+	parse: (value) => OrganizationFacts.parse(value),
+	merge: (known, learned) =>
+		new OrganizationFacts({
+			slug: learned.slug ?? known?.slug,
+			webUrl: learned.webUrl ?? known?.webUrl,
+		}),
+	remember: (facts) => ({
+		...(facts.slug === undefined ? {} : { organization: facts.slug }),
+		...(facts.webUrl === undefined ? {} : { organizationUrl: facts.webUrl }),
+	}),
+};

@@ -5,6 +5,11 @@
  * advertises, and the library narrows it to what discovery reports anyway.
  */
 
+import {
+	type ConfigInput,
+	type EndpointConfig,
+	resolveEndpointConfig,
+} from "dsh-integration-host";
 import { DEFAULT_INSTANCE, type OAuthProviderProfile } from "dsh-mcp-oauth";
 
 /** Sentry's remote MCP resource. */
@@ -28,45 +33,23 @@ const DESIRED_SCOPES = [
 /** What is asked for when a server advertises no scopes at all. */
 const FALLBACK_SCOPES = ["org:read", "project:write"];
 
-/** Raw shape accepted from the profile patch. */
-export interface ConfigInput {
-	readonly endpoint?: unknown;
-	readonly redirectPort?: unknown;
-	readonly debug?: unknown;
-}
-
-/** Resolved configuration: every field present and of the right type. */
-export interface Config {
-	readonly endpoint: string;
-	readonly redirectPort: number;
-	readonly debug: boolean;
-}
+export type { ConfigInput };
 
 /**
- * Normalize whatever the loader passed. Unknown or malformed fields fall back
- * to the defaults rather than failing activation, because a typo in a profile
- * patch should not take the plugin down.
+ * Normalize whatever the loader passed against Sentry's own defaults.
+ * @param input - `endpoint`, `redirectPort`, and `debug` from the bundle patch.
  */
-export function resolveConfig(input: ConfigInput | undefined): Config {
-	const endpoint =
-		typeof input?.endpoint === "string" && input.endpoint !== ""
-			? input.endpoint
-			: DEFAULT_ENDPOINT;
-
-	const port = Number(input?.redirectPort);
-
-	return {
-		endpoint,
-		redirectPort:
-			Number.isInteger(port) && port > 0 && port < 65_536
-				? port
-				: DEFAULT_REDIRECT_PORT,
-		debug: input?.debug === true,
-	};
-}
+export const resolveConfig = (
+	input: ConfigInput | undefined,
+): EndpointConfig => {
+	return resolveEndpointConfig(input, {
+		endpoint: DEFAULT_ENDPOINT,
+		redirectPort: DEFAULT_REDIRECT_PORT,
+	});
+};
 
 /** The profile every library call of this plugin is parameterized with. */
-export const sentryProfile = (config: Config): OAuthProviderProfile => {
+export const sentryProfile = (config: EndpointConfig): OAuthProviderProfile => {
 	return {
 		scope: PLUGIN_NAME,
 		label: "Sentry",

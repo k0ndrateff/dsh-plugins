@@ -3,111 +3,70 @@
  *
  * Both run on the same loopback origin, so the settings card and the side panel
  * reach the host through the named route `/dsh-sentry` with ordinary same-origin
- * requests. Every call answers with JSON; a failed call answers with `{ error }`,
- * which this turns back into the message the user sees.
+ * requests. The transport — JSON in both directions, `{ error }` turned back
+ * into a message — belongs to `dsh-integration-ui`; this is the list of calls
+ * Sentry actually makes.
  */
 
+import { createHostRequest } from "dsh-integration-ui";
 import type { IssuePanel } from "../shared/meta";
 import type { SentryStatus } from "../shared/status";
 
-type Method = "GET" | "POST";
+const request = createHostRequest("/dsh-sentry");
 
-class HostApi {
-	private readonly BASE_PATH = "/dsh-sentry";
-
+export const hostApi = {
 	/** Read the current sign-in and connection state. */
-	status = async (): Promise<SentryStatus> => {
-		return await this.request("/status", "GET");
-	};
+	status: async (): Promise<SentryStatus> => {
+		return await request("/status", "GET");
+	},
 
 	/** Start a sign-in attempt; resolves as soon as the attempt is running. */
-	login = async (): Promise<SentryStatus> => {
-		return await this.request("/login", "POST");
-	};
+	login: async (): Promise<SentryStatus> => {
+		return await request("/login", "POST");
+	},
 
 	/** Forget the stored sign-in and withdraw the published tools. */
-	logout = async (): Promise<SentryStatus> => {
-		return await this.request("/logout", "POST");
-	};
+	logout: async (): Promise<SentryStatus> => {
+		return await request("/logout", "POST");
+	},
 
 	/** Reconnect and re-publish the Sentry tools. */
-	sync = async (): Promise<SentryStatus> => {
-		return await this.request("/sync", "POST");
-	};
+	sync: async (): Promise<SentryStatus> => {
+		return await request("/sync", "POST");
+	},
 
 	/** Everything the panel shows for one issue. */
-	issue = async (id: string, signal?: AbortSignal): Promise<IssuePanel> => {
-		return await this.request(
+	issue: async (id: string, signal?: AbortSignal): Promise<IssuePanel> => {
+		return await request(
 			`/issue?id=${encodeURIComponent(id)}`,
 			"GET",
 			undefined,
 			signal,
 		);
-	};
+	},
 
 	/**
 	 * Move one issue through Sentry's status vocabulary; answers with the fresh
 	 * issue.
 	 * @param ignoreMode - how an ignored issue behaves, when the caller chose.
 	 */
-	setStatus = async (
+	setStatus: async (
 		id: string,
 		status: string,
 		ignoreMode?: string,
 	): Promise<IssuePanel> => {
-		return await this.request("/issue/status", "POST", {
+		return await request("/issue/status", "POST", {
 			id,
 			status,
 			...(ignoreMode === undefined ? {} : { ignoreMode }),
 		});
-	};
+	},
 
 	/** Set or clear one issue's owner; answers with the fresh issue. */
-	assign = async (
+	assign: async (
 		id: string,
 		assignedTo: string | null,
 	): Promise<IssuePanel> => {
-		return await this.request("/issue/assign", "POST", { id, assignedTo });
-	};
-
-	private request = async <T>(
-		path: string,
-		method: Method,
-		body?: unknown,
-		signal?: AbortSignal,
-	): Promise<T> => {
-		const response = await fetch(`${this.BASE_PATH}${path}`, {
-			method,
-			headers:
-				body === undefined
-					? { accept: "application/json" }
-					: { accept: "application/json", "content-type": "application/json" },
-			...(body === undefined ? {} : { body: JSON.stringify(body) }),
-			...(signal === undefined ? {} : { signal }),
-		});
-
-		if (!response.ok) throw new Error(await this.failureOf(response));
-
-		return (await response.json()) as T;
-	};
-
-	/** The host's own words about why a call failed. */
-	private failureOf = async (response: Response): Promise<string> => {
-		try {
-			const body: unknown = await response.json();
-
-			if (
-				body !== null &&
-				typeof body === "object" &&
-				typeof (body as { error?: unknown }).error === "string"
-			)
-				return (body as { error: string }).error;
-		} catch {
-			// Not JSON: the status line is all this can say.
-		}
-
-		return `host answered ${response.status} ${response.statusText}`;
-	};
-}
-
-export const hostApi = new HostApi();
+		return await request("/issue/assign", "POST", { id, assignedTo });
+	},
+};

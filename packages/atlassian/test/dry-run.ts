@@ -14,23 +14,25 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { AuthorizationSession } from "@deepseek-ai/dsh-authorization";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
+import { IntegrationAuth, RuntimeState } from "dsh-integration-host";
 import {
 	AuthorizationFlow,
 	Grant,
 	GrantStore,
 	type McpBridge,
 } from "dsh-mcp-oauth";
-import { AtlassianAuth } from "../src/host/auth";
+import { atlassianAuthSpec } from "../src/host/auth";
 import { atlassianProfile, resolveConfig } from "../src/host/config";
 import { apply } from "../src/host/index";
 import { PanelApi } from "../src/host/panels/panel";
 import { extractor, formatDuration } from "../src/host/presentation/extract";
 import { parseGists } from "../src/host/presentation/gist";
-import { RuntimeState } from "../src/host/state";
+import { SiteFacts } from "../src/host/store/site";
 import { createApiHandler } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
 import { asPanelData, asPanelTarget } from "../src/shared/panel";
 import { asPresentation } from "../src/shared/presentation";
+import type { AtlassianStatus } from "../src/shared/status";
 import { issueTypeTone, priorityTone } from "../src/shared/tone";
 
 let failures = 0;
@@ -536,9 +538,8 @@ check(
 // The whole card pipeline, with both the MCP bridge and the model absent: the
 // tool must still resolve, project and record a card that carries no raw text.
 const calls: { name: string; args: Record<string, unknown> }[] = [];
-const state = new RuntimeState();
-state.cloudId = "cloud-1";
-state.siteUrl = site;
+const state = new RuntimeState<SiteFacts>();
+state.facts = new SiteFacts({ cloudId: "cloud-1", siteUrl: site });
 const cardBridge = fakeBridge((name, args) => {
 	calls.push({ name, args });
 
@@ -663,9 +664,8 @@ const panelIssue = {
 	},
 };
 
-const panelState = new RuntimeState();
-panelState.cloudId = "cloud-1";
-panelState.siteUrl = site;
+const panelState = new RuntimeState<SiteFacts>();
+panelState.facts = new SiteFacts({ cloudId: "cloud-1", siteUrl: site });
 
 const panelWrite: { name: string; args: Record<string, unknown> }[] = [];
 let failTransitions = false;
@@ -782,16 +782,14 @@ const routeFlow = new AuthorizationFlow(
 	routeStore,
 );
 const route = createApiHandler({
-	ctx,
-	config: routeConfig,
-	state: panelState,
-	auth: new AtlassianAuth({
+	auth: new IntegrationAuth<AtlassianStatus, SiteFacts>({
 		ctx,
 		config: routeConfig,
 		state: panelState,
 		store: routeStore,
 		flow: routeFlow,
 		bridge: panelBridge,
+		spec: atlassianAuthSpec,
 	}),
 	panel,
 });

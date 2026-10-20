@@ -2,28 +2,30 @@
  * The Atlassian panel: one issue or page, and the actions that change it.
  *
  * The body is a right-Sidebar tab of this plugin's own kind, so it renders
- * inside the harness's panel and follows its theme. It reads what to show from
- * its tab's navigation parameters — the Sidebar hands those to every body — and
- * fetches the document through the host's `/dsh-atlassian` route, because only
- * the host half holds the MCP connection.
+ * inside the harness's panel and follows its theme. What to show arrives in the
+ * tab's navigation parameters, the document itself comes through the host's
+ * `/dsh-atlassian` route — only the host half holds the MCP connection — and the
+ * loading, failing, retrying and writing belong to `dsh-integration-ui`.
  *
- * Writes are the same channel, one step at a time: run it, and the host answers
- * with the issue as it now stands, so the panel never renders an assumption
- * about what a transition did.
+ * Writes are one step at a time: run it, and the host answers with the issue as
+ * it now stands, so the panel never renders an assumption about what a
+ * transition did.
  */
 
 import type { MarkdownLabels } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
 	Button,
 	Input,
-	MarkdownDelegateProvider,
 	MarkdownText,
-	Tag,
 } from "@deepseek-ai/dsh-client-ui-primitives";
-import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
-import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
+import {
+	createPanelBody,
+	createPanelTitle,
+	type PanelActions,
+	type PanelProvider,
+} from "dsh-integration-ui";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	asPanelData,
 	asPanelTarget,
@@ -44,22 +46,6 @@ const MARKDOWN_LABELS: MarkdownLabels = {
 	code: { copyLabel: "Copy", copiedLabel: "Copied" },
 	footnotes: "Footnotes",
 };
-
-/** What the panel currently knows. */
-type Load =
-	| { readonly status: "loading" }
-	| { readonly status: "ready"; readonly data: PanelData }
-	| { readonly status: "error"; readonly message: string };
-
-/** The write one panel may ask the host to perform. */
-type Write =
-	| { readonly kind: "transition"; readonly id: string }
-	| { readonly kind: "assign"; readonly accountId: string | null };
-
-/** The reason inside an unknown thrown value, as a sentence. */
-function messageOf(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 /** One date as the reader's own locale writes it. */
 function whenText(value: string): string {
@@ -125,8 +111,28 @@ const Comments = ({ comments }: { comments: readonly PanelComment[] }) => {
 
 interface Actions {
 	readonly busy: boolean;
-	run: (write: Write) => void;
+	run: PanelActions<PanelTarget>["run"];
 }
+
+/**
+ * Run one write against the issue the panel is showing.
+ *
+ * A page has no workflow and no assignee, so a write is refused rather than
+ * sent at whatever the panel happens to hold.
+ * @param actions - the shared body's action set.
+ * @param write - the call, which takes the issue's key.
+ */
+const runIssue = (
+	actions: Actions,
+	write: (key: string) => Promise<unknown>,
+): void => {
+	actions.run(async (target) => {
+		if (target.kind !== "issue")
+			throw new Error("this panel is not showing an issue");
+
+		return await write(target.key);
+	});
+};
 
 /** The transitions the workflow offers right now. */
 const Transitions = ({
@@ -161,7 +167,9 @@ const Transitions = ({
 									: `${transition.name} → ${transition.to}`
 						}
 						onClick={() => {
-							actions.run({ kind: "transition", id: transition.id });
+							runIssue(actions, (key) =>
+								hostApi.transitionIssue(key, transition.id),
+							);
 						}}
 					>
 						{transition.name}
@@ -236,7 +244,7 @@ const Assignee = ({
 						variant="ghost"
 						disabled={actions.busy}
 						onClick={() => {
-							actions.run({ kind: "assign", accountId: null });
+							runIssue(actions, (key) => hostApi.assignIssue(key, null));
 						}}
 					>
 						Unassign
@@ -253,10 +261,9 @@ const Assignee = ({
 								className={styles.person}
 								disabled={actions.busy}
 								onClick={() => {
-									actions.run({
-										kind: "assign",
-										accountId: person.accountId,
-									});
+									runIssue(actions, (key) =>
+										hostApi.assignIssue(key, person.accountId),
+									);
 								}}
 							>
 								{person.name}
@@ -334,7 +341,7 @@ const PageView = ({ page }: { page: PagePanel }) => (
 	<>
 		<header className={styles.panelHead}>
 			<div className={styles.panelTitleRow}>
-				<Tag tone="neutral">Page</Tag>
+				<Badge value="Page" tone="neutral" />
 				{page.space === undefined ? null : (
 					<span className={styles.panelKey}>{page.space}</span>
 				)}
@@ -366,144 +373,26 @@ const PageView = ({ page }: { page: PagePanel }) => (
 	</>
 );
 
-/**
- * The panel's body seat.
- * @param props - the tab's live information, including what it was opened on.
- * @returns the panel, filling the pane it was given.
- */
-export const AtlassianPanel = (
-	props: PropsRuntime<"sidebar.right.pane.tab">,
-): ReactNode => {
-	const { tab } = props.useTabInfo();
-	const target = asPanelTarget(tab.navigation.params);
-	const revision = tab.navigation.revision;
-	const identity =
-		target === undefined
-			? ""
-			: target.kind === "issue"
-				? `issue:${target.key}`
-				: `page:${target.id}`;
-
-	const [load, setLoad] = useState<Load>({ status: "loading" });
-	const [failure, setFailure] = useState<string | undefined>(undefined);
-	const [busy, setBusy] = useState(false);
-
-	// The effect below is keyed by identity, so the fetch reads the target from a
-	// ref rather than closing over one render's copy of it.
-	const current = useRef<PanelTarget | undefined>(target);
-	current.current = target;
-
-	const fetchPanel = useCallback(
-		async (signal?: AbortSignal): Promise<void> => {
-			const wanted = current.current;
-
-			if (wanted === undefined) {
-				setLoad({
-					status: "error",
-					message: "This panel was opened without an issue or a page.",
-				});
-				return;
-			}
-
-			setLoad({ status: "loading" });
-
-			try {
-				const data = asPanelData(await hostApi.getPanel(wanted, signal));
-
-				if (data === undefined)
-					throw new Error(
-						"the host answered with a document this version cannot draw",
-					);
-				if (signal?.aborted !== true) setLoad({ status: "ready", data });
-			} catch (error) {
-				if (signal?.aborted !== true)
-					setLoad({ status: "error", message: messageOf(error) });
-			}
-		},
-		[],
-	);
-
-	useEffect(() => {
-		const controller = new AbortController();
-		setFailure(undefined);
-		void fetchPanel(controller.signal);
-
-		return () => {
-			controller.abort();
-		};
-	}, [identity, revision, fetchPanel]);
-
-	/** One write, then the truth about what it did. */
-	const run = useCallback(
-		(write: Write): void => {
-			const wanted = current.current;
-			if (wanted === undefined || wanted.kind !== "issue") return;
-
-			setBusy(true);
-			setFailure(undefined);
-
-			const call =
-				write.kind === "transition"
-					? hostApi.transitionIssue(wanted.key, write.id)
-					: hostApi.assignIssue(wanted.key, write.accountId);
-
-			call
-				.then((issue) => {
-					setLoad({ status: "ready", data: issue });
-				})
-				.catch((error: unknown) => {
-					setFailure(messageOf(error));
-					// The write may have failed after the site changed nothing; asking
-					// again is what tells the two apart.
-					void fetchPanel();
-				})
-				.finally(() => {
-					setBusy(false);
-				});
-		},
-		[fetchPanel],
-	);
-
-	const actions: Actions = { busy, run };
-
-	return (
-		<div className={styles.panel}>
-			<div className={styles.panelScroll}>
-				{load.status === "loading" ? (
-					<span className={styles.caption}>Loading…</span>
-				) : null}
-
-				{load.status === "error" ? (
-					<>
-						<p className={styles.error}>{load.message}</p>
-						<div className={styles.actions}>
-							<Button size="sm" onClick={() => void fetchPanel()}>
-								Try again
-							</Button>
-						</div>
-					</>
-				) : null}
-
-				{failure === undefined ? null : (
-					<p className={styles.error}>{failure}</p>
-				)}
-
-				{load.status === "ready" ? (
-					<MarkdownDelegateProvider
-						// Markdown links belong to the browser: a click here must not
-						// navigate the panel itself away from the harness.
-						openExternalLink={(href) => {
-							window.open(href, "_blank", "noopener,noreferrer");
-						}}
-					>
-						{load.data.kind === "issue" ? (
-							<IssueView issue={load.data} actions={actions} />
-						) : (
-							<PageView page={load.data} />
-						)}
-					</MarkdownDelegateProvider>
-				) : null}
-			</div>
-		</div>
-	);
+/** Everything the shared panel needs from this plugin. */
+const provider: PanelProvider<PanelData, PanelTarget> = {
+	emptyMessage: "This panel was opened without an issue or a page.",
+	parseParams: (value) => asPanelTarget(value),
+	identity: (target) =>
+		target.kind === "issue" ? `issue:${target.key}` : `page:${target.id}`,
+	title: (target) =>
+		target.kind === "issue" ? target.key : (target.title ?? "Page"),
+	fetch: async (target, signal) => await hostApi.getPanel(target, signal),
+	parse: (value) => asPanelData(value),
+	view: ({ data, actions }) =>
+		data.kind === "issue" ? (
+			<IssueView issue={data} actions={actions} />
+		) : (
+			<PageView page={data} />
+		),
 };
+
+/** The panel's body seat. */
+export const AtlassianPanel = createPanelBody(provider);
+
+/** The panel's title seat. */
+export const AtlassianPanelTitle = createPanelTitle(provider);
