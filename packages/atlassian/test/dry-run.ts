@@ -108,7 +108,7 @@ function fakeStore(ctx: Context): GrantStore {
 
 /** A harness context with just enough surface for this plugin. */
 function fakeContext(): Context {
-	return {
+	const fake = {
 		logger: {
 			info: (...args: unknown[]) => console.log("  log:", ...args),
 			warn: (...args: unknown[]) => console.log("  warn:", ...args),
@@ -149,10 +149,19 @@ function fakeContext(): Context {
 						},
 					}
 				: undefined,
+		// The route waits for this service; the fake answers as the harness does
+		// once it is there, which is what a dry-run cares about.
+		inject: (_deps: readonly string[], callback: (scoped: unknown) => void) => {
+			callback(fake);
+
+			return () => {};
+		},
 		effect: (callback: () => unknown) => {
 			callback();
 		},
-	} as unknown as Context;
+	};
+
+	return fake as unknown as Context;
 }
 
 /** Drive one sign-in attempt up to the point where a human is needed. */

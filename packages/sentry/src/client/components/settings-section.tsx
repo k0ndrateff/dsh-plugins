@@ -44,6 +44,7 @@ export const SentrySection = createSettingsSection<SentryStatus>({
 	blurb: "Errors and performance issues, through Sentry’s MCP server.",
 	checking: "Checking the Sentry sign-in…",
 	unreachable: "The Sentry host half is not reachable.",
+	credentials: "browser",
 	signInLabel: "Sign in with Sentry",
 	syncLabel: "Sync",
 	api: hostApi,

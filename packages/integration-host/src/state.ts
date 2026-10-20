@@ -10,8 +10,14 @@
 import type { AuthorizationNotice } from "@deepseek-ai/dsh-authorization";
 import type { AccountFacts } from "./facts";
 
-/** Everything one host half keeps between calls. */
-export class RuntimeState<TFacts extends AccountFacts> {
+/**
+ * Everything one host half keeps between calls.
+ *
+ * `TFacts` is what this integration learned from its own server, and a server
+ * that names no account — a local MCP, which answers whoever is on the machine —
+ * leaves it at its default and keeps the rest.
+ */
+export class RuntimeState<TFacts extends AccountFacts = AccountFacts> {
 	/** The last notice a running attempt published, so a card can show the URL. */
 	notice: AuthorizationNotice | undefined;
 	/** The last failure, cleared when a new attempt starts. */

@@ -18,6 +18,7 @@ export const AtlassianSection = createSettingsSection<AtlassianStatus>({
 	blurb: "Jira and Confluence, through Atlassian’s MCP server.",
 	checking: "Checking the Atlassian sign-in…",
 	unreachable: "The Atlassian host half is not reachable.",
+	credentials: "browser",
 	signInLabel: "Sign in with Atlassian",
 	syncLabel: "Reconnect",
 	api: hostApi,

@@ -1,0 +1,13 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"types": ["node"],
+		"paths": {
+			"dsh-integration-host": ["../integration-host/src/index.ts"],
+			"dsh-integration-host/status": ["../integration-host/src/status.ts"],
+			"dsh-mcp-oauth": ["../mcp-oauth/src/index.ts"],
+			"dsh-mcp-oauth/tool-name": ["../mcp-oauth/src/tool-name.ts"]
+		}
+	},
+	"include": ["src/host/**/*.ts", "src/shared/**/*.ts", "test/**/*.ts"]
+}

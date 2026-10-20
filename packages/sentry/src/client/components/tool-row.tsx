@@ -11,7 +11,11 @@
  * and a tool group that reproduces them buries the answer.
  */
 
-import { createToolRow, type ToolRowBlock } from "dsh-integration-ui";
+import {
+	blockArgs,
+	createToolRow,
+	type ToolRowBlock,
+} from "dsh-integration-ui";
 import { asSentryPresentation } from "../../shared/meta";
 import { SENTRY_TOOL_NAME } from "../conversation/card-definition";
 
@@ -24,23 +28,12 @@ const firstIssue = (value: unknown): string | undefined => {
 
 /** The query or the first issue id the call asked for, from its arguments. */
 const askedFor = (block: ToolRowBlock | undefined): string | undefined => {
-	for (const raw of [block?.argsRaw, block?.call?.argsRaw]) {
-		if (typeof raw !== "string" || raw === "") continue;
+	const args = blockArgs(block);
+	const query = args.query;
 
-		try {
-			const parsed = JSON.parse(raw) as { query?: unknown; issues?: unknown };
+	if (typeof query === "string" && query !== "") return query;
 
-			if (typeof parsed.query === "string" && parsed.query !== "")
-				return parsed.query;
-
-			const issue = firstIssue(parsed.issues);
-			if (issue !== undefined) return issue;
-		} catch {
-			// A preparing call can hold half-written JSON; the arguments are optional.
-		}
-	}
-
-	return undefined;
+	return firstIssue(args.issues);
 };
 
 /** One short phrase describing what a settled call found. */

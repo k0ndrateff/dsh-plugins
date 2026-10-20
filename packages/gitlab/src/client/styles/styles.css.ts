@@ -10,22 +10,9 @@
  */
 
 import { style } from "@vanilla-extract/css";
-import { list, theme } from "dsh-integration-ui/styles";
+import { theme } from "dsh-integration-ui/styles";
 
 export * from "dsh-integration-ui/styles";
-
-/** The merge request's title; the row's longest text, so it takes the slack. */
-export const itemTitle = style({
-	flex: "1 1 auto",
-	minWidth: 0,
-	selectors: {
-		[`${list}[data-layout="list"] &`]: {
-			overflow: "hidden",
-			textOverflow: "ellipsis",
-			whiteSpace: "nowrap",
-		},
-	},
-});
 
 /** A review finding's own words, clamped so one long note cannot fill the card. */
 export const findingBody = style({
@@ -36,15 +23,6 @@ export const findingBody = style({
 	fontSize: "12px",
 	lineHeight: "18px",
 	color: theme.color.labelSecondary,
-});
-
-/** The tab strip above the panel's sections. */
-export const tabs = style({
-	position: "sticky",
-	top: 0,
-	zIndex: 1,
-	paddingBottom: "4px",
-	background: theme.color.bgBase,
 });
 
 /** The merge request's own heading block. */

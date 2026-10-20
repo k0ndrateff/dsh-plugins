@@ -54,6 +54,7 @@ export {
 } from "./settings/section";
 export { installStyles } from "./styles/runtime";
 export {
+	blockArgs,
 	createToolRow,
 	type ToolRowBlock,
 	type ToolRowProps,

@@ -1,10 +1,11 @@
 # dsh-plugins
 
-DeepSeek Harness plugins: Jira and Confluence, Sentry, and GitLab today, Figma
-next. One plugin gives the agent the tools of a provider, connects it however
-that provider allows — an OAuth flow, or a personal access token the user pastes
-— and draws what it finds as cards and panels in the Web Client instead of raw
-JSON. The OAuth half is a library, because the harness has none.
+DeepSeek Harness plugins: Jira and Confluence, Sentry, GitLab and Figma today,
+with the digest next. One plugin gives the agent the tools of a provider, connects
+it however that provider allows — an OAuth flow, a personal access token the user
+pastes, or no credential at all for a server on the same machine — and draws what
+it finds as cards and panels in the Web Client instead of raw JSON. The OAuth half
+is a library, because the harness has none.
 
 Built and verified against DSH `0.2.1-rc.2`.
 
@@ -15,6 +16,7 @@ Built and verified against DSH `0.2.1-rc.2`.
 | [`packages/atlassian`](packages/atlassian) | `dsh-atlassian-plugin` — Jira and Confluence |
 | [`packages/sentry`](packages/sentry) | `dsh-sentry-plugin` — Sentry errors, with a card and a panel |
 | [`packages/gitlab`](packages/gitlab) | `dsh-gitlab-plugin` — merge requests, review threads and pipelines |
+| [`packages/figma`](packages/figma) | `dsh-figma-plugin` — a frame, its variables and its Code Connect mapping |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 | [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
@@ -49,13 +51,14 @@ names the account, and the paths its panel uses. `dsh-integration-ui` owns the
 side-panel body — loading, failing, retrying, one write at a time — the result
 card under the answer, the terse tool row, the settings card and the stylesheet
 they are drawn with; a plugin supplies its payload, its drawing rules, and its own
-tab kind. The settings card takes either shape of sign-in: a button that starts a
-browser flow, or a field the user pastes a credential into. Atlassian, Sentry,
-GitLab and devkit are built on both.
+tab kind. The settings card takes any of the three shapes of sign-in: a button that
+starts a browser flow, a field the user pastes a credential into, or nothing at all
+for a server that answers whoever is on the machine. Atlassian, Sentry, GitLab,
+Figma and devkit are built on both.
 
-Where this is going — Figma and the digest — is written down in
-[docs/roadmap.md](docs/roadmap.md). How to work in this
-repository is [AGENTS.md](AGENTS.md).
+Where this is going — the digest and cross-provider correlation — is written down
+in [docs/roadmap.md](docs/roadmap.md). How to work in this repository is
+[AGENTS.md](AGENTS.md).
 
 ## What you get
 
@@ -175,6 +178,42 @@ actually answered, including the naming GitLab mixes (`web_url` beside
 `detailed_merge_status`) and the fact that the discussions endpoint reports a
 note's resolution on the note rather than on the thread.
 
+## Figma
+
+The fifth bundle talks to the **Dev Mode MCP server**, which the Figma desktop app
+serves on `http://127.0.0.1:3845/mcp` while it is running. There is no sign-in and
+no token: that server answers whoever is on the machine, so the plugin stores no
+credential at all and the **Figma** section in Settings reports the connection
+instead of asking for one. Its ten tools arrive as ordinary harness tools
+(`mcp__figma__get_design_context`, `mcp__figma__get_variable_defs`,
+`mcp__figma__get_screenshot`, …).
+
+On top of them:
+
+- **`figma_present`** — the agent names a node, a Figma link, or nothing for
+  whatever is selected in the desktop app. The tool reads that node's structure,
+  its variables and its Code Connect mapping, answers the model with those facts
+  **as text**, and shows the person the frame itself. The picture deliberately
+  never reaches the model: a screenshot costs far more context than the numbers
+  beside it. When the model does need to look, it calls the server's own
+  `mcp__figma__get_screenshot`.
+- **The node panel** — the harness's right panel opens on the node by itself as
+  soon as a call settles (a call replayed from the session log opens nothing), and
+  from the card's own row at any time. It has three sections: **Frame** — the
+  picture, the layer's type, size and position, and its direct children —
+  **Tokens** — every variable the node uses, with the value Figma renders — and
+  **Code Connect** — the component the node maps to and where it lives.
+- **`/figma`** — `status`, `login` (which explains the switch to turn on),
+  `logout` (which disconnects) and `sync` (which reconnects and re-publishes the
+  tools).
+
+`get_metadata` answers XML rather than JSON, so the reader walks it into layers;
+`get_variable_defs` and `get_code_connect_map` answer objects keyed by name, and
+`get_screenshot` answers an image block, which the panel fetches from the plugin's
+own `/dsh-figma/screenshot` route rather than through the document. All of it is
+pinned twice: `test/readers.ts` against recorded shapes, and `test/dry-run.ts`
+against the running desktop app — the latter skips when it is not running.
+
 ## Configuration
 
 The Atlassian bundle's patch inserts one row with defaults; override the row from
@@ -209,12 +248,28 @@ no browser flow to come back to:
 | `endpoint` | `https://gitlab.com` | Instance root; calls are made under its `/api/v4` |
 | `debug` | `false` | Log the raw payload of every GitLab call |
 
-Disable either plugin without uninstalling it:
+The Figma bundle takes the Dev Mode server's address and the same debug flag:
+
+```yaml
+- id: figma
+  config:
+    endpoint: http://127.0.0.1:3845/mcp
+    debug: false
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `endpoint` | `http://127.0.0.1:3845/mcp` | The MCP server the Figma desktop app serves |
+| `debug` | `false` | Log the raw payload of every Figma tool result |
+
+Disable any plugin without uninstalling it:
 
 ```yaml
 - id: atlassian
   disabled: true
 - id: devkit
+  disabled: true
+- id: figma
   disabled: true
 ```
 
@@ -277,6 +332,25 @@ project's, and that lives in the project.
   not send `head_pipeline`, so a list row shows the state and the reviewers but
   no pipeline badge; the panel's Pipeline tab reads it from the merge request
   itself.
+- **Figma's desktop app has to be running.** The Dev Mode MCP server lives inside
+  it, so the plugin is dormant otherwise; the settings card says which switch to
+  turn on rather than pretending the connection is broken.
+- **Figma is connected locally only.** The remote `mcp.figma.com/mcp` server is
+  deliberately not wired up: its dynamic registration answers `403` to anonymous
+  callers, its single scope `mcp:connect` is not one a self-made Figma app can
+  request, and Figma's own documentation says only catalog clients may connect.
+  The transport seam is there — the profile simply has no OAuth facts — and
+  [docs/roadmap.md](docs/roadmap.md) records what was measured.
+- **Code Connect shows what the file already has.** The panel reads mappings; it
+  does not create them. A node with no mapping says so, and the mapping is made in
+  Figma or with the Code Connect CLI.
+- **The panel opens by itself only for a live call.** A call the page watched run
+  navigates the right Sidebar to its node; one replayed from the session log
+  opens nothing, so scrolling back through a conversation never moves a panel.
+- **The frame's picture is refetched, not cached.** It is asked for again every
+  time the panel loads its document, because the file may have changed since.
+- **A node Figma has no image for says so** in place of the picture, rather than
+  leaving the browser's broken-image mark in the panel.
 - **The card's copy is English and not routed through the client locale
   service**, which is registered per namespace at build time in TypeScript. The
   facts on a card are whatever the site says, in the site's own language.

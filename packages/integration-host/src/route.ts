@@ -12,6 +12,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Context } from "@deepseek-ai/cordis";
 import { errorText } from "dsh-mcp-oauth";
 import type { IntegrationAuthFace } from "./auth";
 import type { IntegrationStatus } from "./status";
@@ -26,6 +27,47 @@ export interface RouteHost {
 		path: string;
 		handler: (request: IncomingMessage, response: ServerResponse) => void;
 	}): () => void;
+}
+
+/** One integration's route, as the shared mount takes it. */
+export interface MountSpec {
+	/** The route prefix this plugin owns, such as `/dsh-sentry`. */
+	readonly prefix: string;
+	/** The handler every request under that prefix reaches. */
+	readonly handler: (
+		request: IncomingMessage,
+		response: ServerResponse,
+	) => Promise<void>;
+}
+
+/**
+ * Mount one integration's route on the harness web server.
+ *
+ * The registration waits for the web server rather than reading it once: the
+ * loader mounts rows as their own dependencies resolve, so a plugin that merely
+ * asks can run before the listener's fiber is active — and then its card never
+ * reaches the host, which looks like a broken integration rather than a race. A
+ * composition with no web server registers nothing, and the tools and the
+ * command keep working.
+ * @param ctx - the plugin's host context.
+ * @param spec - the prefix this plugin owns and the handler under it.
+ */
+export function mountIntegrationRoute(ctx: Context, spec: MountSpec): void {
+	ctx.inject(["webServer"], (scoped) => {
+		const webServer = (scoped as { get: (name: string) => unknown }).get(
+			"webServer",
+		) as RouteHost;
+
+		scoped.effect(
+			() =>
+				webServer.register({
+					kind: "prefix",
+					path: spec.prefix,
+					handler: spec.handler,
+				}),
+			`${spec.prefix}: route`,
+		);
+	});
 }
 
 /** One request's parsed JSON body, and the fields it must carry. */
@@ -47,6 +89,13 @@ export interface RouteContext {
 	read(): Promise<RouteBody>;
 	/** Answer with JSON. */
 	send(status: number, body: unknown): void;
+	/**
+	 * Answer with bytes and their media type.
+	 *
+	 * A panel that draws a picture needs the bytes themselves: an image cannot
+	 * travel inside the JSON document that describes it.
+	 */
+	sendBytes(status: number, contentType: string, body: Uint8Array): void;
 	/** Answer a read, translating a failure behind it into a bad gateway. */
 	sendData(load: () => Promise<unknown>): Promise<void>;
 }
@@ -146,6 +195,20 @@ export function createIntegrationRoute<TStatus extends IntegrationStatus>(
 			response.end(JSON.stringify(body));
 		};
 
+		const sendBytes = (
+			status: number,
+			contentType: string,
+			body: Uint8Array,
+		): void => {
+			response.writeHead(status, {
+				"content-type": contentType,
+				"content-length": body.byteLength,
+				"cache-control": "no-store",
+			});
+
+			response.end(body);
+		};
+
 		/** Answer a read the settings card or the side panel asked for. */
 		const sendData = async (load: () => Promise<unknown>): Promise<void> => {
 			try {
@@ -162,6 +225,7 @@ export function createIntegrationRoute<TStatus extends IntegrationStatus>(
 			method,
 			read: () => (body ??= readJson(request).then(bodyOf)),
 			send,
+			sendBytes,
 			sendData,
 		};
 

@@ -44,6 +44,7 @@ export const GitLabSection = createSettingsSection<GitLabStatus>({
 		"Merge requests, review threads and pipelines, through GitLab’s REST API.",
 	checking: "Checking the GitLab token…",
 	unreachable: "The GitLab host half is not reachable.",
+	credentials: "typed",
 	syncLabel: "Check the token",
 	api: hostApi,
 	token: {

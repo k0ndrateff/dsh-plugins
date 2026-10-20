@@ -23,7 +23,7 @@ import type { Context } from "@deepseek-ai/cordis";
 // them, not by cordis itself.
 import type {} from "@deepseek-ai/dsh-commands";
 import type {} from "@deepseek-ai/dsh-tools";
-import { type RouteHost, RuntimeState } from "dsh-integration-host";
+import { mountIntegrationRoute, RuntimeState } from "dsh-integration-host";
 import { loggerOf } from "dsh-mcp-oauth";
 import type { GitLabAccount } from "./account";
 import { GitLabApi } from "./api";
@@ -75,22 +75,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 
 	// The card's and the panel's channel to the host: a named route is how a
 	// plugin serves the page without a generated remote namespace.
-	const webServer = (ctx as { get?: (name: string) => unknown }).get?.(
-		"webServer",
-	) as RouteHost | undefined;
-
-	const disposeRoute = webServer?.register({
-		kind: "prefix",
-		path: ROUTE_PREFIX,
+	mountIntegrationRoute(ctx, {
+		prefix: ROUTE_PREFIX,
 		handler: createApiHandler({ auth, panel, review }),
 	});
-
-	if (disposeRoute === undefined)
-		logger.warn(
-			"[gitlab] no web server route; the settings card cannot reach the host",
-		);
-
-	ctx.effect(() => () => disposeRoute?.(), "gitlab: route");
 
 	// A stored token is verified at startup, so the panel and the tools work
 	// without a first click. A fresh install stays dormant until someone pastes

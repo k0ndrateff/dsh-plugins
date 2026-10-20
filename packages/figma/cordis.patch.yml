@@ -1,0 +1,19 @@
+# dsh-figma-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# Override or disable it from the profile patch with:
+#   - id: figma
+#     disabled: true
+- insert:
+    - id: figma
+      name: dsh-figma-plugin
+      config:
+        # The Figma Dev Mode MCP server, which the desktop app serves on this
+        # port while it is running. It needs no credential: it answers whoever
+        # is on the machine.
+        endpoint: http://127.0.0.1:3845/mcp
+        # Set true to log the raw MCP payloads of every tool result.
+        debug: false

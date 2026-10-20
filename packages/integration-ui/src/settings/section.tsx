@@ -5,6 +5,11 @@
  * a user has to go to connect: the button starts the OAuth flow in the host,
  * which opens the browser, and this card follows the attempt until it settles.
  *
+ * Three kinds of provider share it, and `credentials` says which one this is: a
+ * browser flow, a credential the user types, or nothing at all for a server that
+ * answers whoever is on the machine. The three are alternatives rather than
+ * options, so the type does not let a card carry two of them.
+ *
  * Everything a provider says about itself is one field of the spec, so the two
  * can never drift apart between integrations; what the provider adds — the
  * account it works with — arrives as one extra row.
@@ -79,6 +84,7 @@ interface SectionCommon<TStatus extends IntegrationStatus> {
 /** A card whose provider signs in through a browser. */
 interface BrowserSection<TStatus extends IntegrationStatus>
 	extends SectionCommon<TStatus> {
+	readonly credentials: "browser";
 	readonly signInLabel: string;
 	/** A browser card has no field: the two are alternatives, not options. */
 	readonly token?: undefined;
@@ -89,14 +95,30 @@ interface BrowserSection<TStatus extends IntegrationStatus>
 /** A card whose provider's credential is typed by the user. */
 interface TokenSection<TStatus extends IntegrationStatus>
 	extends SectionCommon<TStatus> {
+	readonly credentials: "typed";
 	readonly token: TokenFieldSpec<TStatus>;
 	readonly signInLabel?: undefined;
+}
+
+/**
+ * A card for a provider that needs no credential at all.
+ *
+ * A local MCP server answers whoever is on the machine, so there is nothing to
+ * type and no page to open: the card reports what the connection is doing and
+ * offers the same re-check every other card does.
+ */
+interface OpenSection<TStatus extends IntegrationStatus>
+	extends SectionCommon<TStatus> {
+	readonly credentials: "none";
+	readonly signInLabel?: undefined;
+	readonly token?: undefined;
 }
 
 /** Everything one integration's settings card says and does. */
 export type SettingsSectionSpec<TStatus extends IntegrationStatus> =
 	| BrowserSection<TStatus>
-	| TokenSection<TStatus>;
+	| TokenSection<TStatus>
+	| OpenSection<TStatus>;
 
 /** Human text for the connection state, for the tooltip and the dot. */
 const connectionState = (status: IntegrationStatus | null): ConnectionState => {
@@ -206,6 +228,10 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 		const signedIn = status.signedIn === true;
 		const toolCount = status.tools.length;
+		// A card for a server that needs no credential has no token to expire, and
+		// says so by never showing the line rather than by showing an empty one.
+		const expiry =
+			signedIn && spec.credentials !== "none" ? status.expiresAt : null;
 
 		return (
 			<section className={styles.section}>
@@ -216,9 +242,15 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						<span className={styles.badges}>
 							<StateDot state={connectionState(status)} />
 
-							<Tag tone={signedIn ? "success" : "neutral"}>
-								{signedIn ? "Signed in" : "Not signed in"}
-							</Tag>
+							{spec.credentials === "none" ? (
+								<Tag tone={status.connected ? "success" : "neutral"}>
+									{status.connected ? "Connected" : "Not connected"}
+								</Tag>
+							) : (
+								<Tag tone={signedIn ? "success" : "neutral"}>
+									{signedIn ? "Signed in" : "Not signed in"}
+								</Tag>
+							)}
 
 							{toolCount > 0 ? (
 								<Tag tone="info">{`${toolCount} tool${toolCount === 1 ? "" : "s"} available`}</Tag>
@@ -261,11 +293,11 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						</div>
 					) : null}
 
-					{signedIn && status.expiresAt !== null ? (
+					{expiry === null ? null : (
 						<div className={styles.caption}>
-							Token valid until {new Date(status.expiresAt).toLocaleString()}
+							Token valid until {new Date(expiry).toLocaleString()}
 						</div>
-					) : null}
+					)}
 
 					{tokenField === undefined ? null : (
 						<>
@@ -287,7 +319,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 					)}
 
 					<div className={styles.actions}>
-						{spec.token === undefined ? (
+						{spec.credentials === "browser" ? (
 							signedIn ? (
 								<Button
 									variant="outline"
@@ -305,7 +337,9 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 									{busy ? "Working…" : spec.signInLabel}
 								</Button>
 							)
-						) : (
+						) : null}
+
+						{spec.credentials === "typed" ? (
 							<>
 								<Button
 									variant="primary"
@@ -333,7 +367,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 									</Button>
 								) : null}
 							</>
-						)}
+						) : null}
 
 						<Button
 							variant="ghost"

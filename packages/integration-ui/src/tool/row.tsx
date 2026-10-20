@@ -60,6 +60,38 @@ const resultText = (block: ToolRowBlock | undefined): string =>
 		.trim();
 
 /**
+ * The arguments of a call, when the row can still see them.
+ *
+ * A preparing call may hold half-written JSON, so a failed parse answers an empty
+ * object rather than throwing: what a row says about a call in flight is a
+ * courtesy, and every argument it reads is optional anyway.
+ * @param block - the block the tool-view seat handed the row.
+ * @returns the parsed arguments, or an empty object.
+ */
+export const blockArgs = (
+	block: ToolRowBlock | undefined,
+): Record<string, unknown> => {
+	for (const raw of [block?.argsRaw, block?.call?.argsRaw]) {
+		if (typeof raw !== "string" || raw === "") continue;
+
+		try {
+			const parsed: unknown = JSON.parse(raw);
+
+			if (
+				parsed !== null &&
+				typeof parsed === "object" &&
+				!Array.isArray(parsed)
+			)
+				return parsed as Record<string, unknown>;
+		} catch {
+			// A preparing call can hold half-written JSON; the arguments are optional.
+		}
+	}
+
+	return {};
+};
+
+/**
  * Build the tool row for one integration.
  * @param spec - the integration's name for the tool and what it says about calls.
  * @returns the component the plugin registers under each tool name it draws.

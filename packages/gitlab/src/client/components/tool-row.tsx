@@ -12,7 +12,11 @@
  * answer, and a tool group that reproduces them buries the answer.
  */
 
-import { createToolRow, type ToolRowBlock } from "dsh-integration-ui";
+import {
+	blockArgs,
+	createToolRow,
+	type ToolRowBlock,
+} from "dsh-integration-ui";
 import { asGitLabPresentation } from "../../shared/meta";
 import {
 	GITLAB_PRESENT_TOOL,
@@ -27,28 +31,6 @@ const textOf = (block: ToolRowBlock | undefined): string =>
 		.join("\n")
 		.trim();
 
-/** The arguments of a preparing call, when they parsed. */
-const argsOf = (block: ToolRowBlock | undefined): Record<string, unknown> => {
-	for (const raw of [block?.argsRaw, block?.call?.argsRaw]) {
-		if (typeof raw !== "string" || raw === "") continue;
-
-		try {
-			const parsed: unknown = JSON.parse(raw);
-
-			if (
-				parsed !== null &&
-				typeof parsed === "object" &&
-				!Array.isArray(parsed)
-			)
-				return parsed as Record<string, unknown>;
-		} catch {
-			// A preparing call can hold half-written JSON; the arguments are optional.
-		}
-	}
-
-	return {};
-};
-
 /** The first reference of a preparing call, when it named any. */
 const firstReference = (value: unknown): string | undefined => {
 	if (!Array.isArray(value)) return undefined;
@@ -60,7 +42,7 @@ const firstReference = (value: unknown): string | undefined => {
 
 /** What a preparing `gitlab_present` call asked for. */
 const askedFor = (block: ToolRowBlock | undefined): string | undefined => {
-	const args = argsOf(block);
+	const args = blockArgs(block);
 
 	if (typeof args.search === "string" && args.search !== "") return args.search;
 	if (typeof args.scope === "string" && args.scope !== "") return args.scope;
@@ -105,7 +87,7 @@ export const GitLabPresentRow = createToolRow({
 
 /** What a preparing `gitlab_review` call asked to do. */
 const askedReview = (block: ToolRowBlock | undefined): string | undefined => {
-	const args = argsOf(block);
+	const args = blockArgs(block);
 	const action = typeof args.action === "string" ? args.action : undefined;
 	const reference =
 		typeof args.mergeRequest === "string" ? args.mergeRequest : undefined;

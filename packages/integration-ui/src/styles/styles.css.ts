@@ -136,6 +136,19 @@ export const itemHead = style({
 	},
 });
 
+/** The row's longest text, which takes the slack and yields in a dense list. */
+export const itemTitle = style({
+	flex: "1 1 auto",
+	minWidth: 0,
+	selectors: {
+		[`${list}[data-layout="list"] &`]: {
+			overflow: "hidden",
+			textOverflow: "ellipsis",
+			whiteSpace: "nowrap",
+		},
+	},
+});
+
 /**
  * The overlay that makes a whole row clickable.
  *
@@ -301,6 +314,15 @@ export const panelHead = style({
 	display: "flex",
 	flexDirection: "column",
 	gap: "8px",
+});
+
+/** The section strip above a panel's body, pinned while the body scrolls. */
+export const tabs = style({
+	position: "sticky",
+	top: 0,
+	zIndex: 1,
+	paddingBottom: "4px",
+	background: theme.color.bgBase,
 });
 
 export const panelTitleRow = style({

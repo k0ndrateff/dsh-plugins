@@ -9,7 +9,11 @@
  * tool group that reproduces them buries the answer.
  */
 
-import { createToolRow, type ToolRowBlock } from "dsh-integration-ui";
+import {
+	blockArgs,
+	createToolRow,
+	type ToolRowBlock,
+} from "dsh-integration-ui";
 import { asChecksCard, type ChecksCard, checkLabel } from "../../shared/checks";
 import { CHECKS_TOOL_NAME } from "../conversation/card-definition";
 
@@ -18,20 +22,9 @@ const NAMED_CHECKS = 3;
 
 /** The recipe the call asked for, when the row can still see the arguments. */
 const askedName = (block: ToolRowBlock | undefined): string | undefined => {
-	for (const raw of [block?.argsRaw, block?.call?.argsRaw]) {
-		if (typeof raw !== "string" || raw === "") continue;
+	const name = blockArgs(block).name;
 
-		try {
-			const parsed = JSON.parse(raw) as { name?: unknown };
-
-			if (typeof parsed.name === "string" && parsed.name !== "")
-				return parsed.name;
-		} catch {
-			// A preparing call can hold half-written JSON; the name is optional.
-		}
-	}
-
-	return undefined;
+	return typeof name === "string" && name !== "" ? name : undefined;
 };
 
 /** One short phrase per check, in config order. */

@@ -30,6 +30,8 @@ export type { AccountFacts, FactsReader } from "./facts";
 export {
 	BadRequest,
 	createIntegrationRoute,
+	type MountSpec,
+	mountIntegrationRoute,
 	type RouteBody,
 	type RouteContext,
 	type RouteHandler,

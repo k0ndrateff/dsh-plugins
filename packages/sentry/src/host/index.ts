@@ -21,7 +21,7 @@ import type {} from "@deepseek-ai/dsh-tools";
 import {
 	IntegrationAuth,
 	type IntegrationAuthFace,
-	type RouteHost,
+	mountIntegrationRoute,
 	RuntimeState,
 } from "dsh-integration-host";
 import {
@@ -105,29 +105,18 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 
 	// The card's and the panel's channel to the host: a named route is how a
 	// plugin serves the page without a generated remote namespace.
-	const webServer = (ctx as { get?: (name: string) => unknown }).get?.(
-		"webServer",
-	) as RouteHost | undefined;
-
-	const disposeRoute = webServer?.register({
-		kind: "prefix",
-		path: ROUTE_PREFIX,
+	mountIntegrationRoute(ctx, {
+		prefix: ROUTE_PREFIX,
 		handler: createApiHandler({ auth, panel }),
 	});
 
-	if (disposeRoute === undefined)
-		logger.warn(
-			"[sentry] no web server route; the settings card cannot reach the host",
-		);
-
 	ctx.effect(
 		() => () => {
-			disposeRoute?.();
 			disposeFlow();
 			// Closing the MCP connection also withdraws every published Sentry tool.
 			return bridge.drop();
 		},
-		"sentry: flow, route and MCP bridge",
+		"sentry: flow and MCP bridge",
 	);
 
 	// A signed-in user gets tools without a restart. A fresh install stays dormant

@@ -76,6 +76,44 @@
         "@deepseek-ai/dsh-working-directory": "0.2.1-rc.2",
       },
     },
+    "packages/figma": {
+      "name": "dsh-figma-plugin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@modelcontextprotocol/client": "2.2.0",
+        "@vanilla-extract/css": "^1.21.3",
+      },
+      "devDependencies": {
+        "dsh-integration-host": "workspace:*",
+        "dsh-integration-ui": "workspace:*",
+        "dsh-mcp-oauth": "workspace:*",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.0.5",
+        "@deepseek-ai/dsh-commands": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+      },
+    },
+    "packages/gitlab": {
+      "name": "dsh-gitlab-plugin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@modelcontextprotocol/client": "2.2.0",
+        "@vanilla-extract/css": "^1.21.3",
+      },
+      "devDependencies": {
+        "dsh-integration-host": "workspace:*",
+        "dsh-integration-ui": "workspace:*",
+        "dsh-mcp-oauth": "workspace:*",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.0.5",
+        "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-commands": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+      },
+    },
     "packages/integration-host": {
       "name": "dsh-integration-host",
       "version": "0.1.0",
@@ -518,6 +556,10 @@
     "dsh-atlassian-plugin": ["dsh-atlassian-plugin@workspace:packages/atlassian"],
 
     "dsh-devkit-plugin": ["dsh-devkit-plugin@workspace:packages/devkit"],
+
+    "dsh-figma-plugin": ["dsh-figma-plugin@workspace:packages/figma"],
+
+    "dsh-gitlab-plugin": ["dsh-gitlab-plugin@workspace:packages/gitlab"],
 
     "dsh-integration-host": ["dsh-integration-host@workspace:packages/integration-host"],
 

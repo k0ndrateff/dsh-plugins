@@ -10,13 +10,13 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Context } from "@deepseek-ai/cordis";
+import { Context, Service } from "@deepseek-ai/cordis";
 import type { AuthorizationFlow, GrantStore, McpBridge } from "dsh-mcp-oauth";
 import { IntegrationAuth } from "../src/auth";
 import { createIntegrationCommand } from "../src/command";
 import { resolveEndpointConfig } from "../src/config";
 import type { FactsReader } from "../src/facts";
-import { createIntegrationRoute } from "../src/route";
+import { createIntegrationRoute, mountIntegrationRoute } from "../src/route";
 import { RuntimeState } from "../src/state";
 import type { IntegrationStatus } from "../src/status";
 
@@ -528,6 +528,68 @@ console.log("\n=== the command ===");
 		"a failure is answered as the provider's own error",
 		refused.kind === "error" && refused.text === "Example: bridge is down",
 		refused.text,
+	);
+}
+
+console.log("\n=== mounting the route ===");
+
+{
+	/** A web server that records what was mounted on it. */
+	class FakeWebServer extends Service {
+		mounted: string[] = [];
+
+		constructor(ctx: Context) {
+			super(ctx, "webServer" as never);
+		}
+
+		register(route: { path: string }): () => void {
+			this.mounted.push(route.path);
+
+			return () => {
+				this.mounted = this.mounted.filter((path) => path !== route.path);
+			};
+		}
+	}
+
+	const handler = async (): Promise<void> => {};
+	const context = new Context();
+
+	// The failing order: a plugin mounts its route before the listener's fiber is
+	// active, which is what a row that merely reads `ctx.get("webServer")` gets
+	// wrong — the card then never reaches the host, and nothing says why.
+	mountIntegrationRoute(context, { prefix: "/dsh-early", handler });
+
+	const before = (context as unknown as { get: (name: string) => unknown }).get(
+		"webServer",
+	);
+
+	check(
+		"a listener that has not mounted yet is not there to read",
+		before === undefined,
+	);
+
+	const fiber = context.plugin(FakeWebServer);
+
+	await fiber;
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	const server = (
+		context as unknown as { get: (name: string) => FakeWebServer }
+	).get("webServer");
+
+	check(
+		"the route reaches a listener that arrives later",
+		server.mounted.includes("/dsh-early"),
+		server.mounted.join(", "),
+	);
+
+	await fiber.dispose();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"and leaves with it",
+		!server.mounted.includes("/dsh-early"),
+		server.mounted.join(", "),
 	);
 }
 
