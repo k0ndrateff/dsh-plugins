@@ -1,0 +1,51 @@
+{
+	"name": "dsh-devkit-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Project-owned checks for DeepSeek Harness: named recipes for lint, typecheck, tests and build, run as one tool and shown as a card",
+	"license": "MIT",
+	"main": "lib/index.js",
+	"exports": {
+		".": "./lib/index.js",
+		"./client": "./lib/client.js"
+	},
+	"files": [
+		"lib",
+		"cordis.patch.yml"
+	],
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"immediately": true,
+			"inject": [
+				"@deepseek-ai/dsh-client-ui-chat",
+				"@deepseek-ai/dsh-client-ui-conversation",
+				"@deepseek-ai/dsh-client-ui-tool"
+			]
+		}
+	},
+	"engines": {
+		"dsh": ">=0.2.0 <0.3.0"
+	},
+	"scripts": {
+		"build": "node build.mjs",
+		"watch": "node build.mjs --watch",
+		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+		"test": "bun run test/parsers.ts && bun run test/config.ts && bun run test/runner.ts && bun run test/tool.ts"
+	},
+	"dependencies": {
+		"@vanilla-extract/css": "^1.21.3"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "~4.0.5",
+		"@deepseek-ai/dsh-commands": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-fs": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-shell": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-working-directory": "0.2.1-rc.2"
+	}
+}

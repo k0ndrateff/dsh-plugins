@@ -1,0 +1,7 @@
+{
+	"checks": {
+		"typecheck": { "run": "bun run typecheck", "parse": "tsc" },
+		"lint": { "run": "./node_modules/.bin/biome check .", "parse": "biome" },
+		"test": { "run": "bun run test", "parse": "generic" }
+	}
+}

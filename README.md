@@ -12,7 +12,8 @@ Built and verified against DSH `0.2.1-rc.2`.
 
 | Package | What it is |
 |---|---|
-| [`packages/atlassian`](packages/atlassian) | `dsh-atlassian-plugin` — the bundle users install |
+| [`packages/atlassian`](packages/atlassian) | `dsh-atlassian-plugin` — Jira and Confluence |
+| [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 
 The library carries RFC 9728/8414 discovery, RFC 7591 dynamic client
@@ -36,8 +37,8 @@ GitLab, once per run — so it is not one to put on a loop. The other two thirds
 the same command (the account grammar, the client-authentication policy, and the
 bridge against a local MCP server) need nothing but bun.
 
-Where this is going — Sentry, GitLab, Figma, the checks plugin, and the digest —
-is written down in [docs/roadmap.md](docs/roadmap.md). How to work in this
+Where this is going — Sentry, GitLab, Figma, and the digest — is written down in
+[docs/roadmap.md](docs/roadmap.md). How to work in this
 repository is [AGENTS.md](AGENTS.md).
 
 ## What you get
@@ -65,9 +66,43 @@ repository is [AGENTS.md](AGENTS.md).
   or hand it to somebody else — instead of a browser tab — see
   [The side panel](#the-side-panel).
 
+## Checks
+
+The second bundle turns a project's own lint, typecheck, test and build commands
+into one tool. The recipes live in `dsh-checks.json` at the project root, so the
+repository owns the command and the agent only names it — this repository's own
+file is a working example:
+
+```json
+{
+  "checks": {
+    "typecheck": { "run": "bun run typecheck", "parse": "tsc" },
+    "lint":      { "run": "bunx biome check", "parse": "biome" },
+    "test":      { "run": "bun test",         "parse": "vitest" }
+  }
+}
+```
+
+- **The `checks` tool.** `checks` runs every recipe in config order, `checks test`
+  runs one. A command line is never accepted — that is what `bash` is for — and a
+  name the project does not have comes back with the ones it does.
+- **One line, then a card.** The tool group shows one terse line per call
+  (`checks · test ✓ 48/48 tests · lint ✗ 3 errors`), and the card under the answer
+  carries every check with its counts, its duration and its failures. A failure
+  row is a `file:line` that opens that file in the harness's own panel.
+- **`/checks`** lists the project's recipes, and **`/checks init`** drafts a book
+  from the project's `package.json` scripts and prints it. Neither writes a file.
+- **Parsers.** `tsc`, `biome` (either the JSON or the pretty reporter), `eslint`,
+  `vitest`, `jest`, `pytest`, and `generic` — the exit code plus the tail of the
+  output, which is what an unreadable tool gets. A recipe may set its own
+  `timeoutMs`; the default is ten minutes.
+- **Nothing is written to the project**, and each recipe runs through the
+  harness's own shell seam, so the same sandbox and environment rules as `bash`
+  apply.
+
 ## Configuration
 
-The bundle's patch inserts one row with defaults; override the row from
+The Atlassian bundle's patch inserts one row with defaults; override the row from
 `$DSH_HOME/profiles/<name>/cordis.patch.yml`:
 
 ```yaml
@@ -84,15 +119,30 @@ The bundle's patch inserts one row with defaults; override the row from
 | `redirectPort` | `8143` | First loopback port tried for the OAuth callback; the next free port is used if it is taken |
 | `debug` | `false` | Log the raw payload of every Atlassian tool result |
 
-Disable the plugin without uninstalling it:
+Disable either plugin without uninstalling it:
 
 ```yaml
 - id: atlassian
   disabled: true
+- id: devkit
+  disabled: true
 ```
+
+The devkit bundle takes no configuration of its own: what it runs is the
+project's, and that lives in the project.
 
 ## Known limitations
 
+- **The checks parsers are pinned to each tool's default reporter.** A custom
+  format (`vitest --reporter=json`, a wrapped test runner) is not read; that
+  check then reports its exit code and the tail of its output instead of a
+  failure list, which is visible rather than silently empty.
+- **`checks` runs its recipes one after another**, in the order the config lists
+  them, and holds the call until the last one finishes. Watch mode and background
+  jobs are not implemented yet.
+- **A check's file opens at its beginning.** The card's seat in the turn tail
+  carries a path and no line, so a failure row opens the file rather than jumping
+  to the position the tool named.
 - **Sign-in needs a human and a browser.** Atlassian enables no device-code
   grant for MCP clients, so there is no headless sign-in path.
 - **Atlassian Cloud only.** The remote MCP server does not support Server or

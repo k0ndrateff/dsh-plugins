@@ -1,0 +1,15 @@
+# dsh-devkit-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# The recipes this plugin runs are not configuration: they live in the project's
+# own `dsh-checks.json`, so a profile patch has nothing to say about them.
+#
+# Override or disable it from the profile patch with:
+#   - id: devkit
+#     disabled: true
+- insert:
+    - id: devkit
+      name: dsh-devkit-plugin
