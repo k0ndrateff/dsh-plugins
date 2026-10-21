@@ -6,8 +6,8 @@
  * button asks the host what it would do, and the panel shows that before Send.
  */
 
-import { Button, Tag } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Fact } from "dsh-integration-ui";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Chip, Facts } from "dsh-integration-ui";
 import type { ReactNode } from "react";
 import type { MergeRequestDetail } from "../../shared/panel";
 import { mrStateTone } from "../../shared/tone";
@@ -50,25 +50,28 @@ export const MrOverview = ({ mr, review }: Props): ReactNode => {
 	return (
 		<>
 			<div className={styles.badges}>
-				<Tag tone={mrStateTone(mr.state)}>{mr.state ?? "unknown"}</Tag>
+				<Chip tone={mrStateTone(mr.state)} value={mr.state ?? "unknown"} />
 
-				{mr.draft ? <Tag tone="warning">Draft</Tag> : null}
-				{mr.hasConflicts ? <Tag tone="danger">Conflicts</Tag> : null}
+				{mr.draft ? <Chip tone="warning" value="Draft" /> : null}
+				{mr.hasConflicts ? <Chip tone="danger" value="Conflicts" /> : null}
 				{mr.mergeStatus === undefined ? null : (
-					<Tag tone="neutral">{mr.mergeStatus}</Tag>
+					<Chip tone="neutral" value={mr.mergeStatus} />
 				)}
-
-				<Fact label="Author" value={mr.author?.username} />
-				<Fact label="Reviewers" value={reviewers ?? "none"} />
-				<Fact label="Assignees" value={assignees} />
-				<Fact
-					label="Updated"
-					value={
-						mr.updatedAt === undefined ? undefined : whenText(mr.updatedAt)
-					}
-				/>
-				<Fact label="Notes" value={mr.userNotesCount} />
 			</div>
+
+			<Facts
+				items={[
+					{ label: "Author", value: mr.author?.username },
+					{ label: "Reviewers", value: reviewers ?? "none" },
+					{ label: "Assignees", value: assignees },
+					{
+						label: "Updated",
+						value:
+							mr.updatedAt === undefined ? undefined : whenText(mr.updatedAt),
+					},
+					{ label: "Notes", value: mr.userNotesCount },
+				]}
+			/>
 
 			<Branches mr={mr} />
 
@@ -76,9 +79,7 @@ export const MrOverview = ({ mr, review }: Props): ReactNode => {
 				<Section title="Labels">
 					<div className={styles.badges}>
 						{mr.labels.map((label) => (
-							<Tag key={label} tone="outline">
-								{label}
-							</Tag>
+							<Chip key={label} tone="outline" value={label} />
 						))}
 					</div>
 				</Section>

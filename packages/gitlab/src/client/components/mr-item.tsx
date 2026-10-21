@@ -6,8 +6,7 @@
  * whenever this build has no panel at all.
  */
 
-import { Tag } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Fact } from "dsh-integration-ui";
+import { Chip, Facts } from "dsh-integration-ui";
 import type { MergeRequestCard } from "../../shared/meta";
 import * as styles from "../styles/styles.css";
 import { openTarget, RowLink } from "./row-link";
@@ -33,33 +32,34 @@ export const MergeRequestItem = ({ mergeRequest }: Props) => (
 
 			<span className={styles.itemTitle}>{mergeRequest.title}</span>
 
-			{mergeRequest.draft ? <Tag tone="warning">draft</Tag> : null}
+			{mergeRequest.draft ? <Chip tone="warning" value="draft" /> : null}
 		</div>
 
-		<div className={styles.badges}>
-			<Fact label="State" value={mergeRequest.state} />
-			<Fact label="Author" value={mergeRequest.author} />
-			<Fact
-				label="Reviewers"
-				value={
-					mergeRequest.reviewers === undefined ||
-					mergeRequest.reviewers.length === 0
-						? undefined
-						: mergeRequest.reviewers.join(", ")
-				}
-			/>
-			<Fact label="Pipeline" value={mergeRequest.pipeline} />
-			<Fact label="Unresolved" value={mergeRequest.unresolved} />
-			<Fact label="Notes" value={mergeRequest.notes} />
-			<Fact
-				label="Branches"
-				value={
-					mergeRequest.sourceBranch === undefined ||
-					mergeRequest.targetBranch === undefined
-						? undefined
-						: `${mergeRequest.sourceBranch} → ${mergeRequest.targetBranch}`
-				}
-			/>
-		</div>
+		<Facts
+			layout="inline"
+			items={[
+				{ label: "State", value: mergeRequest.state },
+				{ label: "Author", value: mergeRequest.author },
+				{
+					label: "Reviewers",
+					value:
+						mergeRequest.reviewers === undefined ||
+						mergeRequest.reviewers.length === 0
+							? undefined
+							: mergeRequest.reviewers.join(", "),
+				},
+				{ label: "Pipeline", value: mergeRequest.pipeline },
+				{ label: "Unresolved", value: mergeRequest.unresolved },
+				{ label: "Notes", value: mergeRequest.notes },
+				{
+					label: "Branches",
+					value:
+						mergeRequest.sourceBranch === undefined ||
+						mergeRequest.targetBranch === undefined
+							? undefined
+							: `${mergeRequest.sourceBranch} → ${mergeRequest.targetBranch}`,
+				},
+			]}
+		/>
 	</li>
 );

@@ -18,6 +18,7 @@ Built and verified against DSH `0.2.1-rc.2`.
 | [`packages/gitlab`](packages/gitlab) | `dsh-gitlab-plugin` — merge requests, review threads and pipelines |
 | [`packages/figma`](packages/figma) | `dsh-figma-plugin` — a frame, its variables and its Code Connect mapping |
 | [`packages/digest`](packages/digest) | `dsh-digest-plugin` — one read-only daily digest across the integrations above |
+| [`packages/integrations`](packages/integrations) | `dsh-integrations-plugin` — the one Settings page every integration's connection card appears on |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 | [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
@@ -55,7 +56,10 @@ they are drawn with; a plugin supplies its payload, its drawing rules, and its o
 tab kind. The settings card takes any of the three shapes of sign-in: a button that
 starts a browser flow, a field the user pastes a credential into, or nothing at all
 for a server that answers whoever is on the machine. Atlassian, Sentry, GitLab,
-Figma and devkit are built on both.
+Figma and devkit are built on both. The one Settings page those cards appear on
+belongs to `dsh-integrations-plugin`, which owns nothing else: an integration adds
+a tab by registering into the page's own slot, so the page never has to know which
+integrations exist.
 
 Where this is going — the digest and cross-provider correlation — is written down
 in [docs/roadmap.md](docs/roadmap.md). How to work in this repository is
@@ -69,9 +73,10 @@ in [docs/roadmap.md](docs/roadmap.md). How to work in this repository is
   `searchConfluenceUsingCql`, `getConfluencePage`, and everything else the server
   offers. They go through the normal tool pipeline: permissions, approvals,
   cancellation, session history.
-- **Sign-in where you already are.** An **Atlassian** section in Settings, a
-  `/atlassian` slash command (`status`, `login`, `logout`, `sync`), and a clear
-  message when something needs a sign-in.
+- **Sign-in where you already are.** The **Integrations** page in Settings, with
+  Atlassian as one tab beside the other integrations, a `/atlassian` slash command
+  (`status`, `login`, `logout`, `sync`), and a clear message when something needs a
+  sign-in.
 - **Terse tool rows.** A tool call reports one line — `searchJiraIssuesUsingJql ·
   found 5 issues · created >= -60d` — instead of reproducing the server's JSON.
   The full payload stays in the session log; the agent reads it, not the user.

@@ -1,0 +1,13 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Integrations" xmlns="http://www.w3.org/2000/svg">
+  <path d="M18 20.25V11.25M18 20.25 25.79 24.75M18 20.25 10.21 24.75" stroke="url(#dsh-integrations-a)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="18" cy="20.25" r="3" fill="url(#dsh-integrations-a)"/>
+  <circle cx="18" cy="11.25" r="2.6" fill="url(#dsh-integrations-a)"/>
+  <circle cx="25.79" cy="24.75" r="2.6" fill="url(#dsh-integrations-a)"/>
+  <circle cx="10.21" cy="24.75" r="2.6" fill="url(#dsh-integrations-a)"/>
+  <defs>
+    <linearGradient id="dsh-integrations-a" x1="8" y1="8" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67C7FE"/>
+      <stop offset="1" stop-color="#3F77D8"/>
+    </linearGradient>
+  </defs>
+</svg>

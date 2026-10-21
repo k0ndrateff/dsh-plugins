@@ -32,7 +32,8 @@ packages/
 ├── atlassian/        dsh-atlassian-plugin  бандл: Jira и Confluence
 ├── gitlab/           dsh-gitlab-plugin     бандл: MR, ревью и пайплайны GitLab
 ├── figma/            dsh-figma-plugin      бандл: фрейм, токены и Code Connect
-└── digest/           dsh-digest-plugin     бандл-мета: дайджест из блоков интеграций
+├── digest/           dsh-digest-plugin     бандл-мета: дайджест из блоков интеграций
+└── integrations/     dsh-integrations-plugin бандл: одна страница Integrations в настройках
 ```
 
 Внутри каждого пакета:

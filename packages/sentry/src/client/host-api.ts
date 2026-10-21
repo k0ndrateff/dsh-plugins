@@ -46,6 +46,16 @@ export const hostApi = {
 	},
 
 	/**
+	 * The reference that assigns an issue to the signed-in user.
+	 * @returns `user:<id>`, or null when Sentry names no id for this account.
+	 */
+	me: async (): Promise<string | null> => {
+		const answer = await request<{ reference: string | null }>("/me", "GET");
+
+		return answer.reference;
+	},
+
+	/**
 	 * Move one issue through Sentry's status vocabulary; answers with the fresh
 	 * issue.
 	 * @param ignoreMode - how an ignored issue behaves, when the caller chose.

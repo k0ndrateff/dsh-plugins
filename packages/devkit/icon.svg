@@ -1,0 +1,11 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Developer Kit" xmlns="http://www.w3.org/2000/svg">
+  <path d="M13.5 13.4H12.3A2.8 2.8 0 0 0 9.5 16.2V24.2A2.8 2.8 0 0 0 12.3 27H23.7A2.8 2.8 0 0 0 26.5 24.2V16.2A2.8 2.8 0 0 0 23.7 13.4H22.5" stroke="url(#dsh-devkit-a)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="13.5" y="9" width="9" height="4.4" rx="2.2" stroke="url(#dsh-devkit-a)" stroke-width="3"/>
+  <path d="M13.9 19.5 17.1 22.7 22.1 17.7" stroke="url(#dsh-devkit-a)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="dsh-devkit-a" x1="8" y1="7" x2="28" y2="29" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AC2FF"/>
+      <stop offset="1" stop-color="#4A65E8"/>
+    </linearGradient>
+  </defs>
+</svg>

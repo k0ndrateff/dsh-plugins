@@ -69,16 +69,14 @@ const state = {
 const source = sentryDigestSource({ bridge, state });
 
 console.log("=== what the source offers ===");
-{
-	check(
-		"one block, on by default",
-		source.blocks.length === 1 &&
-			source.blocks[0]?.id === "sentry-errors" &&
-			source.blocks[0]?.defaultOn === true,
-		source.blocks.map((block) => block.id).join(","),
-	);
-	check("it names its provider", source.provider === "Sentry");
-}
+check(
+	"one block, on by default",
+	source.blocks.length === 1 &&
+		source.blocks[0]?.id === "sentry-errors" &&
+		source.blocks[0]?.defaultOn === true,
+	source.blocks.map((block) => block.id).join(","),
+);
+check("it names its provider", source.provider === "Sentry");
 
 console.log("\n=== the block ===");
 {

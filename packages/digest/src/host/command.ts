@@ -12,10 +12,15 @@
  */
 
 import type { CommandResult } from "dsh-integration-host";
-import { DAY_LABELS, type DigestSettings } from "../shared/digest";
+import {
+	DAY_LABELS,
+	type DigestSettings,
+	isDigestTime,
+	isTimeZone,
+} from "../shared/digest";
 import type { DigestCollector } from "./collect";
 import type { DigestSchedule } from "./schedule";
-import { type DigestSettingsStore, isDigestTime, isTimeZone } from "./settings";
+import type { DigestSettingsStore } from "./settings";
 
 /** The weekdays this command understands, by the names a human types. */
 const WEEKDAYS: Readonly<Record<string, number>> = {

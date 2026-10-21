@@ -1,0 +1,16 @@
+# dsh-integrations-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# This bundle holds no tools and no configuration of its own: it owns the one
+# Settings page that every integration's card is contributed to. Without it the
+# integrations still work — their cards simply have no page to appear on.
+#
+# Override or disable it from the profile patch with:
+#   - id: integrations
+#     disabled: true
+- insert:
+    - id: integrations
+      name: dsh-integrations-plugin

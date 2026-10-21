@@ -108,3 +108,41 @@ export const block = style({
 	gap: "6px",
 	paddingTop: "8px",
 });
+
+/** One staged field: its name, its control, and what the control means. */
+export const field = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "6px",
+	paddingTop: "10px",
+});
+
+export const fieldHead = style({
+	display: "flex",
+	alignItems: "baseline",
+	gap: "8px",
+});
+
+export const fieldLabel = style({
+	fontSize: "13px",
+	fontWeight: 500,
+	color: theme.color.labelPrimary,
+});
+
+/** The mark on a field the draft moved away from what the host holds. */
+export const fieldChanged = style({
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.labelTertiary,
+});
+
+/** The row that writes the staged settings, set off from what it writes. */
+export const footer = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	flexWrap: "wrap",
+	marginTop: "12px",
+	paddingTop: "12px",
+	borderTop: `0.5px solid ${theme.color.borderSubtle}`,
+});

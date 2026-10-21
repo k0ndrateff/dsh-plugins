@@ -17,10 +17,14 @@ import {
 	Button,
 	Input,
 	MarkdownText,
+	Menu,
+	type MenuEntry,
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
+	Chip,
 	createPanelBody,
 	createPanelTitle,
+	Facts,
 	type PanelActions,
 	type PanelProvider,
 } from "dsh-integration-ui";
@@ -37,7 +41,6 @@ import {
 	type PanelTarget,
 } from "../../shared/panel";
 import { issueTypeTone, priorityTone } from "../../shared/tone";
-import { Badge } from "../components/badge";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
 
@@ -185,7 +188,29 @@ const Transitions = ({
 	);
 };
 
-/** Hand the issue to somebody else, by searching the site's people. */
+/** People assigned from this page's session, so the second assignment is one click. */
+const remembered: PanelPerson[] = [];
+
+/** How many remembered people the menu offers. */
+const REMEMBERED_LIMIT = 4;
+
+/** Remember one person, most recent first. */
+function remember(person: PanelPerson): void {
+	if (remembered.some((known) => known.accountId === person.accountId)) return;
+
+	remembered.unshift(person);
+	remembered.length = Math.min(remembered.length, REMEMBERED_LIMIT);
+}
+
+/**
+ * Hand the issue to somebody else.
+ *
+ * The site's people lookup needs a search string, so the panel cannot offer a
+ * list of everybody — but it should not make the reader type a name it already
+ * knows either. The reader themselves is one click, the people assigned to from
+ * this session are remembered, and the search field appears only when somebody
+ * new has to be found by name.
+ */
 const Assignee = ({
 	issue,
 	actions,
@@ -193,9 +218,30 @@ const Assignee = ({
 	issue: IssuePanel;
 	actions: Actions;
 }) => {
+	const [open, setOpen] = useState(false);
+	const [searchOpen, setSearchOpen] = useState(false);
+	const [fetching, setFetching] = useState(false);
 	const [query, setQuery] = useState("");
 	const [people, setPeople] = useState<readonly PanelPerson[]>([]);
-	const [searching, setSearching] = useState(false);
+	const [me, setMe] = useState<PanelPerson | null>(null);
+	const [known, setKnown] = useState<readonly PanelPerson[]>(remembered);
+
+	// Who the reader is, asked once: without it the panel simply offers no
+	// self-assignment, and the search stays the only way to name anybody.
+	useEffect(() => {
+		let live = true;
+
+		hostApi
+			.me()
+			.then((person) => {
+				if (live) setMe(person);
+			})
+			.catch(() => undefined);
+
+		return () => {
+			live = false;
+		};
+	}, []);
 
 	useEffect(() => {
 		const trimmed = query.trim();
@@ -208,7 +254,7 @@ const Assignee = ({
 		const controller = new AbortController();
 		// One search per pause in typing: the site's lookup is not free.
 		const timer = setTimeout(() => {
-			setSearching(true);
+			setFetching(true);
 			hostApi
 				.findPeople(trimmed, controller.signal)
 				.then((found) => {
@@ -216,7 +262,7 @@ const Assignee = ({
 				})
 				.catch(() => undefined)
 				.finally(() => {
-					if (!controller.signal.aborted) setSearching(false);
+					if (!controller.signal.aborted) setFetching(false);
 				});
 		}, 300);
 
@@ -226,52 +272,144 @@ const Assignee = ({
 		};
 	}, [query]);
 
+	const assign = (person: PanelPerson | null): void => {
+		if (person !== null) {
+			remember(person);
+			setKnown([...remembered]);
+		}
+
+		setQuery("");
+		setSearchOpen(false);
+		runIssue(actions, (key) =>
+			hostApi.assignIssue(key, person?.accountId ?? null),
+		);
+	};
+
+	const entries: MenuEntry[] = [
+		...(me === null || me.accountId === issue.assignee?.accountId
+			? []
+			: [{ id: `person:${me.accountId}`, label: `Assign to me (${me.name})` }]),
+		...known
+			.filter((person) => person.accountId !== me?.accountId)
+			.map((person) => ({
+				id: `person:${person.accountId}`,
+				label: person.name,
+			})),
+		{ id: "search", label: "Search people…" },
+	];
+
+	/** The person one menu id names, or null when it was not a person. */
+	const personFor = (id: string): PanelPerson | null => {
+		if (me !== null && id === `person:${me.accountId}`) return me;
+
+		return known.find((person) => id === `person:${person.accountId}`) ?? null;
+	};
+
 	return (
 		<Section title="Assignee">
-			<div className={styles.actions}>
-				<Input
-					className={styles.personSearch}
-					value={query}
-					placeholder="Search people…"
-					disabled={actions.busy}
-					onChange={(event) => {
-						setQuery(event.target.value);
+			<div className={styles.row}>
+				<span className={styles.caption}>
+					{issue.assignee?.name ?? "Nobody is assigned."}
+				</span>
+
+				<Menu
+					open={open}
+					onClose={() => {
+						setOpen(false);
 					}}
+					autoFocus
+					dense
+					items={entries}
+					onSelect={(id) => {
+						setOpen(false);
+
+						if (id === "search") {
+							setSearchOpen(true);
+							return;
+						}
+
+						assign(personFor(id));
+					}}
+					footer={
+						issue.assignee === undefined
+							? []
+							: [{ id: "unassign", label: "Unassign", danger: true }]
+					}
+					anchor={
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={actions.busy}
+							onClick={() => {
+								if (open) {
+									setOpen(false);
+									return;
+								}
+
+								setSearchOpen(false);
+								setOpen(true);
+							}}
+						>
+							Change
+						</Button>
+					}
 				/>
-				{issue.assignee === undefined ? null : (
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={actions.busy}
-						onClick={() => {
-							runIssue(actions, (key) => hostApi.assignIssue(key, null));
-						}}
-					>
-						Unassign
-					</Button>
-				)}
 			</div>
-			{searching ? <span className={styles.caption}>Searching…</span> : null}
-			{people.length === 0 ? null : (
-				<ul className={styles.people}>
-					{people.map((person) => (
-						<li key={person.accountId}>
-							<button
-								type="button"
-								className={styles.person}
-								disabled={actions.busy}
-								onClick={() => {
-									runIssue(actions, (key) =>
-										hostApi.assignIssue(key, person.accountId),
-									);
-								}}
-							>
-								{person.name}
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
+
+			{searchOpen ? (
+				<>
+					<div className={styles.actions}>
+						<Input
+							className={styles.personSearch}
+							value={query}
+							placeholder="Search people…"
+							disabled={actions.busy}
+							onChange={(event) => {
+								setQuery(event.target.value);
+							}}
+						/>
+
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={actions.busy}
+							onClick={() => {
+								setQuery("");
+								setSearchOpen(false);
+							}}
+						>
+							Cancel
+						</Button>
+					</div>
+
+					{query.trim().length < 2 ? (
+						<span className={styles.caption}>
+							Two letters are enough to search the site.
+						</span>
+					) : null}
+
+					{fetching ? <span className={styles.caption}>Searching…</span> : null}
+
+					{people.length === 0 ? null : (
+						<ul className={styles.people}>
+							{people.map((person) => (
+								<li key={person.accountId}>
+									<button
+										type="button"
+										className={styles.person}
+										disabled={actions.busy}
+										onClick={() => {
+											assign(person);
+										}}
+									>
+										{person.name}
+									</button>
+								</li>
+							))}
+						</ul>
+					)}
+				</>
+			) : null}
 		</Section>
 	);
 };
@@ -287,7 +425,7 @@ const IssueView = ({
 	<>
 		<header className={styles.panelHead}>
 			<div className={styles.panelTitleRow}>
-				<Badge value={issue.type} tone={issueTypeTone(issue.type)} />
+				<Chip value={issue.type} tone={issueTypeTone(issue.type)} />
 				<a
 					className={`${styles.link} ${styles.panelKey}`}
 					href={issue.url}
@@ -298,21 +436,33 @@ const IssueView = ({
 				</a>
 			</div>
 			<h2 className={styles.panelSummary}>{issue.summary ?? issue.key}</h2>
-			<div className={styles.badges}>
-				<Badge label="Status" value={issue.status} />
-				<Badge
-					label="Priority"
-					value={issue.priority}
-					tone={priorityTone(issue.priority)}
-				/>
-				<Badge label="Assignee" value={issue.assignee?.name ?? "Unassigned"} />
-				<Badge label="Reporter" value={issue.reporter} />
-				<Badge label="Estimate" value={issue.estimate} />
-				<Badge label="Due" value={issue.due} />
-				{issue.labels.map((label) => (
-					<Badge key={label} value={label} tone="neutral" />
-				))}
-			</div>
+
+			<Facts
+				items={[
+					{ label: "Status", value: issue.status },
+					{
+						label: "Priority",
+						value:
+							issue.priority === undefined ? undefined : (
+								<Chip
+									value={issue.priority}
+									tone={priorityTone(issue.priority)}
+								/>
+							),
+					},
+					{ label: "Reporter", value: issue.reporter },
+					{ label: "Estimate", value: issue.estimate },
+					{ label: "Due", value: issue.due },
+				]}
+			/>
+
+			{issue.labels.length === 0 ? null : (
+				<div className={styles.badges}>
+					{issue.labels.map((label) => (
+						<Chip key={label} value={label} tone="neutral" />
+					))}
+				</div>
+			)}
 		</header>
 
 		<Transitions issue={issue} actions={actions} />
@@ -341,7 +491,7 @@ const PageView = ({ page }: { page: PagePanel }) => (
 	<>
 		<header className={styles.panelHead}>
 			<div className={styles.panelTitleRow}>
-				<Badge value="Page" tone="neutral" />
+				<Chip value="Page" tone="neutral" />
 				{page.space === undefined ? null : (
 					<span className={styles.panelKey}>{page.space}</span>
 				)}

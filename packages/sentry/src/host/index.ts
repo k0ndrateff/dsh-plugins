@@ -39,8 +39,8 @@ import {
 	resolveConfig,
 	sentryProfile,
 } from "./config";
-import { PanelApi } from "./panels/panel";
 import { registerDigestSource } from "./digest";
+import { PanelApi } from "./panels/panel";
 import type { OrganizationFacts } from "./store/organization";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";

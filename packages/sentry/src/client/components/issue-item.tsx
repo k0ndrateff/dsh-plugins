@@ -6,7 +6,7 @@
  * whenever this build has no panel at all.
  */
 
-import { Fact } from "dsh-integration-ui";
+import { Facts } from "dsh-integration-ui";
 import type { MouseEvent } from "react";
 import type { IssueCard } from "../../shared/meta";
 import { openPanel, wantsBrowser } from "../sidebar/open";
@@ -60,12 +60,15 @@ export const IssueItem = ({ issue }: Props) => (
 			<span className={styles.itemTitle}>{issue.title}</span>
 		</div>
 
-		<div className={styles.badges}>
-			<Fact label="Status" value={issue.status} />
-			<Fact label="Assignee" value={issue.assignee} />
-			<Fact label="Events" value={issue.events} />
-			<Fact label="Users" value={issue.users} />
-			<Fact label="Last seen" value={issue.lastSeen} />
-		</div>
+		<Facts
+			layout="inline"
+			items={[
+				{ label: "Status", value: issue.status },
+				{ label: "Assignee", value: issue.assignee },
+				{ label: "Events", value: issue.events },
+				{ label: "Users", value: issue.users },
+				{ label: "Last seen", value: issue.lastSeen },
+			]}
+		/>
 	</li>
 );

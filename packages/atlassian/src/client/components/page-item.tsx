@@ -5,10 +5,10 @@
  * the one sentence the card can afford.
  */
 
+import { Facts } from "dsh-integration-ui";
 import type { PageCard } from "../../shared/meta";
 import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
-import { Badge } from "./badge";
 
 interface Props {
 	page: PageCard;
@@ -49,9 +49,7 @@ export const PageItem = ({ page }: Props) => {
 				<p className={styles.itemText}>{page.excerpt}</p>
 			)}
 
-			<div className={styles.badges}>
-				<Badge label="Space" value={page.space} />
-			</div>
+			<Facts layout="inline" items={[{ label: "Space", value: page.space }]} />
 		</li>
 	);
 };

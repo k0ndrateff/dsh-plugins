@@ -80,15 +80,13 @@ const state = {
 const source = atlassianDigestSource({ bridge, state });
 
 console.log("=== what the source offers ===");
-{
-	check(
-		"two Jira blocks, both on by default",
-		source.blocks.map((block) => `${block.id}:${block.defaultOn}`).join(",") ===
-			"jira-active:true,jira-queued:true",
-		source.blocks.map((block) => block.id).join(","),
-	);
-	check("it names its provider", source.provider === "Atlassian");
-}
+check(
+	"two Jira blocks, both on by default",
+	source.blocks.map((block) => `${block.id}:${block.defaultOn}`).join(",") ===
+		"jira-active:true,jira-queued:true",
+	source.blocks.map((block) => block.id).join(","),
+);
+check("it names its provider", source.provider === "Atlassian");
 
 console.log("\n=== the active block ===");
 {
@@ -137,15 +135,13 @@ console.log("\n=== the active block ===");
 }
 
 console.log("\n=== the queued block ===");
-{
-	await source.load("jira-queued", { since: new Date(0), limit: 5 });
+await source.load("jira-queued", { since: new Date(0), limit: 5 });
 
-	check(
-		"asks for work that has not started",
-		String(calls.at(-1)?.args.jql).includes('statusCategory = "To Do"'),
-		String(calls.at(-1)?.args.jql),
-	);
-}
+check(
+	"asks for work that has not started",
+	String(calls.at(-1)?.args.jql).includes('statusCategory = "To Do"'),
+	String(calls.at(-1)?.args.jql),
+);
 
 console.log("\n=== what it refuses ===");
 {

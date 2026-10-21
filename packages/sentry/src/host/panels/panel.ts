@@ -10,7 +10,13 @@
  */
 
 import type { RuntimeState } from "dsh-integration-host";
-import { type McpBridge, mcpText } from "dsh-mcp-oauth";
+import {
+	asRecord,
+	type McpBridge,
+	mcpJson,
+	mcpText,
+	pickString,
+} from "dsh-mcp-oauth";
 import type { IssueDetail, IssuePanel } from "../../shared/meta";
 import { parseIssueDetail } from "../presentation/parse";
 import type { OrganizationFacts } from "../store/organization";
@@ -20,6 +26,9 @@ const RESOURCE_TOOL = "get_sentry_resource";
 
 /** The tool that moves an issue's status or its owner. */
 const UPDATE_TOOL = "update_issue";
+
+/** The tool that names the caller. */
+const WHOAMI_TOOL = "whoami";
 
 /** What the panel needs from the plugin. */
 export interface PanelDeps {
@@ -72,6 +81,36 @@ export class PanelApi {
 		});
 
 		return await this.issue(id);
+	}
+
+	/**
+	 * The reference that assigns an issue to the person reading the panel.
+	 *
+	 * Sentry offers no member directory, so `whoami` is the only assignment this
+	 * panel can name without the user typing one. It answers as JSON on some
+	 * deployments and as a sentence on others, and a deployment that names no id
+	 * answers null — the panel then leaves "assign to me" out rather than offering
+	 * a reference Sentry would refuse.
+	 * @returns `user:<id>`, or null when the answer names no id.
+	 */
+	async me(): Promise<string | null> {
+		const value = await this.deps.bridge.callTool(WHOAMI_TOOL, {});
+		const id = this.userIdOf(value);
+
+		return id === undefined ? null : `user:${id}`;
+	}
+
+	/** The caller's numeric id, from whichever shape the answer arrived in. */
+	private userIdOf(value: unknown): string | undefined {
+		for (const root of mcpJson(value)) {
+			const record = asRecord(root);
+			const id =
+				pickString(asRecord(record?.user), "id") ?? pickString(record, "id");
+
+			if (id !== undefined) return id;
+		}
+
+		return /"id"\s*:\s*"?(\d+)"?/.exec(mcpText(value).join("\n"))?.[1];
 	}
 
 	/** Read one issue document and read its fields out. */

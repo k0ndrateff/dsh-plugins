@@ -60,6 +60,16 @@ export const hostApi = {
 				);
 	},
 
+	/**
+	 * The signed-in user, as the site names them.
+	 * @returns the reader, or null when the site names no account for this token.
+	 */
+	me: async (): Promise<PanelPerson | null> => {
+		const answer = await request<{ person: PanelPerson | null }>("/me", "GET");
+
+		return answer.person;
+	},
+
 	/** People the site matches to a search string. */
 	findPeople: async (
 		query: string,

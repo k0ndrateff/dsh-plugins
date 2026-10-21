@@ -15,11 +15,12 @@
 import {
 	type SegmentedTab,
 	SegmentedTabs,
-	Tag,
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
+	Chip,
 	createPanelBody,
 	createPanelTitle,
+	Facts,
 	type PanelProvider,
 	type PanelViewProps,
 } from "dsh-integration-ui";
@@ -62,14 +63,6 @@ const TABS: readonly [
 	},
 ];
 
-/** One field of the node's own numbers. */
-const Fact = ({ label, value }: { label: string; value: string }) => (
-	<>
-		<span className={styles.factLabel}>{label}</span>
-		<span className={styles.factValue}>{value}</span>
-	</>
-);
-
 /** The picture, the node's numbers, and its structure. */
 const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 	const node = panel.node;
@@ -78,18 +71,24 @@ const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 		<>
 			<FrameImage src={panel.screenshot} alt={`${node.name} in Figma`} />
 
-			<div className={styles.facts}>
-				<Fact label="Type" value={node.type} />
-				<Fact label="Size" value={`${node.width}×${node.height}`} />
-				{node.x === undefined || node.y === undefined ? null : (
-					<Fact label="Position" value={`${node.x}, ${node.y}`} />
-				)}
-				<Fact label="Variables" value={String(panel.tokens.length)} />
-				<Fact
-					label="Code Connect"
-					value={panel.mappings[0]?.component ?? "none"}
-				/>
-			</div>
+			<Facts
+				items={[
+					{ label: "Type", value: node.type },
+					{ label: "Size", value: `${node.width}×${node.height}` },
+					{
+						label: "Position",
+						value:
+							node.x === undefined || node.y === undefined
+								? undefined
+								: `${node.x}, ${node.y}`,
+					},
+					{ label: "Variables", value: panel.tokens.length },
+					{
+						label: "Code Connect",
+						value: panel.mappings[0]?.component ?? "none",
+					},
+				]}
+			/>
 
 			{panel.children.length === 0 ? null : (
 				<section className={styles.panelSection}>
@@ -187,7 +186,7 @@ const NodeView = ({
 				<div className={styles.panelTitleRow}>
 					<span className={styles.panelKey}>{node.id}</span>
 
-					<Tag tone="neutral">{node.type}</Tag>
+					<Chip tone="neutral" value={node.type} />
 				</div>
 
 				<h2 className={styles.panelSummary}>{node.name}</h2>

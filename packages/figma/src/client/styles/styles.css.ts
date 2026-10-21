@@ -38,24 +38,6 @@ export const frameMissing = style({
 	color: theme.color.labelTertiary,
 });
 
-/** The node's own numbers, one row per field. */
-export const facts = style({
-	display: "grid",
-	gridTemplateColumns: "auto 1fr",
-	gap: "4px 10px",
-});
-
-export const factLabel = style({
-	fontSize: "12px",
-	color: theme.color.labelTertiary,
-});
-
-export const factValue = style({
-	fontSize: "12px",
-	overflowWrap: "anywhere",
-	color: theme.color.labelPrimary,
-});
-
 /** One layer of the node's structure. */
 export const layer = style({
 	display: "flex",

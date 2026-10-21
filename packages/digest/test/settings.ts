@@ -15,10 +15,9 @@ import { join } from "node:path";
 import {
 	DigestSettingsStore,
 	defaultDigestSettings,
-	isDigestTime,
-	isTimeZone,
 	normalizeDigestSettings,
 } from "../src/host/settings";
+import { isDigestTime, isTimeZone } from "../src/shared/digest";
 import { check, report, section } from "./harness";
 
 const workdir = await mkdtemp(join(tmpdir(), "dsh-digest-"));

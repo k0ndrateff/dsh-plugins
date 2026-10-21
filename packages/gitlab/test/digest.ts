@@ -113,15 +113,13 @@ const state = {
 const source = gitlabDigestSource({ api, state });
 
 console.log("=== what the source offers ===");
-{
-	check(
-		"three blocks, with the bot's off by default",
-		source.blocks.map((block) => `${block.id}:${block.defaultOn}`).join(",") ===
-			"gitlab-review:true,gitlab-mine:true,coderabbit:false",
-		source.blocks.map((block) => block.id).join(","),
-	);
-	check("it names its provider", source.provider === "GitLab");
-}
+check(
+	"three blocks, with the bot's off by default",
+	source.blocks.map((block) => `${block.id}:${block.defaultOn}`).join(",") ===
+		"gitlab-review:true,gitlab-mine:true,coderabbit:false",
+	source.blocks.map((block) => block.id).join(","),
+);
+check("it names its provider", source.provider === "GitLab");
 
 console.log("\n=== waiting for my review ===");
 {
@@ -163,19 +161,17 @@ console.log("\n=== waiting for my review ===");
 }
 
 console.log("\n=== my merge requests ===");
-{
-	await source.load("gitlab-mine", { since: new Date(0), limit: 10 });
+await source.load("gitlab-mine", { since: new Date(0), limit: 10 });
 
-	check(
-		"asks for the ones the user created",
-		calls.at(-1)?.params?.scope === "created_by_me",
-		String(calls.at(-1)?.params?.scope),
-	);
-	check(
-		"and does not pretend to be a review filter",
-		calls.at(-1)?.params?.reviewer_username === undefined,
-	);
-}
+check(
+	"asks for the ones the user created",
+	calls.at(-1)?.params?.scope === "created_by_me",
+	String(calls.at(-1)?.params?.scope),
+);
+check(
+	"and does not pretend to be a review filter",
+	calls.at(-1)?.params?.reviewer_username === undefined,
+);
 
 console.log("\n=== the bot's review notes ===");
 {
@@ -205,25 +201,20 @@ console.log("\n=== the bot's review notes ===");
 }
 
 console.log("\n=== reading a note's first line ===");
-{
-	check(
-		"a heading is dropped",
-		firstLineOf("## Summary\n\nbody") === "Summary",
-	);
-	check(
-		"a quote marker is dropped",
-		firstLineOf("> Consider this") === "Consider this",
-	);
-	check(
-		"leading blank lines are skipped",
-		firstLineOf("\n\n  Real text  ") === "Real text",
-	);
-	check(
-		"a long line is bounded",
-		(firstLineOf(`x${"y".repeat(300)}`) ?? "").length === 158,
-	);
-	check("an empty note says nothing", firstLineOf("\n \n") === "");
-}
+check("a heading is dropped", firstLineOf("## Summary\n\nbody") === "Summary");
+check(
+	"a quote marker is dropped",
+	firstLineOf("> Consider this") === "Consider this",
+);
+check(
+	"leading blank lines are skipped",
+	firstLineOf("\n\n  Real text  ") === "Real text",
+);
+check(
+	"a long line is bounded",
+	(firstLineOf(`x${"y".repeat(300)}`) ?? "").length === 158,
+);
+check("an empty note says nothing", firstLineOf("\n \n") === "");
 
 console.log("\n=== what it refuses ===");
 {

@@ -2,8 +2,9 @@
  * dsh-figma — the Web Client half.
  *
  * It contributes four things to the page:
- *  - a **Figma** section in Settings, with the connection state of the Dev Mode
- *    MCP server and the button that checks it again;
+ *  - one tab of the suite's single **Integrations** page in Settings, with the
+ *    connection state of the Dev Mode MCP server and the button that checks it
+ *    again;
  *  - one keyed tool view for `figma_present`, so a call renders as one line
  *    instead of the raw JSON behind it — and so the panel opens on the node the
  *    call settled on while the agent is still working;
@@ -17,6 +18,9 @@
  * this half says what is Figma's and registers each seat under this plugin's own
  * tab kind and tool names.
  *
+ * The settings card is one tab of a page another plugin owns, which is what keeps
+ * five integrations from becoming five entries in the Settings navigation.
+ *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
@@ -24,13 +28,13 @@
 import type { Context } from "@deepseek-ai/cordis";
 // Each import below carries a declaration this half needs: the slot registry
 // itself, the slot contracts, the Chat node kind registry, the right Sidebar's
-// tab-type registry, and the Settings section contract.
+// tab-type registry.
 import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
-import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
+import { registerIntegrationsTab } from "dsh-integration-ui";
 import { FigmaTail } from "./components/presentation-tail";
 import { FigmaSection } from "./components/settings-section";
 import { FigmaPresentRow } from "./components/tool-row";
@@ -88,18 +92,13 @@ export const apply = (ctx: Context): void => {
 		);
 	});
 
-	// `inject` waits for the owning package to declare the slot, so this
-	// registration survives the Settings page not being open yet.
-	ctx.slots.inject("settings.section", () =>
-		ctx.slots.register(
-			{
-				name: "settings.section",
-				id: "figma",
-				order: 23,
-				label: () => "Figma",
-			},
-			FigmaSection,
-		),
+	// The card is one tab of the suite's single Integrations page. The helper
+	// waits for that page to be composed, so a build without it leaves the tools
+	// and the panel working and the card with nowhere to appear.
+	registerIntegrationsTab(
+		ctx,
+		{ id: "figma", order: 40, label: "Figma" },
+		FigmaSection,
 	);
 
 	ctx.slots.inject("tool.call.toolview", () =>

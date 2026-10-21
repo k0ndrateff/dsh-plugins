@@ -7,7 +7,7 @@
  */
 
 import { Tag } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Fact } from "dsh-integration-ui";
+import { Facts } from "dsh-integration-ui";
 import type { FigmaNodeCard } from "../../shared/meta";
 import { openPanel } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
@@ -35,11 +35,14 @@ export const FigmaNodeItem = ({ node }: Props) => (
 			<Tag tone="neutral">{node.type}</Tag>
 		</div>
 
-		<div className={styles.badges}>
-			<Fact label="Size" value={`${node.width}×${node.height}`} />
-			<Fact label="Variables" value={node.tokenCount} />
-			<Fact label="Children" value={node.childCount} />
-			<Fact label="Component" value={node.component} />
-		</div>
+		<Facts
+			layout="inline"
+			items={[
+				{ label: "Size", value: `${node.width}×${node.height}` },
+				{ label: "Variables", value: node.tokenCount },
+				{ label: "Children", value: node.childCount },
+				{ label: "Component", value: node.component },
+			]}
+		/>
 	</li>
 );

@@ -39,9 +39,9 @@ import {
 	PLUGIN_NAME,
 	resolveConfig,
 } from "./config";
+import { registerDigestSource } from "./digest";
 import { PanelApi } from "./panels/panel";
 import { extractor } from "./presentation/extract";
-import { registerDigestSource } from "./digest";
 import type { SiteFacts } from "./store/site";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";

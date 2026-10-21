@@ -110,27 +110,25 @@ async function commandFor(name: string, withService = true) {
 }
 
 section("the weekday grammar");
-{
-	check(
-		"names are matched by their first three letters",
-		parseDays("mon,wed,fri")?.join(",") === "1,3,5",
-	);
-	check(
-		"repeats collapse and the order is the week's",
-		parseDays("fri,mon,mon")?.join(",") === "1,5",
-	);
-	check(
-		"full names work, and come back in week order",
-		parseDays("monday,sunday")?.join(",") === "0,1",
-	);
-	check("an unknown name is refused", parseDays("mon,funday") === undefined);
-	check("an empty list is refused", parseDays(" , ") === undefined);
-	check(
-		"every day reads as one phrase",
-		describeDays([0, 1, 2, 3, 4, 5, 6]) === "every day",
-	);
-	check("a narrow week reads as its days", describeDays([1, 3]) === "Mon, Wed");
-}
+check(
+	"names are matched by their first three letters",
+	parseDays("mon,wed,fri")?.join(",") === "1,3,5",
+);
+check(
+	"repeats collapse and the order is the week's",
+	parseDays("fri,mon,mon")?.join(",") === "1,5",
+);
+check(
+	"full names work, and come back in week order",
+	parseDays("monday,sunday")?.join(",") === "0,1",
+);
+check("an unknown name is refused", parseDays("mon,funday") === undefined);
+check("an empty list is refused", parseDays(" , ") === undefined);
+check(
+	"every day reads as one phrase",
+	describeDays([0, 1, 2, 3, 4, 5, 6]) === "every day",
+);
+check("a narrow week reads as its days", describeDays([1, 3]) === "Mon, Wed");
 
 section("reading and writing the settings");
 {

@@ -19,6 +19,8 @@ import {
 	DEFAULT_DIGEST_LIMIT,
 	DIGEST_LIMITS,
 	type DigestSettings,
+	isDigestTime,
+	isTimeZone,
 } from "../shared/digest";
 
 /** The document's file name inside the plugin's own directory. */
@@ -26,26 +28,6 @@ const FILE_NAME = "settings.json";
 
 /** How many days a schedule may name before it is nonsense. */
 const MAX_DAYS = 7;
-
-/** A wall-clock time, `HH:MM`, in 24-hour form. */
-const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/u;
-
-/** Whether one string is a wall-clock time this plugin will schedule. */
-export const isDigestTime = (value: unknown): value is string =>
-	typeof value === "string" && TIME.test(value);
-
-/** Whether one string names a zone `Intl` knows. */
-export const isTimeZone = (value: unknown): value is string => {
-	if (typeof value !== "string" || value === "") return false;
-
-	try {
-		new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
-
-		return true;
-	} catch {
-		return false;
-	}
-};
 
 /** The zone the process is running in, which is what a local digest means. */
 export const localTimeZone = (): string => {

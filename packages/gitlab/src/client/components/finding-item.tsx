@@ -8,8 +8,7 @@
  * that is where the thread lives.
  */
 
-import { Tag } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Fact } from "dsh-integration-ui";
+import { Chip, Facts } from "dsh-integration-ui";
 import type { FindingCard } from "../../shared/meta";
 import * as styles from "../styles/styles.css";
 import { openTarget, RowLink } from "./row-link";
@@ -42,15 +41,17 @@ export const FindingItem = ({ finding }: Props) => (
 				}}
 			/>
 
-			<Tag tone={finding.resolved ? "success" : "warning"}>
-				{finding.resolved ? "resolved" : "unresolved"}
-			</Tag>
+			<Chip
+				tone={finding.resolved ? "success" : "warning"}
+				value={finding.resolved ? "resolved" : "unresolved"}
+			/>
 		</div>
 
 		<span className={styles.findingBody}>{finding.body}</span>
 
-		<div className={styles.badges}>
-			<Fact label="Author" value={finding.author} />
-		</div>
+		<Facts
+			layout="inline"
+			items={[{ label: "Author", value: finding.author }]}
+		/>
 	</li>
 );

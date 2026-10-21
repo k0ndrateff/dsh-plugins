@@ -1,42 +1,45 @@
 /**
- * The Sentry settings section.
+ * The Sentry settings card.
  *
  * It shows the sign-in state and the connection state, and it is the only place
  * a user has to go to connect: the button starts the OAuth flow in the host,
  * which opens the browser, and this card follows the attempt until it settles.
- * The card itself belongs to `dsh-integration-ui`; what is Sentry's is its copy
- * and the organization it works with.
+ * The card itself belongs to `dsh-integration-ui`; what is Sentry's is its copy,
+ * the organization it works with, and the tab it sits under.
  */
 
-import { createSettingsSection } from "dsh-integration-ui";
-import type { ReactNode } from "react";
+import { createSettingsSection, type FactItem } from "dsh-integration-ui";
 import type { SentryStatus } from "../../shared/status";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
 
-/** The account row Sentry adds under the card's blurb. */
-const details = (status: SentryStatus): ReactNode => {
-	if (status.organization === null) return null;
+/** The organization Sentry works with, and the way to it. */
+const details = (status: SentryStatus): readonly FactItem[] => [
+	{
+		label: "Organization",
+		value:
+			status.organization === null ? undefined : (
+				<>
+					{status.organization}
 
-	return (
-		<div className={styles.row}>
-			<span className={styles.caption}>
-				{`Organization: ${status.organization}`}
-			</span>
+					{status.organizationUrl === null ? null : (
+						<>
+							{" · "}
 
-			{status.organizationUrl === null ? null : (
-				<a
-					className={styles.link}
-					href={status.organizationUrl}
-					target="_blank"
-					rel="noreferrer"
-				>
-					Open in Sentry
-				</a>
-			)}
-		</div>
-	);
-};
+							<a
+								className={styles.link}
+								href={status.organizationUrl}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Open in Sentry
+							</a>
+						</>
+					)}
+				</>
+			),
+	},
+];
 
 /** The Sentry settings card. */
 export const SentrySection = createSettingsSection<SentryStatus>({
@@ -46,7 +49,7 @@ export const SentrySection = createSettingsSection<SentryStatus>({
 	unreachable: "The Sentry host half is not reachable.",
 	credentials: "browser",
 	signInLabel: "Sign in with Sentry",
-	syncLabel: "Sync",
+	syncLabel: "Re-check",
 	api: hostApi,
 	details,
 });

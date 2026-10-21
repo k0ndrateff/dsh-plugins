@@ -44,6 +44,15 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 	},
 
 	async (route) => {
+		if (route.url.pathname !== `${ROUTE_PREFIX}/me` || route.method !== "GET")
+			return false;
+
+		await route.sendData(async () => ({ reference: await panel.me() }));
+
+		return true;
+	},
+
+	async (route) => {
 		if (
 			route.url.pathname !== `${ROUTE_PREFIX}/issue/status` ||
 			route.method !== "POST"

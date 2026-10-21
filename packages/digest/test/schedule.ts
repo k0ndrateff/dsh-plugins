@@ -112,24 +112,22 @@ section("a configuration becomes a recurrence");
 }
 
 section("what counts as this plugin's reminder");
-{
-	check(
-		"our own prompt is ours",
-		isDigestReminder({ id: "1", title: "x", prompt: `${PROMPT_MARKER} go` }),
-	);
-	check(
-		"a task with our title but a foreign prompt is not ours",
-		!isDigestReminder({
-			id: "1",
-			title: "Daily work digest",
-			prompt: "water the plants",
-		}),
-	);
-	check(
-		"a task with no prompt is not ours",
-		!isDigestReminder({ id: "1", title: "Daily work digest" }),
-	);
-}
+check(
+	"our own prompt is ours",
+	isDigestReminder({ id: "1", title: "x", prompt: `${PROMPT_MARKER} go` }),
+);
+check(
+	"a task with our title but a foreign prompt is not ours",
+	!isDigestReminder({
+		id: "1",
+		title: "Daily work digest",
+		prompt: "water the plants",
+	}),
+);
+check(
+	"a task with no prompt is not ours",
+	!isDigestReminder({ id: "1", title: "Daily work digest" }),
+);
 
 section("binding to a session");
 {

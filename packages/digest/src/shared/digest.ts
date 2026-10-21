@@ -72,6 +72,36 @@ export interface DigestSettings {
 	readonly limit: number;
 }
 
+/** A wall-clock time, `HH:MM`, in 24-hour form. */
+const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/u;
+
+/**
+ * Whether one string is a wall-clock time this plugin will schedule.
+ *
+ * The card and the command both refuse a time the other would, so the rule lives
+ * where both halves can read it rather than being written twice.
+ */
+export const isDigestTime = (value: unknown): value is string =>
+	typeof value === "string" && TIME.test(value);
+
+/**
+ * Whether one string names a zone `Intl` knows.
+ *
+ * Asking `Intl` is the whole check: the list of zone names is the runtime's, and
+ * a copy of it here would be wrong the next time a country changes its mind.
+ */
+export const isTimeZone = (value: unknown): value is string => {
+	if (typeof value !== "string" || value === "") return false;
+
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 /** One block as the settings card draws it. */
 export interface DigestBlockView {
 	readonly id: string;

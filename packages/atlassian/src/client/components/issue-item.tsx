@@ -6,11 +6,11 @@
  * because a colour is what makes a mixed list scannable at a glance.
  */
 
+import { Chip, Facts } from "dsh-integration-ui";
 import type { IssueCard } from "../../shared/meta";
 import { issueTypeTone, priorityTone } from "../../shared/tone";
 import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
-import { Badge } from "./badge";
 
 interface Props {
 	issue: IssueCard;
@@ -24,7 +24,7 @@ export const IssueItem = ({ issue }: Props) => {
 	return (
 		<li className={styles.item}>
 			<div className={styles.itemHead}>
-				<Badge value={issue.type} tone={issueTypeTone(issue.type)} />
+				<Chip value={issue.type} tone={issueTypeTone(issue.type)} />
 
 				{issue.url === undefined ? (
 					<span>{title}</span>
@@ -51,16 +51,24 @@ export const IssueItem = ({ issue }: Props) => {
 				<p className={styles.itemText}>{issue.description}</p>
 			)}
 
-			<div className={styles.badges}>
-				<Badge label="Status" value={issue.status} />
-				<Badge
-					label="Priority"
-					value={issue.priority}
-					tone={priorityTone(issue.priority)}
-				/>
-				<Badge label="Assignee" value={issue.assignee} />
-				<Badge label="Estimate" value={issue.estimate} />
-			</div>
+			<Facts
+				layout="inline"
+				items={[
+					{ label: "Status", value: issue.status },
+					{
+						label: "Priority",
+						value:
+							issue.priority === undefined ? undefined : (
+								<Chip
+									value={issue.priority}
+									tone={priorityTone(issue.priority)}
+								/>
+							),
+					},
+					{ label: "Assignee", value: issue.assignee },
+					{ label: "Estimate", value: issue.estimate },
+				]}
+			/>
 		</li>
 	);
 };

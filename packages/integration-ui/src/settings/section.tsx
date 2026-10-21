@@ -10,20 +10,22 @@
  * answers whoever is on the machine. The three are alternatives rather than
  * options, so the type does not let a card carry two of them.
  *
+ * The card shows one thing at a time. A signed-in provider reports its state and
+ * offers to sign out; the field that replaces its credential appears only when
+ * the user asks for it, because a token box beside a working connection reads as
+ * an unfinished setup. What the user has to read — the account, the expiry, the
+ * failure — is a row of facts rather than a row of chips.
+ *
  * Everything a provider says about itself is one field of the spec, so the two
  * can never drift apart between integrations; what the provider adds — the
- * account it works with — arrives as one extra row.
+ * account it works with — arrives as those facts.
  */
 
-import {
-	Button,
-	Input,
-	StateDot,
-	Tag,
-} from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button, Input, StateDot } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { IntegrationStatus } from "dsh-integration-host/status";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { type FactItem, Facts } from "../fact";
 import * as styles from "../styles/styles.css";
 
 /** How often to re-read the host while an attempt is running. */
@@ -58,6 +60,8 @@ export interface TokenFieldSpec<TStatus extends IntegrationStatus> {
 	/** Where the user gets one, in one sentence. */
 	readonly hint: string;
 	readonly saveLabel: string;
+	/** What the button that opens the field says once a credential is stored. */
+	readonly replaceLabel: string;
 	/** What the button that forgets the stored credential says. */
 	readonly clearLabel: string;
 	/**
@@ -77,8 +81,13 @@ interface SectionCommon<TStatus extends IntegrationStatus> {
 	readonly unreachable: string;
 	readonly syncLabel: string;
 	readonly api: SettingsApi<TStatus>;
-	/** Rows the provider adds under the blurb, such as the account it works with. */
-	readonly details?: (status: TStatus) => ReactNode;
+	/**
+	 * Rows the provider adds under the blurb, such as the account it works with.
+	 *
+	 * A row without a value renders nothing, so a provider lists every field it
+	 * knows about without branching on each one.
+	 */
+	readonly details?: (status: TStatus) => readonly FactItem[];
 }
 
 /** A card whose provider signs in through a browser. */
@@ -127,10 +136,23 @@ const connectionState = (status: IntegrationStatus | null): ConnectionState => {
 	return status?.connected === true ? "done" : "idle";
 };
 
+/** The one word the card prints beside its dot. */
+const stateText = (
+	status: IntegrationStatus,
+	credentials: "browser" | "typed" | "none",
+): string => {
+	if (status.inFlight === true) return "Connecting";
+
+	if (credentials === "none")
+		return status.connected === true ? "Connected" : "Not connected";
+
+	return status.signedIn === true ? "Signed in" : "Not signed in";
+};
+
 /**
  * Build the settings section for one integration.
  * @param spec - the integration's copy, its host calls, and what it adds.
- * @returns the component the plugin registers in `settings.section`.
+ * @returns the component the plugin registers in `integrations.tab`.
  */
 export const createSettingsSection = <TStatus extends IntegrationStatus>(
 	spec: SettingsSectionSpec<TStatus>,
@@ -140,8 +162,11 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 		const [status, setStatus] = useState<TStatus | null>(null);
 		const [failure, setFailure] = useState<string | null>(null);
-		const [busy, setBusy] = useState(false);
+		/** Which action is running, so only the button that was pressed says so. */
+		const [pending, setPending] = useState<string | null>(null);
 		const [typed, setTyped] = useState("");
+		/** Whether the typed field is open on a card that already holds one. */
+		const [replacing, setReplacing] = useState(false);
 
 		const refresh = useCallback(async () => {
 			try {
@@ -177,24 +202,27 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 			return () => clearInterval(timer);
 		}, [status?.inFlight, refresh]);
 
-		const act = useCallback(async (action: () => Promise<TStatus>) => {
-			setBusy(true);
+		const act = useCallback(
+			async (key: string, action: () => Promise<TStatus>) => {
+				setPending(key);
 
-			try {
-				const next = await action();
+				try {
+					const next = await action();
 
-				if (!mounted.current) return;
+					if (!mounted.current) return;
 
-				setStatus(next);
-				setFailure(null);
-			} catch (error) {
-				if (!mounted.current) return;
+					setStatus(next);
+					setFailure(null);
+				} catch (error) {
+					if (!mounted.current) return;
 
-				setFailure(error instanceof Error ? error.message : String(error));
-			} finally {
-				if (mounted.current) setBusy(false);
-			}
-		}, []);
+					setFailure(error instanceof Error ? error.message : String(error));
+				} finally {
+					if (mounted.current) setPending(null);
+				}
+			},
+			[],
+		);
 
 		// No status yet: either the first read is still in flight, or the host half
 		// did not answer. Returning here is what narrows `status` for the card below.
@@ -218,7 +246,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 						<div className={styles.actions}>
 							<Button variant="outline" onClick={refresh}>
-								Reconnect
+								Try again
 							</Button>
 						</div>
 					</div>
@@ -227,11 +255,20 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 		}
 
 		const signedIn = status.signedIn === true;
+		const waiting = status.inFlight === true;
 		const toolCount = status.tools.length;
 		// A card for a server that needs no credential has no token to expire, and
 		// says so by never showing the line rather than by showing an empty one.
 		const expiry =
 			signedIn && spec.credentials !== "none" ? status.expiresAt : null;
+		// A field belongs on the card when nothing is stored yet, or when the user
+		// asked to replace what is.
+		const showField = tokenField !== undefined && (!signedIn || replacing);
+		const field = spec.token;
+
+		/** The label of one action: the running one says what it is doing. */
+		const label = (key: string, text: string): string =>
+			pending === key ? "Working…" : text;
 
 		return (
 			<section className={styles.section}>
@@ -239,30 +276,36 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 					<div className={styles.head}>
 						<span className={styles.title}>{spec.title}</span>
 
-						<span className={styles.badges}>
+						<span className={styles.state}>
 							<StateDot state={connectionState(status)} />
 
-							{spec.credentials === "none" ? (
-								<Tag tone={status.connected ? "success" : "neutral"}>
-									{status.connected ? "Connected" : "Not connected"}
-								</Tag>
-							) : (
-								<Tag tone={signedIn ? "success" : "neutral"}>
-									{signedIn ? "Signed in" : "Not signed in"}
-								</Tag>
-							)}
+							<span className={styles.stateWord}>
+								{stateText(status, spec.credentials)}
+							</span>
 
-							{toolCount > 0 ? (
-								<Tag tone="info">{`${toolCount} tool${toolCount === 1 ? "" : "s"} available`}</Tag>
-							) : null}
+							{toolCount === 0 ? null : (
+								<span>{`· ${toolCount} tool${toolCount === 1 ? "" : "s"}`}</span>
+							)}
 						</span>
 					</div>
 
 					<div className={styles.caption}>{spec.blurb}</div>
 
-					{spec.details?.(status)}
+					<Facts
+						items={[
+							...(spec.details?.(status) ?? []),
+							...(expiry === null
+								? []
+								: [
+										{
+											label: "Token",
+											value: `valid until ${new Date(expiry).toLocaleString()}`,
+										},
+									]),
+						]}
+					/>
 
-					{status.inFlight === true ? (
+					{waiting ? (
 						<div className={styles.row}>
 							<StateDot state="ongoing" />
 
@@ -293,77 +336,99 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						</div>
 					) : null}
 
-					{expiry === null ? null : (
-						<div className={styles.caption}>
-							Token valid until {new Date(expiry).toLocaleString()}
-						</div>
-					)}
-
-					{tokenField === undefined ? null : (
+					{showField && field !== undefined ? (
 						<>
-							<div className={styles.row}>
+							<div className={styles.field}>
 								<Input
 									type="password"
 									value={typed}
-									placeholder={tokenField.placeholder}
-									aria-label={tokenField.label}
-									disabled={busy}
+									placeholder={field.placeholder}
+									aria-label={field.label}
+									disabled={pending !== null}
 									onChange={(event) => {
 										setTyped(event.target.value);
 									}}
 								/>
 							</div>
 
-							<div className={styles.caption}>{tokenField.hint}</div>
+							<div className={styles.caption}>{field.hint}</div>
 						</>
-					)}
+					) : null}
 
 					<div className={styles.actions}>
 						{spec.credentials === "browser" ? (
 							signedIn ? (
 								<Button
 									variant="outline"
-									disabled={busy}
-									onClick={() => void act(spec.api.logout)}
+									disabled={pending !== null}
+									onClick={() => void act("logout", spec.api.logout)}
 								>
-									Sign out
+									{label("logout", "Sign out")}
 								</Button>
 							) : (
 								<Button
 									variant="primary"
-									disabled={busy}
-									onClick={() => void act(spec.api.login)}
+									disabled={pending !== null || waiting}
+									onClick={() => void act("login", spec.api.login)}
 								>
-									{busy ? "Working…" : spec.signInLabel}
+									{label("login", waiting ? "Waiting…" : spec.signInLabel)}
 								</Button>
 							)
 						) : null}
 
-						{spec.credentials === "typed" ? (
+						{spec.credentials === "typed" && field !== undefined ? (
 							<>
-								<Button
-									variant="primary"
-									disabled={busy || typed.trim() === ""}
-									onClick={() => {
-										void act(async () => {
-											const next = await spec.token.save(typed);
+								{showField ? (
+									<>
+										<Button
+											variant="primary"
+											disabled={pending !== null || typed.trim() === ""}
+											onClick={() => {
+												void act("save", async () => {
+													const next = await field.save(typed);
 
-											setTyped("");
+													setTyped("");
+													setReplacing(false);
 
-											return next;
-										});
-									}}
-								>
-									{busy ? "Working…" : spec.token.saveLabel}
-								</Button>
+													return next;
+												});
+											}}
+										>
+											{label("save", field.saveLabel)}
+										</Button>
+
+										{signedIn ? (
+											<Button
+												variant="ghost"
+												disabled={pending !== null}
+												onClick={() => {
+													setTyped("");
+													setReplacing(false);
+												}}
+											>
+												Cancel
+											</Button>
+										) : null}
+									</>
+								) : (
+									<Button
+										variant="outline"
+										disabled={pending !== null}
+										onClick={() => {
+											setReplacing(true);
+										}}
+									>
+										{field.replaceLabel}
+									</Button>
+								)}
 
 								{signedIn ? (
 									<Button
-										variant="outline"
-										disabled={busy}
-										onClick={() => void act(spec.api.logout)}
+										variant="ghost"
+										disabled={pending !== null}
+										onClick={() => void act("logout", spec.api.logout)}
 									>
-										{spec.token.clearLabel}
+										{label("logout", field.clearLabel)}
 									</Button>
 								) : null}
 							</>
@@ -371,10 +436,10 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 						<Button
 							variant="ghost"
-							disabled={busy}
-							onClick={() => void act(spec.api.sync)}
+							disabled={pending !== null || waiting}
+							onClick={() => void act("sync", spec.api.sync)}
 						>
-							{spec.syncLabel}
+							{label("sync", spec.syncLabel)}
 						</Button>
 					</div>
 				</div>

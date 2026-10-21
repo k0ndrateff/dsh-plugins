@@ -2,8 +2,8 @@
  * dsh-sentry — the Web Client half.
  *
  * It contributes four things to the page:
- *  - a **Sentry** section in Settings, with the sign-in state and the buttons
- *    that drive the OAuth flow in the host;
+ *  - one tab of the suite's single **Integrations** page in Settings, with the
+ *    sign-in state and the buttons that drive the OAuth flow in the host;
  *  - one keyed tool view for `sentry_present`, so a call renders as one line
  *    instead of the raw JSON behind it;
  *  - a turn tail seat, so `sentry_present` puts its card under the agent's
@@ -16,6 +16,9 @@
  * `dsh-integration-ui`; this half says what is Sentry's and registers each seat
  * under this plugin's own tab kind and tool names.
  *
+ * The settings card is one tab of a page another plugin owns, which is what keeps
+ * five integrations from becoming five entries in the Settings navigation.
+ *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
  */
@@ -23,13 +26,13 @@
 import type { Context } from "@deepseek-ai/cordis";
 // Each import below carries a declaration this half needs: the slot registry
 // itself, the slot contracts, the Chat node kind registry, the right Sidebar's
-// tab-type registry, and the Settings section contract.
+// tab-type registry.
 import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
-import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
+import { registerIntegrationsTab } from "dsh-integration-ui";
 import { SentryTail } from "./components/presentation-tail";
 import { SentrySection } from "./components/settings-section";
 import { SentryToolRow } from "./components/tool-row";
@@ -87,18 +90,13 @@ export const apply = (ctx: Context): void => {
 		);
 	});
 
-	// `inject` waits for the owning package to declare the slot, so this
-	// registration survives the Settings page not being open yet.
-	ctx.slots.inject("settings.section", () =>
-		ctx.slots.register(
-			{
-				name: "settings.section",
-				id: "sentry",
-				order: 21,
-				label: () => "Sentry",
-			},
-			SentrySection,
-		),
+	// The card is one tab of the suite's single Integrations page. The helper
+	// waits for that page to be composed, so a build without it leaves the tools
+	// and the panel working and the card with nowhere to appear.
+	registerIntegrationsTab(
+		ctx,
+		{ id: "sentry", order: 20, label: "Sentry" },
+		SentrySection,
 	);
 
 	ctx.slots.inject("tool.call.toolview", () =>

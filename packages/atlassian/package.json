@@ -6,6 +6,7 @@
 	"description": "Jira and Confluence for DeepSeek Harness: Atlassian OAuth sign-in and the tools of Atlassian's remote MCP server",
 	"license": "MIT",
 	"main": "lib/index.js",
+	"icon": "./icon.svg",
 	"exports": {
 		".": "./lib/index.js",
 		"./client": "./lib/client.js",

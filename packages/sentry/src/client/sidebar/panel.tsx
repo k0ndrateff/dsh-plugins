@@ -12,16 +12,21 @@
  * did.
  */
 
-import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
+import {
+	Button,
+	Input,
+	Menu,
+	type MenuEntry,
+} from "@deepseek-ai/dsh-client-ui-primitives";
 import {
 	createPanelBody,
 	createPanelTitle,
-	Fact,
+	Facts,
 	type PanelActions,
 	type PanelProvider,
 } from "dsh-integration-ui";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	asIssuePanel,
 	type CodeLocation,
@@ -119,55 +124,189 @@ const StatusActions = ({ actions }: { actions: Actions }) => (
 	</Section>
 );
 
+/** References used in this page's session, so the second assignment is one click. */
+const remembered: string[] = [];
+
+/** How many remembered references the menu offers. */
+const REMEMBERED_LIMIT = 4;
+
+/** Remember one reference, most recent first. */
+function remember(reference: string): void {
+	if (remembered.includes(reference)) return;
+
+	remembered.unshift(reference);
+	remembered.length = Math.min(remembered.length, REMEMBERED_LIMIT);
+}
+
 /**
- * Hand the issue to a user or a team.
+ * Hand the issue to somebody.
  *
- * Sentry's own reference format is the field's whole contract: the MCP server
- * offers no member search, so there is nothing to offer as a list.
+ * Sentry's reference format is the field's whole contract and the MCP server
+ * offers no member directory, so there is no list to pick from — but nobody
+ * should have to type the same reference twice. The name that stands for the
+ * reader is one call and one click, the references used in this session are
+ * remembered, and the field itself appears only when a new person has to be
+ * named by hand.
  */
-const Assignee = ({ actions }: { actions: Actions }) => {
+const Assignee = ({
+	issue,
+	actions,
+}: {
+	issue: IssueDetail;
+	actions: Actions;
+}) => {
+	const [open, setOpen] = useState(false);
+	const [manual, setManual] = useState(false);
 	const [value, setValue] = useState("");
+	const [mine, setMine] = useState<string | null>(null);
+	const [known, setKnown] = useState<readonly string[]>(remembered);
+
+	// Who the reader is, asked once: without it the panel offers no self-assignment
+	// rather than a reference Sentry would refuse.
+	useEffect(() => {
+		let live = true;
+
+		hostApi
+			.me()
+			.then((reference) => {
+				if (live) setMine(reference);
+			})
+			.catch(() => undefined);
+
+		return () => {
+			live = false;
+		};
+	}, []);
+
 	const reference = value.trim();
+
+	const assign = (assignedTo: string | null): void => {
+		if (assignedTo !== null) {
+			remember(assignedTo);
+			setKnown([...remembered]);
+		}
+
+		setValue("");
+		setManual(false);
+		actions.run((target) => hostApi.assign(target.id, assignedTo));
+	};
+
+	const entries: MenuEntry[] = [
+		...(mine === null ? [] : [{ id: "me", label: "Assign to me" }]),
+		...known
+			.filter((entry) => entry !== mine)
+			.map((entry) => ({ id: entry, label: entry })),
+		{ id: "manual", label: "Assign by reference…" },
+	];
 
 	return (
 		<Section title="Assignee">
-			<div className={styles.actions}>
-				<Input
-					className={styles.assignField}
-					value={value}
-					placeholder="user:123456 or team:backend"
-					disabled={actions.busy}
-					onChange={(event) => {
-						setValue(event.target.value);
+			<div className={styles.row}>
+				<span className={styles.caption}>
+					{issue.assignee ?? "Nobody is assigned."}
+				</span>
+
+				<Menu
+					open={open}
+					onClose={() => {
+						setOpen(false);
 					}}
+					autoFocus
+					dense
+					items={entries}
+					onSelect={(id) => {
+						setOpen(false);
+
+						if (id === "me") {
+							assign(mine);
+							return;
+						}
+
+						// The footer's own row: the issue goes back to nobody.
+						if (id === "unassign") {
+							assign(null);
+							return;
+						}
+
+						if (id === "manual") {
+							setManual(true);
+							return;
+						}
+
+						assign(id);
+					}}
+					footer={
+						issue.assignee === undefined
+							? []
+							: [
+									{
+										id: "unassign",
+										label: "Unassign",
+										danger: true,
+									},
+								]
+					}
+					anchor={
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={actions.busy}
+							onClick={() => {
+								setOpen(!open);
+							}}
+						>
+							Change
+						</Button>
+					}
 				/>
-
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={actions.busy || reference === ""}
-					onClick={() => {
-						actions.run((target) => hostApi.assign(target.id, reference));
-					}}
-				>
-					Assign
-				</Button>
-
-				<Button
-					size="sm"
-					variant="ghost"
-					disabled={actions.busy}
-					onClick={() => {
-						actions.run((target) => hostApi.assign(target.id, null));
-					}}
-				>
-					Unassign
-				</Button>
 			</div>
 
-			<span className={styles.caption}>
-				Sentry's own reference: user:&lt;id&gt; or team:&lt;slug&gt;.
-			</span>
+			{manual ? (
+				<>
+					<div className={styles.actions}>
+						<Input
+							className={styles.assignField}
+							value={value}
+							placeholder="user:123456 or team:backend"
+							disabled={actions.busy}
+							onChange={(event) => {
+								setValue(event.target.value);
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && reference !== "")
+									assign(reference);
+							}}
+						/>
+
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={actions.busy || reference === ""}
+							onClick={() => {
+								assign(reference);
+							}}
+						>
+							Assign
+						</Button>
+
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={actions.busy}
+							onClick={() => {
+								setValue("");
+								setManual(false);
+							}}
+						>
+							Cancel
+						</Button>
+					</div>
+
+					<span className={styles.caption}>
+						Sentry's own reference: user:&lt;id&gt; or team:&lt;slug&gt;.
+					</span>
+				</>
+			) : null}
 		</Section>
 	);
 };
@@ -256,35 +395,34 @@ const IssueView = ({
 
 				<h2 className={styles.panelSummary}>{issue.description ?? issue.id}</h2>
 
-				<div className={styles.badges}>
-					<Fact label="Status" value={issue.status} />
-					<Fact label="Substatus" value={issue.substatus} />
-					<Fact label="Assignee" value={issue.assignee ?? "Unassigned"} />
-					<Fact label="Project" value={issue.project} />
-					<Fact label="Platform" value={issue.platform} />
-					<Fact label="Occurrences" value={issue.occurrences} />
-					<Fact label="Users" value={issue.users} />
-					<Fact
-						label="First seen"
-						value={
-							issue.firstSeen === undefined
-								? undefined
-								: whenText(issue.firstSeen)
-						}
-					/>
-					<Fact
-						label="Last seen"
-						value={
-							issue.lastSeen === undefined
-								? undefined
-								: whenText(issue.lastSeen)
-						}
-					/>
-				</div>
+				<Facts
+					items={[
+						{ label: "Status", value: issue.status },
+						{ label: "Substatus", value: issue.substatus },
+						{ label: "Project", value: issue.project },
+						{ label: "Platform", value: issue.platform },
+						{ label: "Occurrences", value: issue.occurrences },
+						{ label: "Users", value: issue.users },
+						{
+							label: "First seen",
+							value:
+								issue.firstSeen === undefined
+									? undefined
+									: whenText(issue.firstSeen),
+						},
+						{
+							label: "Last seen",
+							value:
+								issue.lastSeen === undefined
+									? undefined
+									: whenText(issue.lastSeen),
+						},
+					]}
+				/>
 			</header>
 
 			<StatusActions actions={actions} />
-			<Assignee actions={actions} />
+			<Assignee issue={issue} actions={actions} />
 
 			{issue.code === undefined ? null : <Location code={issue.code} />}
 

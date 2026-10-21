@@ -48,6 +48,26 @@ export const title = style({
 	fontWeight: 500,
 });
 
+/**
+ * What the card is doing, opposite its title.
+ *
+ * A dot and a word rather than a row of tags: the state is one fact, and two
+ * tinted boxes beside a title read as louder than the title itself.
+ */
+export const state = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "6px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	whiteSpace: "nowrap",
+});
+
+export const stateWord = style({
+	color: theme.color.labelSecondary,
+});
+
 export const badges = style({
 	display: "flex",
 	alignItems: "center",
@@ -77,6 +97,66 @@ export const row = style({
 	minHeight: "40px",
 	padding: "6px 0",
 	boxSizing: "border-box",
+});
+
+/** The credential field a card reveals, once it is asked for. */
+export const field = style({
+	marginTop: "12px",
+});
+
+/**
+ * One item's named fields, as a label-and-value grid.
+ *
+ * The label column is sized by its own content so the values line up down the
+ * card, and a long value wraps under its own label rather than the next one.
+ */
+export const facts = style({
+	display: "grid",
+	gridTemplateColumns: "min-content 1fr",
+	columnGap: "12px",
+	rowGap: "2px",
+	margin: "8px 0 0",
+});
+
+export const factLabel = style({
+	margin: 0,
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	whiteSpace: "nowrap",
+});
+
+export const factValue = style({
+	margin: 0,
+	minWidth: 0,
+	fontSize: "12px",
+	lineHeight: "18px",
+	overflowWrap: "anywhere",
+	color: theme.color.labelPrimary,
+});
+
+/** The same fields as one wrapping caption, for an item in a list. */
+export const factsInline = style({
+	display: "flex",
+	flexWrap: "wrap",
+	alignItems: "baseline",
+	gap: "2px 12px",
+	margin: 0,
+	padding: 0,
+	listStyle: "none",
+});
+
+export const factInline = style({
+	display: "flex",
+	alignItems: "baseline",
+	gap: "4px",
+	minWidth: 0,
+});
+
+export const factInlineLabel = style({
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.labelTertiary,
 });
 
 export const list = style({

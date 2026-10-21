@@ -184,6 +184,21 @@ export class PanelApi {
 			.slice(0, PEOPLE_LIMIT);
 	};
 
+	/**
+	 * The signed-in user, as the site names them.
+	 *
+	 * `atlassianUserInfo` answers about the account the connection belongs to, in
+	 * a shape of its own; the first record that carries an account id is the
+	 * answer. A site that names none leaves the panel without a self-assignment
+	 * rather than offering one Jira would refuse.
+	 * @returns the reader, or undefined when the answer names no account.
+	 */
+	me = async (): Promise<PanelPerson | undefined> => {
+		const value = await this.deps.bridge.callTool("atlassianUserInfo", {});
+
+		return this.personIn(value);
+	};
+
 	/** Move one issue through a workflow transition. */
 	transition = async (key: string, transitionId: string): Promise<void> => {
 		await this.deps.bridge.callTool("transitionJiraIssue", {
@@ -357,6 +372,18 @@ export class PanelApi {
 		}
 
 		return [];
+	};
+
+	/** The first person named anywhere in one tool result. */
+	private personIn = (value: unknown): PanelPerson | undefined => {
+		for (const root of mcpJson(value)) {
+			const person =
+				this.personOf(root) ?? this.personOf(asRecord(asRecord(root)?.data));
+
+			if (person !== undefined) return person;
+		}
+
+		return this.personOf(this.firstRecord(value));
 	};
 
 	/** A page's own path, resolved against the site's wiki. */

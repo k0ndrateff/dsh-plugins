@@ -6,7 +6,7 @@
  * key the message mentions are read the same way in each.
  */
 
-import { Fact } from "dsh-integration-ui";
+import { Facts } from "dsh-integration-ui";
 import type { SuspectCommit } from "../../shared/meta";
 import * as styles from "../styles/styles.css";
 
@@ -35,8 +35,9 @@ export const SuspectRow = ({ suspect, label }: Props) => (
 			<span className={styles.caption}>{suspect.author}</span>
 		)}
 
-		{suspect.issueKey === undefined ? null : (
-			<Fact label="Tracker" value={suspect.issueKey} />
-		)}
+		<Facts
+			layout="inline"
+			items={[{ label: "Tracker", value: suspect.issueKey }]}
+		/>
 	</div>
 );

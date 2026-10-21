@@ -2,8 +2,8 @@
  * dsh-atlassian — the Web Client half.
  *
  * It contributes four things to the page:
- *  - an **Integrations** section in Settings, with the sign-in state and the
- *    button that starts the OAuth flow in the host;
+ *  - one tab of the suite's single **Integrations** page in Settings, with the
+ *    sign-in state and the button that starts the OAuth flow in the host;
  *  - one keyed tool view per known Atlassian tool, so a Jira search or issue
  *    read renders as cards instead of raw JSON;
  *  - a turn tail seat, so `atlassian_present` puts its card under the agent's
@@ -14,7 +14,9 @@
  * The seats themselves — the panel body, the card, the tool row, the settings
  * card, and the stylesheet they are drawn with — come from
  * `dsh-integration-ui`; this half says what is Atlassian's and registers each
- * seat under this plugin's own tab kind and tool names.
+ * seat under this plugin's own tab kind and tool names. The settings card is one
+ * tab of a page another plugin owns, which is what keeps five integrations from
+ * becoming five entries in the Settings navigation.
  *
  * The bundle is built into the client module system's lazy factory format, so
  * this module's exports are the Cordis plugin the loader hands to the tree.
@@ -27,9 +29,9 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
-import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type {} from "@deepseek-ai/dsh-client-ui-tool/client";
+import { registerIntegrationsTab } from "dsh-integration-ui";
 import { PUBLIC_TOOL_NAMES } from "../shared/tool-names";
 import { PresentationTail } from "./components/presentation-tail";
 import { AtlassianSection } from "./components/settings-section";
@@ -85,18 +87,13 @@ export const apply = (ctx: Context): void => {
 		);
 	});
 
-	// `inject` waits for the owning package to declare the slot, so this
-	// registration survives the Settings page not being open yet.
-	ctx.slots.inject("settings.section", () =>
-		ctx.slots.register(
-			{
-				name: "settings.section",
-				id: "integrations",
-				order: 20,
-				label: () => "Integrations",
-			},
-			AtlassianSection,
-		),
+	// The card is one tab of the suite's single Integrations page. The helper
+	// waits for that page to be composed, so a build without it leaves the tools
+	// and the panel working and the card with nowhere to appear.
+	registerIntegrationsTab(
+		ctx,
+		{ id: "atlassian", order: 10, label: "Atlassian" },
+		AtlassianSection,
 	);
 
 	ctx.slots.inject("tool.call.toolview", () => {

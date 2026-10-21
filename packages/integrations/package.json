@@ -1,0 +1,56 @@
+{
+	"name": "dsh-integrations-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
+	"license": "MIT",
+	"main": "lib/index.js",
+	"icon": "./icon.svg",
+	"exports": {
+		".": "./lib/index.js",
+		"./client": "./lib/client.js",
+		"./icon": "./icon.svg",
+		"./locale/*.json": "./locale/*.json"
+	},
+	"files": [
+		"lib",
+		"cordis.patch.yml",
+		"icon.svg",
+		"locale/*.json"
+	],
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"immediately": true,
+			"inject": [
+				"@deepseek-ai/dsh-client-ui-settings"
+			]
+		}
+	},
+	"engines": {
+		"dsh": ">=0.2.0 <0.3.0"
+	},
+	"scripts": {
+		"build": "node build.mjs",
+		"watch": "node build.mjs --watch",
+		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+		"test": "bun run test/tabs.ts"
+	},
+	"dependencies": {
+		"@vanilla-extract/css": "^1.21.3"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "~4.0.5",
+		"@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2",
+		"react": "^18.2.0"
+	},
+	"devDependencies": {
+		"@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
+		"dsh-integration-ui": "workspace:*"
+	}
+}

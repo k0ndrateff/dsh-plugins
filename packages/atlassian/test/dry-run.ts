@@ -283,9 +283,8 @@ check("apply registers the loopback API route", registered.routes.length === 1);
 check(
 	"apply offers the digest its Jira blocks",
 	registered.digestSources.length === 1 &&
-		registered.digestSources[0]?.blocks
-			.map((block) => block.id)
-			.join(",") === "jira-active,jira-queued",
+		registered.digestSources[0]?.blocks.map((block) => block.id).join(",") ===
+			"jira-active,jira-queued",
 	registered.digestSources
 		.flatMap((source) => source.blocks.map((block) => block.id))
 		.join(","),
