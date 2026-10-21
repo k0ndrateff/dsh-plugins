@@ -34,7 +34,7 @@
 		"prepack": "bun run build"
 	},
 	"dependencies": {
-		"dsh-mcp-oauth": "workspace:*"
+		"dsh-mcp-oauth": "^0.1.2"
 	},
 	"peerDependencies": {
 		"@deepseek-ai/cordis": "~4.0.5",

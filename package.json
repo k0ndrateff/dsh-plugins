@@ -13,7 +13,7 @@
 		"market": "bun run scripts/market/build.mjs",
 		"changeset": "changeset",
 		"version-packages": "changeset version && bun install",
-		"release": "changeset publish && bun run market",
+		"release": "bun run market --check && changeset publish && bun run market",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
@@ -45,6 +45,7 @@
 		"@types/react": "^18.3.12",
 		"@vanilla-extract/esbuild-plugin": "^2.3.22",
 		"esbuild": "^0.25.0",
+		"semver": "^7.8.5",
 		"typescript": "7"
 	}
 }

@@ -51,8 +51,8 @@
 	},
 	"devDependencies": {
 		"@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
-		"dsh-integration-ui": "workspace:*",
-		"dsh-plugin-build": "workspace:*"
+		"dsh-integration-ui": "^0.1.2",
+		"dsh-plugin-build": "^0.1.2"
 	},
 	"publishConfig": {
 		"access": "public"

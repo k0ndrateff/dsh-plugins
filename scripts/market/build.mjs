@@ -38,6 +38,7 @@ import {
 	marketInstallTarget,
 	parseMarketIndex,
 } from "@deepseek-ai/dsh-plugin-market-index";
+import semver from "semver";
 import { INDEX, INDEX_URL, PLUGINS } from "./catalog.mjs";
 
 /** The repository root, which every path below is relative to. */
@@ -84,31 +85,39 @@ const packages = async () => {
 	return found;
 };
 
-/** When the registry says a version was published, in Unix seconds. */
+/**
+ * When the registry says a version was published, in Unix seconds.
+ *
+ * `undefined` means the registry answered that it has no such version, which is
+ * every version before its first release — the caller has a fallback for that. A
+ * registry that could not be asked at all is a different answer and is raised:
+ * silently falling back there would write a different document on every blip,
+ * and a check that flaps is worse than one that stops.
+ * @param name - the package to ask about.
+ * @param version - the exact version whose publish time is wanted.
+ */
 const fromRegistry = async (name, version) => {
-	try {
-		const response = await fetch(
-			`https://registry.npmjs.org/${encodeURIComponent(name)}`,
-			{
-				headers: { accept: "application/json" },
-				signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
-			},
+	const response = await fetch(
+		`https://registry.npmjs.org/${encodeURIComponent(name)}`,
+		{
+			headers: { accept: "application/json" },
+			signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
+		},
+	);
+
+	if (response.status === 404) return undefined;
+
+	if (!response.ok)
+		throw new Error(
+			`the registry answered ${String(response.status)} for ${name}; nothing was written`,
 		);
 
-		if (!response.ok) return undefined;
+	const document = await response.json();
+	const published = document?.time?.[version];
+	const seconds =
+		typeof published === "string" ? Date.parse(published) / 1000 : Number.NaN;
 
-		const document = await response.json();
-		const published = document?.time?.[version];
-		const seconds =
-			typeof published === "string" ? Date.parse(published) / 1000 : Number.NaN;
-
-		return Number.isFinite(seconds) ? Math.floor(seconds) : undefined;
-	} catch {
-		// An unreachable registry is not a reason to fail: the fallbacks below
-		// answer for a version that is not published yet, which is every version
-		// before the first release.
-		return undefined;
-	}
+	return Number.isFinite(seconds) ? Math.floor(seconds) : undefined;
 };
 
 /** When the commit that last wrote a package was made, in Unix seconds. */
@@ -243,6 +252,57 @@ const entryOf = async (name, facts) => {
 };
 
 /**
+ * Check that every manifest a registry would receive can be installed from one.
+ *
+ * `changeset publish` runs `npm publish`, and npm — unlike `bun pm pack` — uploads
+ * the `workspace:` protocol as it stands. A published `workspace:` range is not a
+ * spec any package manager can resolve outside the workspace it came from, so the
+ * install fails before anything is downloaded; that is how `dsh-workflow-plugin`
+ * reached the registry unable to install its own dependencies.
+ *
+ * The ranges that replaced it have to keep naming the versions that are here, or
+ * a plugin would silently build against a published copy of a library instead of
+ * the sibling this repository edits.
+ */
+const checkInstallable = (all) => {
+	const unfixable = [];
+	const stale = [];
+
+	for (const [name, { manifest }] of all) {
+		for (const field of [
+			"dependencies",
+			"devDependencies",
+			"peerDependencies",
+		]) {
+			for (const [dependency, range] of Object.entries(manifest[field] ?? {})) {
+				if (String(range).startsWith("workspace:")) {
+					unfixable.push(`${name} → ${dependency} (${field})`);
+
+					continue;
+				}
+
+				const sibling = all.get(dependency)?.manifest.version;
+
+				if (sibling !== undefined && !semver.satisfies(sibling, String(range)))
+					stale.push(
+						`${name} → ${dependency}@${String(range)}, but this workspace has ${sibling}`,
+					);
+			}
+		}
+	}
+
+	if (unfixable.length > 0)
+		throw new Error(
+			`these manifests publish a workspace: range, which cannot be installed from a registry: ${unfixable.join(", ")}`,
+		);
+
+	if (stale.length > 0)
+		throw new Error(
+			`these internal ranges no longer name this workspace: ${stale.join("; ")}`,
+		);
+};
+
+/**
  * Check that the catalog and the workspace describe the same set of plugins.
  *
  * A bundle nobody filed would be installable but undiscoverable, and a catalog
@@ -263,6 +323,28 @@ const checkCoverage = (bundles, catalogued) => {
 		);
 };
 
+/**
+ * Why the committed index no longer matches the packages.
+ *
+ * The one field this cannot see is the publish time a registry decides, and that
+ * changes the moment a version is released — saying so is the difference between
+ * "regenerate this and commit it" and "something about the packages moved".
+ */
+const whyDifferent = (committed, fresh) => {
+	const withoutTimes = (value) =>
+		JSON.stringify(value, (key, member) =>
+			key === "publishTimestamp" ? undefined : member,
+		);
+
+	try {
+		return withoutTimes(JSON.parse(committed)) === withoutTimes(fresh)
+			? "only the publish times moved; regenerate it and commit that"
+			: "run `bun run market` and commit it";
+	} catch {
+		return "run `bun run market` and commit it";
+	}
+};
+
 const all = await packages();
 const catalogued = Object.keys(PLUGINS);
 const bundles = new Set(
@@ -274,6 +356,7 @@ const bundles = new Set(
 );
 
 checkCoverage(bundles, catalogued);
+checkInstallable(all);
 
 const entries = [];
 const publishedFrom = new Map();
@@ -310,7 +393,7 @@ if (process.argv.includes("--check")) {
 
 	if (committed !== text) {
 		console.error(
-			`[market] ${OUTPUT} is out of date; run \`bun run market\` and commit it`,
+			`[market] ${OUTPUT} is out of date: ${whyDifferent(committed, validated)}`,
 		);
 		process.exit(1);
 	}

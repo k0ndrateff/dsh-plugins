@@ -31,14 +31,14 @@
 		"prepack": "bun run build"
 	},
 	"dependencies": {
-		"dsh-atlassian-plugin": "workspace:*",
-		"dsh-correlation-plugin": "workspace:*",
-		"dsh-devkit-plugin": "workspace:*",
-		"dsh-digest-plugin": "workspace:*",
-		"dsh-figma-plugin": "workspace:*",
-		"dsh-gitlab-plugin": "workspace:*",
-		"dsh-integrations-plugin": "workspace:*",
-		"dsh-sentry-plugin": "workspace:*"
+		"dsh-atlassian-plugin": "^0.3.2",
+		"dsh-correlation-plugin": "^0.1.2",
+		"dsh-devkit-plugin": "^0.1.2",
+		"dsh-digest-plugin": "^0.1.2",
+		"dsh-figma-plugin": "^0.1.2",
+		"dsh-gitlab-plugin": "^0.1.2",
+		"dsh-integrations-plugin": "^0.1.2",
+		"dsh-sentry-plugin": "^0.1.2"
 	},
 	"publishConfig": {
 		"access": "public"
