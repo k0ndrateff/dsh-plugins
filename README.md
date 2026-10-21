@@ -88,6 +88,12 @@ The harness ships the market itself as an optional bundle — turn
 and Discover appears beside it. Installing from there goes through the ordinary
 bundle manager, so it asks for approval like any other install.
 
+`dsh-workflow-plugin` is the shortcut: it depends on the other eight bundles and
+its patch mounts a row for each, so one install gives you the whole set.
+Install it **instead of** the individual bundles, not beside them — two profile
+layers inserting a row with the same id is a duplicate, and the loader refuses
+it.
+
 The index is generated, never hand-edited. `scripts/market/build.mjs` reads the
 packages, the icons and the editorial table in `scripts/market/catalog.mjs`, and
 validates the result with `@deepseek-ai/dsh-plugin-market-index` — the same
