@@ -1,6 +1,6 @@
 {
 	"name": "dsh-plugin-build",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "The build every DSH plugin in this repository runs: both halves, the inlined stylesheet, and the workspace libraries bundled from source",
 	"license": "MIT",

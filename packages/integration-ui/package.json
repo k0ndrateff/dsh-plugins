@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integration-ui",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "The browser-half shell every integration plugin shares: one side-panel body, one result card, the settings section, the terse tool row, and the styles they are drawn with",
 	"license": "MIT",

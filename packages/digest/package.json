@@ -1,6 +1,6 @@
 {
 	"name": "dsh-digest-plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "A read-only daily work digest assembled from Jira, GitLab and Sentry",
 	"license": "MIT",

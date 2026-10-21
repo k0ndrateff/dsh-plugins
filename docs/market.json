@@ -73,8 +73,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.3.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.3.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -113,8 +113,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -154,8 +154,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -195,8 +195,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -233,8 +233,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -272,8 +272,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792604883,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -285,8 +285,8 @@
 		},
 		{
 			"name": "dsh-integrations-plugin",
-			"title": "dsh-integrations-plugin",
-			"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
+			"title": "Integrations",
+			"description": "One Settings page for every integration: sign in, check a connection, and see what each one publishes.",
 			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJJbnRlZ3JhdGlvbnMiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGggZD0iTTE4IDIwLjI1VjExLjI1TTE4IDIwLjI1IDI1Ljc5IDI0Ljc1TTE4IDIwLjI1IDEwLjIxIDI0Ljc1IiBzdHJva2U9InVybCgjZHNoLWludGVncmF0aW9ucy1hKSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjIwLjI1IiByPSIzIiBmaWxsPSJ1cmwoI2RzaC1pbnRlZ3JhdGlvbnMtYSkiLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjExLjI1IiByPSIyLjYiIGZpbGw9InVybCgjZHNoLWludGVncmF0aW9ucy1hKSIvPgogIDxjaXJjbGUgY3g9IjI1Ljc5IiBjeT0iMjQuNzUiIHI9IjIuNiIgZmlsbD0idXJsKCNkc2gtaW50ZWdyYXRpb25zLWEpIi8+CiAgPGNpcmNsZSBjeD0iMTAuMjEiIGN5PSIyNC43NSIgcj0iMi42IiBmaWxsPSJ1cmwoI2RzaC1pbnRlZ3JhdGlvbnMtYSkiLz4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZHNoLWludGVncmF0aW9ucy1hIiB4MT0iOCIgeTE9IjgiIHgyPSIyOCIgeTI9IjI4IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM2N0M3RkUiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0Y3N0Q4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KPC9zdmc+Cg==",
 			"author": "k0ndrateff",
 			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/integrations#readme",
@@ -307,8 +307,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792580021,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -346,8 +346,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792596313,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},
@@ -381,8 +381,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.0",
-					"publishTimestamp": 1792604883,
+					"version": "0.1.1",
+					"publishTimestamp": 1792606367,
 					"source": {
 						"type": "npm"
 					},

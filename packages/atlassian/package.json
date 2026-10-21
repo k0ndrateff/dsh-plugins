@@ -1,6 +1,6 @@
 {
 	"name": "dsh-atlassian-plugin",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"type": "module",
 	"description": "Jira and Confluence for DeepSeek Harness: Atlassian OAuth sign-in and the tools of Atlassian's remote MCP server",
 	"license": "MIT",

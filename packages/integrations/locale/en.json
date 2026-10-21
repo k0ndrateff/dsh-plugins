@@ -1,4 +1,6 @@
 {
-	"name": "Integrations",
-	"description": "One Settings page for every integration: sign in, check a connection, and see what each one publishes."
+	"meta": {
+		"title": "Integrations",
+		"description": "One Settings page for every integration: sign in, check a connection, and see what each one publishes."
+	}
 }

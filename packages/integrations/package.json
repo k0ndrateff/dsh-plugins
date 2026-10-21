@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integrations-plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
 	"license": "MIT",

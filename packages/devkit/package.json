@@ -1,6 +1,6 @@
 {
 	"name": "dsh-devkit-plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Project-owned checks for DeepSeek Harness: named recipes for lint, typecheck, tests and build, run as one tool and shown as a card",
 	"license": "MIT",

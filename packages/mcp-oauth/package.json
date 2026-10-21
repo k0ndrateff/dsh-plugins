@@ -1,6 +1,6 @@
 {
 	"name": "dsh-mcp-oauth",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "OAuth for MCP servers: discovery, dynamic client registration, PKCE, token lifetime, and the authenticated bridge",
 	"license": "MIT",
