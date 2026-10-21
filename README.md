@@ -14,6 +14,8 @@ Built against DSH `0.2.1-rc.2`; every package is on npm.
 
 ## Install
 
+Install all plugins at once — Plugins → Add plugin → `dsh-workflow-plugin`.
+
 Add the market index as a source — Settings → Plugins → Discover, with
 `@deepseek-ai/dsh-experimental-plugin-market-bundle` turned on:
 
