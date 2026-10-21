@@ -34,6 +34,10 @@ Or install one bundle straight from npm:
 dsh plugin --profile <profile> add dsh-sentry-plugin
 ```
 
+Discover keeps the index it read, and the entry it holds names one exact version,
+so after a new release reload the page — otherwise it keeps offering the version it
+fetched.
+
 > [!WARNING]
 > All plugins are in **active development**. Each version may contain **breaking changes**, be **unstable**, or have **security vulnerabilities**. Use them **at your own risk**.
 
