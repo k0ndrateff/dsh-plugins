@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integration-host",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"type": "module",
 	"description": "The host-half shell every integration plugin shares: endpoint configuration, sign-in state, the settings route, and the slash command",
 	"license": "MIT",

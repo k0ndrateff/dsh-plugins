@@ -1,6 +1,6 @@
 {
 	"name": "dsh-gitlab-plugin",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"type": "module",
 	"description": "GitLab for DeepSeek Harness: OAuth sign-in and the tools of GitLab's MCP server",
 	"license": "MIT",
