@@ -17,6 +17,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { McpBridge } from "dsh-mcp-oauth";
 import type { FigmaConfig } from "../src/host/config";
 import { PanelApi } from "../src/host/panels/panel";
+import { parseMetadata } from "../src/host/presentation/parse";
 import { profileOf } from "../src/host/profile";
 import { presentTool } from "../src/host/tools/present";
 
@@ -116,34 +117,35 @@ const listingText = (listing.content ?? [])
 	.filter((block) => block.type === "text")
 	.map((block) => (block.type === "text" ? block.text : ""))
 	.join("\n");
-const page = firstPageOf(listingText);
+
+// With nothing selected the server lists the document's pages; with a selection
+// it answers that selection's own metadata, which is the node the panel would
+// open on. Either is a real target, and which one arrives is the user's business.
+const selected = parseMetadata(listing);
+const target = selected?.root.id ?? firstPageOf(listingText);
 
 check(
-	"with nothing selected the server lists the document's pages",
-	page !== undefined,
+	"the server answers with the current selection or the document's pages",
+	target !== undefined,
 	listingText.split("\n")[0]?.slice(0, 60),
 );
 
-if (page === undefined) {
+if (target === undefined) {
 	console.log(`\n${checks - failures}/${checks} checks passed`);
 	process.exit(failures > 0 ? 1 : 0);
 }
 
-const document = await panel.node({ node: page });
+const document = await panel.node({ node: target });
 
 check(
-	"the page's metadata is read",
-	document.node.id === page && document.node.type === "canvas",
+	"the target's metadata is read",
+	document.node.id === target && document.node.type !== "",
 	`${document.node.id} ${document.node.type} ${document.node.width}×${document.node.height}`,
 );
 check(
-	"its top-level frames come with it",
-	document.children.length > 0,
-	`${document.children.length} layers`,
-);
-check(
-	"every layer carries a size",
+	"every layer it lists carries a size",
 	document.children.every((child) => child.width >= 0 && child.height >= 0),
+	`${document.children.length} layers`,
 );
 check(
 	"the panel is given a route to draw the picture from",
@@ -153,7 +155,7 @@ check(
 
 console.log("\n=== a real picture ===");
 
-const shot = await panel.screenshot(page);
+const shot = await panel.screenshot(target);
 
 check(
 	"the server answers an image",
@@ -172,16 +174,16 @@ const definition = presentTool.create({
 	panel,
 	imageTool: "mcp__figma__get_screenshot",
 });
-const value = (await definition.execute({ node: page }, {
+const value = (await definition.execute({ node: target }, {
 	callId: "dry-run",
 	signal: new AbortController().signal,
 	agent: {},
 } as never)) as { summary: string; nodeId: string };
 
-check("the tool answers about the node it read", value.nodeId === page);
+check("the tool answers about the node it read", value.nodeId === target);
 check(
 	"its summary names the node and its size",
-	value.summary.includes(page) && value.summary.includes("×"),
+	value.summary.includes(target) && value.summary.includes("×"),
 	value.summary.split("\n")[0],
 );
 check(
@@ -190,7 +192,7 @@ check(
 		definition.output.presentationMeta?.({}, value as never) as {
 			node?: { id?: string };
 		}
-	)?.node?.id === page,
+	)?.node?.id === target,
 );
 
 await bridge.drop();

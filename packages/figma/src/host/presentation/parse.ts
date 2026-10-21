@@ -99,9 +99,15 @@ const nodeOf = (element: Element): FigmaNode | undefined => {
  *   prose instead of XML — which is what it does when nothing is selected.
  */
 export function parseMetadata(value: unknown): Metadata | undefined {
-	const text = mcpText(value).join("\n").trim();
+	const text = mcpText(value).join("\n");
 
-	if (!text.startsWith("<")) return undefined;
+	// The server opens with prose whenever the node it was asked about is also
+	// what is selected in the desktop app — "Currently selected nodes:" and the
+	// list — so the document starts at the first element, not at character zero.
+	const start = text.indexOf("<");
+	if (start === -1) return undefined;
+
+	const document = text.slice(start);
 
 	let root: FigmaNode | undefined;
 	const children: FigmaNode[] = [];
@@ -109,7 +115,7 @@ export function parseMetadata(value: unknown): Metadata | undefined {
 	let layers = 0;
 	let closed = false;
 
-	for (const match of text.matchAll(TAG)) {
+	for (const match of document.matchAll(TAG)) {
 		if (closed) break;
 
 		const closing = match[1] === "/";

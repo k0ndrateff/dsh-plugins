@@ -144,6 +144,24 @@ check(
 		),
 	) === undefined,
 );
+
+const SELECTED = textResult(
+	`Currently selected nodes:
+- 5343:22245: Flexible exchange  options
+
+<symbol id="5343:22245" name="Flexible exchange  options" x="0" y="86" width="1200" height="470">
+  <frame id="5343:22208" name="Content" x="64" y="149" width="512" height="172" />
+</symbol>
+IMPORTANT: After you call this tool, you MUST call get_design_context.`,
+);
+
+check(
+	"a document that opens with the selection notice is still read",
+	parseMetadata(SELECTED)?.root.id === "5343:22245" &&
+		parseMetadata(SELECTED)?.children.length === 1,
+	String(parseMetadata(SELECTED)?.root.id),
+);
+
 check(
 	"an error answer is not a document either",
 	parseMetadata({
