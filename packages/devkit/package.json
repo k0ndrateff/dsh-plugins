@@ -1,7 +1,6 @@
 {
 	"name": "dsh-devkit-plugin",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "Project-owned checks for DeepSeek Harness: named recipes for lint, typecheck, tests and build, run as one tool and shown as a card",
 	"license": "MIT",
@@ -40,7 +39,8 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/parsers.ts && bun run test/config.ts && bun run test/runner.ts && bun run test/tool.ts"
+		"test": "bun run test/parsers.ts && bun run test/config.ts && bun run test/runner.ts && bun run test/tool.ts",
+		"prepack": "bun run build"
 	},
 	"dependencies": {
 		"@vanilla-extract/css": "^1.21.3"
@@ -54,6 +54,17 @@
 		"@deepseek-ai/dsh-working-directory": "0.2.1-rc.2"
 	},
 	"devDependencies": {
-		"dsh-integration-ui": "workspace:*"
+		"dsh-integration-ui": "workspace:*",
+		"dsh-plugin-build": "workspace:*"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/devkit#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/devkit"
 	}
 }

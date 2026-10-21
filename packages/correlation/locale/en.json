@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "Correlation",
+		"description": "Follow one object across the integrations you connected: a Sentry error, the commit behind it, the merge request it belongs to, and the ticket it names."
+	}
+}

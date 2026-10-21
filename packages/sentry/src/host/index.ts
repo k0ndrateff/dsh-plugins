@@ -39,6 +39,7 @@ import {
 	resolveConfig,
 	sentryProfile,
 } from "./config";
+import { registerCorrelationSource } from "./correlation";
 import { registerDigestSource } from "./digest";
 import { PanelApi } from "./panels/panel";
 import type { OrganizationFacts } from "./store/organization";
@@ -83,6 +84,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	// The digest plugin, when it is installed, composes this plugin's error block
 	// into its card; nothing is read until a digest actually asks.
 	registerDigestSource(ctx, { bridge, state });
+
+	// The correlation plugin, when it is installed, asks this plugin about one
+	// issue so a chain can start from it; nothing is read until it asks.
+	registerCorrelationSource(ctx, { bridge, state });
 
 	// Registering the flow tells the harness this credential can be authorized,
 	// and routes each attempt's notices to whoever started it.

@@ -1,0 +1,396 @@
+{
+	"format": 1,
+	"title": "DeepSeek Harness plugins",
+	"description": "Integrations, a daily digest and cross-provider correlation for DeepSeek Harness.",
+	"metadata": {
+		"categories": {
+			"integration": {
+				"title": "Integration"
+			},
+			"workflow": {
+				"title": "Workflow"
+			},
+			"developer": {
+				"title": "Developer"
+			},
+			"setup": {
+				"title": "Setup"
+			}
+		},
+		"labels": {
+			"mcp": {
+				"title": "Talks MCP"
+			},
+			"rest": {
+				"title": "Talks REST"
+			},
+			"oauth": {
+				"title": "Browser sign-in"
+			},
+			"token": {
+				"title": "Paste a token"
+			},
+			"no-credential": {
+				"title": "No credential"
+			},
+			"read-only": {
+				"title": "Reads only"
+			},
+			"writes": {
+				"title": "Can write"
+			}
+		},
+		"sortKeys": {}
+	},
+	"plugins": [
+		{
+			"name": "dsh-atlassian-plugin",
+			"title": "Atlassian (Jira & Confluence)",
+			"description": "Sign in to Atlassian and use the tools of Atlassian's MCP server: search and read Jira issues, and find Confluence pages.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkF0bGFzc2lhbiI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImRzaC1hdGxhc3NpYW4tYSIgeDE9IjAiIHkxPSIxIiB4Mj0iMC44IiB5Mj0iMCI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzAwNTJjYyIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyNjg0ZmYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImRzaC1hdGxhc3NpYW4tYiIgeDE9IjEiIHkxPSIxIiB4Mj0iMC4yIiB5Mj0iMCI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzAwNTJjYyIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyNjg0ZmYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxwYXRoIGZpbGw9InVybCgjZHNoLWF0bGFzc2lhbi1hKSIgZD0iTTMwLjcgNS4yIDguNCA1Ni4xYy0uOCAxLjkuNiAzLjkgMi42IDMuOWgyMS4yYy43IDAgMS4zLS40IDEuNi0xQzQwLjMgNDYgMzYuNiAzMi43IDMwLjcgNS4yeiIvPgogIDxwYXRoIGZpbGw9InVybCgjZHNoLWF0bGFzc2lhbi1iKSIgZD0iTTQ2LjkgMjQuNmMtNS4zIDguNC02LjMgMTMuOC02LjMgMjIuMiAwIDQuMyAxLjEgOC41IDMuMSAxMy4yaDEyLjFjMS4xIDAgMi0uOSAyLTIgMC0uNC0uMS0uNy0uMi0xTDQ5LjYgMjQuNmMtLjUtMS4yLTIuMi0xLjItMi43IDB6Ii8+Cjwvc3ZnPgo=",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/atlassian#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/atlassian"
+			},
+			"metadata": {
+				"category": "integration",
+				"keywords": [
+					"jira",
+					"confluence",
+					"issues",
+					"wiki",
+					"sprint",
+					"atlassian"
+				],
+				"labels": [
+					"mcp",
+					"oauth",
+					"writes"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.3.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-sentry-plugin",
+			"title": "Sentry",
+			"description": "Sentry for DeepSeek Harness: OAuth sign-in and the tools of Sentry's MCP server",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTZW50cnkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNy44MyA3Ljg1KSBzY2FsZSgwLjg1KSI+CiAgICA8cGF0aCBkPSJNMTMuOTEgMi41MDVjLS44NzMtMS40NDgtMi45NzItMS40NDgtMy44NDQgMEw2LjkwNCA3LjkyYTE1LjQ3OCAxNS40NzggMCAwIDEgOC41MyAxMi44MTFoLTIuMjIxQTEzLjMwMSAxMy4zMDEgMCAwIDAgNS43ODQgOS44MTRsLTIuOTI2IDUuMDZhNy42NSA3LjY1IDAgMCAxIDQuNDM1IDUuODQ4SDIuMTk0YS4zNjUuMzY1IDAgMCAxLS4yOTgtLjUzNGwxLjQxMy0yLjQwMmE1LjE2IDUuMTYgMCAwIDAtMS42MTQtLjkxM0wuMjk2IDE5LjI3NWEyLjE4MiAyLjE4MiAwIDAgMCAuODEyIDIuOTk5IDIuMjQgMi4yNCAwIDAgMCAxLjA4Ni4yODhoNi45ODNhOS4zMjIgOS4zMjIgMCAwIDAtMy44NDUtOC4zMThsMS4xMS0xLjkyMmExMS40NyAxMS40NyAwIDAgMSA0Ljk1IDEwLjI0aDUuOTE1YTE3LjI0MiAxNy4yNDIgMCAwIDAtNy44ODUtMTUuMjhsMi4yNDQtMy44NDVhLjM3LjM3IDAgMCAxIC41MDQtLjEzYy4yNTUuMTQgOS43NSAxNi43MDggOS45MjggMTYuOWEuMzY1LjM2NSAwIDAgMS0uMzI3LjU0M2gtMi4yODdjLjAyOS42MTIuMDI5IDEuMjIzIDAgMS44MzFoMi4yOTdhMi4yMDYgMi4yMDYgMCAwIDAgMS45MjItMy4zMXoiIGZpbGw9InVybCgjZHNoLXNlbnRyeS1hKSIvPgogIDwvZz4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZHNoLXNlbnRyeS1hIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM4RDU0OTQiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiM2QzVGQzciLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMzYyRDU5Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KPC9zdmc+Cg==",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/sentry#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/sentry"
+			},
+			"metadata": {
+				"category": "integration",
+				"keywords": [
+					"sentry",
+					"errors",
+					"stack trace",
+					"releases",
+					"issues"
+				],
+				"labels": [
+					"mcp",
+					"oauth",
+					"writes"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-gitlab-plugin",
+			"title": "GitLab",
+			"description": "GitLab for DeepSeek Harness: OAuth sign-in and the tools of GitLab's MCP server",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJHaXRMYWIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOC4xIDguNDMpIHNjYWxlKDAuOCkiPgogICAgPHBhdGggZD0ibTI0LjUwNyA5LjUtLjAzNC0uMDlMMjEuMDgyLjU2MmEuODk2Ljg5NiAwIDAgMC0xLjY5NC4wOTFsLTIuMjkgNy4wMUg3LjgyNUw1LjUzNS42NTNhLjg5OC44OTggMCAwIDAtMS42OTQtLjA5TC40NTEgOS40MTEuNDE2IDkuNWE2LjI5NyA2LjI5NyAwIDAgMCAyLjA5IDcuMjc4bC4wMTIuMDEuMDMuMDIyIDUuMTYgMy44NjcgMi41NiAxLjkzNSAxLjU1NCAxLjE3NmExLjA1MSAxLjA1MSAwIDAgMCAxLjI2OCAwbDEuNTU1LTEuMTc2IDIuNTYtMS45MzUgNS4xOTctMy44OS4wMTQtLjAxQTYuMjk3IDYuMjk3IDAgMCAwIDI0LjUwNyA5LjVaIiBmaWxsPSIjRTI0MzI5Ii8+CiAgICA8cGF0aCBkPSJtMjQuNTA3IDkuNS0uMDM0LS4wOWExMS40NCAxMS40NCAwIDAgMC00LjU2IDIuMDUxbC03LjQ0NyA1LjYzMiA0Ljc0MiAzLjU4NCA1LjE5Ny0zLjg5LjAxNC0uMDFBNi4yOTcgNi4yOTcgMCAwIDAgMjQuNTA3IDkuNVoiIGZpbGw9IiNGQzZEMjYiLz4KICAgIDxwYXRoIGQ9Im03LjcwNyAyMC42NzcgMi41NiAxLjkzNSAxLjU1NSAxLjE3NmExLjA1MSAxLjA1MSAwIDAgMCAxLjI2OCAwbDEuNTU1LTEuMTc2IDIuNTYtMS45MzUtNC43NDMtMy41ODQtNC43NTUgMy41ODRaIiBmaWxsPSIjRkNBMzI2Ii8+CiAgICA8cGF0aCBkPSJNNS4wMSAxMS40NjFhMTEuNDMgMTEuNDMgMCAwIDAtNC41Ni0yLjA1TC40MTYgOS41YTYuMjk3IDYuMjk3IDAgMCAwIDIuMDkgNy4yNzhsLjAxMi4wMS4wMy4wMjIgNS4xNiAzLjg2NyA0Ljc0NS0zLjU4NC03LjQ0NC01LjYzMloiIGZpbGw9IiNGQzZEMjYiLz4KICA8L2c+Cjwvc3ZnPgo=",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/gitlab#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/gitlab"
+			},
+			"metadata": {
+				"category": "integration",
+				"keywords": [
+					"gitlab",
+					"merge request",
+					"code review",
+					"pipelines",
+					"jobs",
+					"diff"
+				],
+				"labels": [
+					"rest",
+					"token",
+					"writes"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-figma-plugin",
+			"title": "Figma",
+			"description": "Figma for DeepSeek Harness: a frame, its tokens and its Code Connect mapping in one panel",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJGaWdtYSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMC45MyA3LjM3KSBzY2FsZSgwLjM3NSkiPgogICAgPHBhdGggZD0iTTE5IDI4LjVhOS41IDkuNSAwIDEgMSAxOSAwIDkuNSA5LjUgMCAwIDEtMTkgMFoiIGZpbGw9IiMxQUJDRkUiLz4KICAgIDxwYXRoIGQ9Ik0wIDQ3LjVhOS41IDkuNSAwIDAgMSA5LjUtOS41SDE5djkuNWE5LjUgOS41IDAgMCAxLTE5IDBaIiBmaWxsPSIjMEFDRjgzIi8+CiAgICA8cGF0aCBkPSJNMTkgMHYxOWg5LjVhOS41IDkuNSAwIDAgMCAwLTE5SDE5WiIgZmlsbD0iI0ZGNzI2MiIvPgogICAgPHBhdGggZD0iTTAgOS41QTkuNSA5LjUgMCAwIDEgOS41IDBIMTl2MTlIOS41QTkuNSA5LjUgMCAwIDEgMCA5LjVaIiBmaWxsPSIjRjI0RTFFIi8+CiAgICA8cGF0aCBkPSJNMCAyOC41QTkuNSA5LjUgMCAwIDEgOS41IDE5SDE5djE5SDkuNUE5LjUgOS41IDAgMCAxIDAgMjguNVoiIGZpbGw9IiNBMjU5RkYiLz4KICA8L2c+Cjwvc3ZnPgo=",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/figma#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/figma"
+			},
+			"metadata": {
+				"category": "integration",
+				"keywords": [
+					"figma",
+					"design",
+					"frame",
+					"tokens",
+					"variables",
+					"code connect"
+				],
+				"labels": [
+					"mcp",
+					"no-credential",
+					"read-only"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-digest-plugin",
+			"title": "Digest",
+			"description": "One read-only daily summary of the work waiting for you, assembled from the integrations you connected.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJEaWdlc3QiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHJlY3QgeD0iOS41IiB5PSIxOC41IiB3aWR0aD0iMTYiIGhlaWdodD0iOC42IiByeD0iMi42IiBzdHJva2U9InVybCgjZHNoLWRpZ2VzdC1hKSIgc3Ryb2tlLXdpZHRoPSIzIi8+CiAgPHBhdGggZD0iTTEyLjUgMjEuOGg5LjVNMTIuNSAyNC42aDUuNSIgc3Ryb2tlPSJ1cmwoI2RzaC1kaWdlc3QtYSkiIHN0cm9rZS13aWR0aD0iMi4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIyMy45IiBjeT0iMTEuNSIgcj0iMiIgZmlsbD0idXJsKCNkc2gtZGlnZXN0LWEpIi8+CiAgPHBhdGggZD0iTTI2LjcgMTEuNSAyNy4zIDExLjVNMjUuODggMTMuNDggMjYuMyAxMy45TTIzLjkgMTQuMyAyMy45IDE0LjlNMjEuOTIgMTMuNDggMjEuNiAxMy45TTIxLjEgMTEuNSAyMC41IDExLjVNMjEuOTIgOS41MiAyMS42IDkuMU0yMy45IDguNyAyMy45IDguMU0yNS44OCA5LjUyIDI2LjMgOS4xIiBzdHJva2U9InVybCgjZHNoLWRpZ2VzdC1hKSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJkc2gtZGlnZXN0LWEiIHgxPSI4IiB5MT0iNyIgeDI9IjI4IiB5Mj0iMjkiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agc3RvcC1jb2xvcj0iIzY3QzdGRSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzRjc3RDgiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgo8L3N2Zz4K",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/digest#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/digest"
+			},
+			"metadata": {
+				"category": "workflow",
+				"keywords": [
+					"digest",
+					"daily",
+					"summary",
+					"schedule",
+					"morning"
+				],
+				"labels": [
+					"read-only"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-correlation-plugin",
+			"title": "Correlation",
+			"description": "Follow one object across the integrations you connected: a Sentry error, the commit behind it, the merge request it belongs to, and the ticket it names.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJDb3JyZWxhdGlvbiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cGF0aCBkPSJNMTAuNSAyNS41IDI1LjUgMTAuNSIgc3Ryb2tlPSJ1cmwoI2RzaC1jb3JyZWxhdGlvbi1hKSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI5IiBjeT0iMjciIHI9IjMuMiIgZmlsbD0idXJsKCNkc2gtY29ycmVsYXRpb24tYSkiLz4KICA8Y2lyY2xlIGN4PSIyNyIgY3k9IjkiIHI9IjMuMiIgZmlsbD0idXJsKCNkc2gtY29ycmVsYXRpb24tYSkiLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjE4IiByPSIyLjQiIGZpbGw9IiMzRjc3RDgiLz4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZHNoLWNvcnJlbGF0aW9uLWEiIHgxPSI4IiB5MT0iOCIgeDI9IjI4IiB5Mj0iMjgiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agc3RvcC1jb2xvcj0iIzY3QzdGRSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzRjc3RDgiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgo8L3N2Zz4K",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/correlation#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/correlation"
+			},
+			"metadata": {
+				"category": "workflow",
+				"keywords": [
+					"correlation",
+					"chain",
+					"commit",
+					"merge request",
+					"ticket",
+					"root cause"
+				],
+				"labels": [
+					"read-only"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792604883,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-integrations-plugin",
+			"title": "dsh-integrations-plugin",
+			"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJJbnRlZ3JhdGlvbnMiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGggZD0iTTE4IDIwLjI1VjExLjI1TTE4IDIwLjI1IDI1Ljc5IDI0Ljc1TTE4IDIwLjI1IDEwLjIxIDI0Ljc1IiBzdHJva2U9InVybCgjZHNoLWludGVncmF0aW9ucy1hKSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjIwLjI1IiByPSIzIiBmaWxsPSJ1cmwoI2RzaC1pbnRlZ3JhdGlvbnMtYSkiLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjExLjI1IiByPSIyLjYiIGZpbGw9InVybCgjZHNoLWludGVncmF0aW9ucy1hKSIvPgogIDxjaXJjbGUgY3g9IjI1Ljc5IiBjeT0iMjQuNzUiIHI9IjIuNiIgZmlsbD0idXJsKCNkc2gtaW50ZWdyYXRpb25zLWEpIi8+CiAgPGNpcmNsZSBjeD0iMTAuMjEiIGN5PSIyNC43NSIgcj0iMi42IiBmaWxsPSJ1cmwoI2RzaC1pbnRlZ3JhdGlvbnMtYSkiLz4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZHNoLWludGVncmF0aW9ucy1hIiB4MT0iOCIgeTE9IjgiIHgyPSIyOCIgeTI9IjI4IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM2N0M3RkUiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0Y3N0Q4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KPC9zdmc+Cg==",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/integrations#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/integrations"
+			},
+			"metadata": {
+				"category": "setup",
+				"keywords": [
+					"settings",
+					"integrations",
+					"connections",
+					"sign in"
+				],
+				"labels": [],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792580021,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-devkit-plugin",
+			"title": "Developer Kit",
+			"description": "Project-owned checks for DeepSeek Harness: named recipes for lint, typecheck, tests and build, run as one tool and shown as a card.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJEZXZlbG9wZXIgS2l0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik0xMy41IDEzLjRIMTIuM0EyLjggMi44IDAgMCAwIDkuNSAxNi4yVjI0LjJBMi44IDIuOCAwIDAgMCAxMi4zIDI3SDIzLjdBMi44IDIuOCAwIDAgMCAyNi41IDI0LjJWMTYuMkEyLjggMi44IDAgMCAwIDIzLjcgMTMuNEgyMi41IiBzdHJva2U9InVybCgjZHNoLWRldmtpdC1hKSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cmVjdCB4PSIxMy41IiB5PSI5IiB3aWR0aD0iOSIgaGVpZ2h0PSI0LjQiIHJ4PSIyLjIiIHN0cm9rZT0idXJsKCNkc2gtZGV2a2l0LWEpIiBzdHJva2Utd2lkdGg9IjMiLz4KICA8cGF0aCBkPSJNMTMuOSAxOS41IDE3LjEgMjIuNyAyMi4xIDE3LjciIHN0cm9rZT0idXJsKCNkc2gtZGV2a2l0LWEpIiBzdHJva2Utd2lkdGg9IjMuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImRzaC1kZXZraXQtYSIgeDE9IjgiIHkxPSI3IiB4Mj0iMjgiIHkyPSIyOSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBzdG9wLWNvbG9yPSIjN0FDMkZGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzRBNjVFOCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+Cjwvc3ZnPgo=",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/devkit#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/devkit"
+			},
+			"metadata": {
+				"category": "developer",
+				"keywords": [
+					"checks",
+					"lint",
+					"typecheck",
+					"tests",
+					"build",
+					"recipes"
+				],
+				"labels": [
+					"read-only"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792596313,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
+			"name": "dsh-workflow-plugin",
+			"title": "All plugins",
+			"description": "Every plugin of this repository behind one bundle: Jira and Confluence, Sentry, GitLab, Figma, the daily digest, cross-provider correlation, the Integrations page and project checks.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJBbGwgcGx1Z2lucyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB4PSI2IiB5PSI2IiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHJ4PSIyLjYiIHN0cm9rZT0idXJsKCNkc2gtd29ya2Zsb3ctYSkiIHN0cm9rZS13aWR0aD0iMi42Ii8+CiAgPHJlY3QgeD0iMjAiIHk9IjYiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgcng9IjIuNiIgc3Ryb2tlPSJ1cmwoI2RzaC13b3JrZmxvdy1hKSIgc3Ryb2tlLXdpZHRoPSIyLjYiLz4KICA8cmVjdCB4PSI2IiB5PSIyMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiByeD0iMi42IiBzdHJva2U9InVybCgjZHNoLXdvcmtmbG93LWEpIiBzdHJva2Utd2lkdGg9IjIuNiIvPgogIDxyZWN0IHg9IjIwIiB5PSIyMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiByeD0iMi42IiBzdHJva2U9InVybCgjZHNoLXdvcmtmbG93LWEpIiBzdHJva2Utd2lkdGg9IjIuNiIvPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJkc2gtd29ya2Zsb3ctYSIgeDE9IjYiIHkxPSI2IiB4Mj0iMzAiIHkyPSIzMCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBzdG9wLWNvbG9yPSIjNjdDN0ZFIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzNGNzdEOCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+Cjwvc3ZnPgo=",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/workflow#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/workflow"
+			},
+			"metadata": {
+				"category": "setup",
+				"keywords": [
+					"all",
+					"everything",
+					"bundle",
+					"meta"
+				],
+				"labels": [],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792604883,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		}
+	]
+}

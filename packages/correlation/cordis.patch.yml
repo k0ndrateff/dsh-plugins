@@ -1,0 +1,15 @@
+# dsh-correlation-plugin bundle layer.
+#
+# One row, mounted from the bare package name: the Client module system attaches
+# a package's browser half (`./client`) to the Loader row whose specifier is the
+# bare package name, so this row must not use a subpath export.
+#
+# The bundle holds no configuration: which providers can answer what is decided
+# by which integrations are installed, not by a setting here.
+#
+# Override or disable it from the profile patch with:
+#   - id: correlation
+#     disabled: true
+- insert:
+    - id: correlation
+      name: dsh-correlation-plugin

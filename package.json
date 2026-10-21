@@ -10,10 +10,15 @@
 		"build": "bun run --filter '*' build",
 		"typecheck": "bun run --filter '*' typecheck",
 		"test": "bun run --filter '*' test",
+		"market": "bun run scripts/market/build.mjs",
+		"changeset": "changeset",
+		"version-packages": "changeset version && bun install",
+		"release": "changeset publish && bun run market",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",
+		"@changesets/cli": "^3.0.3",
 		"@deepseek-ai/cordis": "~4.0.5",
 		"@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
@@ -32,6 +37,7 @@
 		"@deepseek-ai/dsh-fs": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-llm": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-mcp-client": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-plugin-market-index": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-shell": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-tools": "0.2.1-rc.2",
 		"@deepseek-ai/dsh-working-directory": "0.2.1-rc.2",

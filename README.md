@@ -1,11 +1,13 @@
 # dsh-plugins
 
-DeepSeek Harness plugins: Jira and Confluence, Sentry, GitLab, Figma, and a daily
-digest across them. One plugin gives the agent the tools of a provider, connects
-it however that provider allows — an OAuth flow, a personal access token the user
-pastes, or no credential at all for a server on the same machine — and draws what
-it finds as cards and panels in the Web Client instead of raw JSON. The OAuth half
-is a library, because the harness has none.
+DeepSeek Harness plugins: Jira and Confluence, Sentry, GitLab, Figma, a daily
+digest across them, and a correlation that follows one error to the commit behind
+it, the merge request that commit belongs to, and the ticket it names. One plugin
+gives the agent the tools of a provider, connects it however that provider allows
+— an OAuth flow, a personal access token the user pastes, or no credential at all
+for a server on the same machine — and draws what it finds as cards and panels in
+the Web Client instead of raw JSON. The OAuth half is a library, because the
+harness has none.
 
 Built and verified against DSH `0.2.1-rc.2`.
 
@@ -18,11 +20,14 @@ Built and verified against DSH `0.2.1-rc.2`.
 | [`packages/gitlab`](packages/gitlab) | `dsh-gitlab-plugin` — merge requests, review threads and pipelines |
 | [`packages/figma`](packages/figma) | `dsh-figma-plugin` — a frame, its variables and its Code Connect mapping |
 | [`packages/digest`](packages/digest) | `dsh-digest-plugin` — one read-only daily digest across the integrations above |
+| [`packages/correlation`](packages/correlation) | `dsh-correlation-plugin` — one chain across them: error, commit, merge request, ticket |
 | [`packages/integrations`](packages/integrations) | `dsh-integrations-plugin` — the one Settings page every integration's connection card appears on |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
+| [`packages/workflow`](packages/workflow) | `dsh-workflow-plugin` — every bundle above behind one profile entry (a patch, no code) |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
-| [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
+| [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command, the digest and correlation registries (a library) |
 | [`packages/integration-ui`](packages/integration-ui) | `dsh-integration-ui` — the browser-half shell: panel body, result card, tool row, settings section, stylesheet (a library) |
+| [`packages/plugin-build`](packages/plugin-build) | `dsh-plugin-build` — the build every plugin runs: both halves, the inlined stylesheet, the workspace libraries (a library) |
 
 The library carries RFC 9728/8414 discovery, RFC 7591 dynamic client
 registration, PKCE over a loopback redirect, token lifetime with cross-process
@@ -61,9 +66,49 @@ belongs to `dsh-integrations-plugin`, which owns nothing else: an integration ad
 a tab by registering into the page's own slot, so the page never has to know which
 integrations exist.
 
-Where this is going — the digest and cross-provider correlation — is written down
-in [docs/roadmap.md](docs/roadmap.md). How to work in this repository is
-[AGENTS.md](AGENTS.md).
+Every package is publishable, and `dsh-workflow-plugin` mounts all eight bundles
+from one profile entry — see [Installing from the market](#installing-from-the-market).
+The milestone this repository was built against is finished; what is left is
+written down in [docs/roadmap.md](docs/roadmap.md). How to work in this repository
+is [AGENTS.md](AGENTS.md).
+
+## Installing from the market
+
+The bundles are published to npm, and `docs/market.json` is a plugin market index
+in the format DSH reads (format 1). Add it as a source in the harness and the
+Discover tab lists every plugin with its icon, its description and its connection
+labels:
+
+```
+https://k0ndrateff.github.io/dsh-plugins/market.json
+```
+
+The harness ships the market itself as an optional bundle — turn
+`@deepseek-ai/dsh-experimental-plugin-market-bundle` on once in the Plugins page,
+and Discover appears beside it. Installing from there goes through the ordinary
+bundle manager, so it asks for approval like any other install.
+
+The index is generated, never hand-edited. `scripts/market/build.mjs` reads the
+packages, the icons and the editorial table in `scripts/market/catalog.mjs`, and
+validates the result with `@deepseek-ai/dsh-plugin-market-index` — the same
+validator the harness runs before it shows anything:
+
+```sh
+bun run market           # rewrite docs/market.json
+bun run market --check   # fail if the committed index is out of date
+```
+
+Releasing is changesets: describe the change, let it bump the versions, publish,
+and regenerate the index. The libraries are published too, because a published
+plugin's `devDependencies` name them by version — a plugin bundles them from
+source, so nothing installs them at runtime, but the versions a release records
+must exist.
+
+```sh
+bun run changeset        # describe what changed
+bun run version-packages # apply the bumps
+bun run release          # publish, then regenerate the index
+```
 
 ## What you get
 
@@ -260,6 +305,40 @@ block failing is that block's `unavailable` line rather than a failed digest.
 The one thing it does not do yet is the optional introductory sentence from the
 model; [docs/roadmap.md](docs/roadmap.md) records why.
 
+## Correlation
+
+The seventh bundle is a *meta* one too, and it is the answer to the question no
+single tool can answer: an error fired in production — what shipped it, and who
+owns it? Ask about a Sentry issue and `correlate` follows the links the installed
+integrations know:
+
+```
+1. Error          Sentry      CHECKOUT-13P · AxiosError: Request failed with status code 422
+                              unresolved · 35 events · release storefront@3.0.1
+2. Commit         GitLab      7c50a1e · DEV-5977: Handle split 500 error codes
+3. Merge request  GitLab      acme/storefront!42 · Handle split codes   opened · Ada Lovelace
+4. Jira issue     Atlassian   DEV-5977 · Fix the exchange step          In Review · Bug · High
+```
+
+The seam is a registry again, but the contract is different: a provider does not
+report a block, it **resolves a reference**. `dsh-integration-host` declares what a
+fact and a reference are — an error, a commit, a change request, a task —
+`dsh-correlation-plugin` provides the registry as `ctx.correlationSources`, and
+each integration registers what it can answer for. A provider answers about the
+reference it was asked about with a fact, and that fact carries the references
+onward, so the walk itself knows nothing about what a merge request is.
+
+- **The `correlate` tool** takes the integration to start from and one of its own
+  identifiers — a Sentry short id or issue link, a commit sha, `group/project!12`,
+  or a tracker key such as `DEV-5977`. It reads only.
+- **It is honest about where it stopped.** "No installed integration resolves
+  this", "GitLab refused the request (403)" and "nothing found" are three different
+  lines, and the card shows whichever happened instead of quietly ending.
+- **Nothing knows another provider's names.** Sentry passes the code location's
+  link rather than a project path; GitLab reads its own project out of the link and
+  declines a link on another host; the ticket key travels in the commit message,
+  and whichever tracker recognizes it answers.
+
 ## Configuration
 
 The Atlassian bundle's patch inserts one row with defaults; override the row from
@@ -441,9 +520,19 @@ project's, and that lives in the project.
 - **The digest has no model-written introduction yet.** The roadmap's optional
   "вводная фраза от модели" would need a model route the host half can call
   outside a turn; the collector is deliberately deterministic until that exists.
-- **A digest does not correlate across providers.** "This Sentry error came from
-  that merge request" is the next milestone, not this one: today a block reports
-  what one provider answered.
+- **A digest does not correlate across providers.** A block reports what one
+  provider answered; asking "where did this error come from" is the `correlate`
+  tool's job, and it is a read on demand rather than part of a scheduled digest.
+- **Correlation follows one path at a time.** The walk goes depth first, so a
+  second commit behind the same error is reported one branch later rather than
+  side by side; a chain is capped at four references deep and forty facts.
+- **Correlation has no live run yet.** The adapters are covered offline, on
+  recorded Sentry and GitLab answers, and have not been called against live
+  accounts.
+- **The market index points at versions that are not published yet.** Every
+  package is publishable and `docs/market.json` is generated and validated, but the
+  first release has not happened, so installing from the index needs a
+  `bun run release` first.
 - **The digest's `/dsh-digest` route is unauthenticated** like the other
   integrations' routes: loopback-only, but any local process can read the
   settings, change them, or assemble a digest. It cannot write anywhere.

@@ -1,0 +1,51 @@
+# Publish the plugin market index to GitHub Pages.
+#
+# The index is generated, never hand-edited: `docs/market.json` in the tree is a
+# snapshot of the same run, and this workflow regenerates it so the served
+# document follows the versions that are actually on npm. Nothing is committed
+# back — the artifact is the site.
+#
+# Pages must be set to "GitHub Actions" as its source; the site then answers at
+# https://<owner>.github.io/<repository>/market.json, which is the URL
+# `scripts/market/catalog.mjs` hands the validator.
+name: market
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "scripts/market/**"
+      - ".github/workflows/market.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run market
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

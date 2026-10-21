@@ -1,0 +1,35 @@
+{
+	"name": "dsh-plugin-build",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "The build every DSH plugin in this repository runs: both halves, the inlined stylesheet, and the workspace libraries bundled from source",
+	"license": "MIT",
+	"main": "src/build.mjs",
+	"exports": {
+		".": "./src/build.mjs",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "node --check src/build.mjs",
+		"typecheck": "node --check src/build.mjs",
+		"test": "bun run test/unit.ts",
+		"prepack": "bun run build"
+	},
+	"dependencies": {
+		"@vanilla-extract/esbuild-plugin": "^2.3.22",
+		"esbuild": "^0.25.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/plugin-build#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/plugin-build"
+	}
+}

@@ -29,6 +29,7 @@ import type { GitLabAccount } from "./account";
 import { GitLabApi } from "./api";
 import { GitLabAuth } from "./auth";
 import { type ConfigInput, PLUGIN_NAME, resolveConfig } from "./config";
+import { registerCorrelationSource } from "./correlation";
 import { registerDigestSource } from "./digest";
 import { PanelApi } from "./panels/panel";
 import { ReviewService } from "./review";
@@ -61,6 +62,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	// The digest plugin, when it is installed, composes this plugin's merge
 	// request and review blocks into its card; nothing is read until asked.
 	registerDigestSource(ctx, { api, state });
+
+	// The correlation plugin, when it is installed, asks this plugin about the
+	// commits and merge requests a chain reaches; nothing is read until it asks.
+	registerCorrelationSource(ctx, { api, config });
 
 	// The command registration belongs to this plugin's Cordis fiber, so it is
 	// withdrawn with the plugin.

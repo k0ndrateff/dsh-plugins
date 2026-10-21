@@ -1,0 +1,12 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="All plugins" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="6" width="10" height="10" rx="2.6" stroke="url(#dsh-workflow-a)" stroke-width="2.6"/>
+  <rect x="20" y="6" width="10" height="10" rx="2.6" stroke="url(#dsh-workflow-a)" stroke-width="2.6"/>
+  <rect x="6" y="20" width="10" height="10" rx="2.6" stroke="url(#dsh-workflow-a)" stroke-width="2.6"/>
+  <rect x="20" y="20" width="10" height="10" rx="2.6" stroke="url(#dsh-workflow-a)" stroke-width="2.6"/>
+  <defs>
+    <linearGradient id="dsh-workflow-a" x1="6" y1="6" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67C7FE"/>
+      <stop offset="1" stop-color="#3F77D8"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,7 +1,6 @@
 {
 	"name": "dsh-integrations-plugin",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
 	"license": "MIT",
@@ -38,7 +37,8 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/tabs.ts"
+		"test": "bun run test/tabs.ts",
+		"prepack": "bun run build"
 	},
 	"dependencies": {
 		"@vanilla-extract/css": "^1.21.3"
@@ -51,6 +51,17 @@
 	},
 	"devDependencies": {
 		"@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
-		"dsh-integration-ui": "workspace:*"
+		"dsh-integration-ui": "workspace:*",
+		"dsh-plugin-build": "workspace:*"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/integrations#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/integrations"
 	}
 }

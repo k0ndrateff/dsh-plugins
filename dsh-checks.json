@@ -2,6 +2,7 @@
 	"checks": {
 		"typecheck": { "run": "bun run typecheck", "parse": "tsc" },
 		"lint": { "run": "./node_modules/.bin/biome check .", "parse": "biome" },
-		"test": { "run": "bun run test", "parse": "generic" }
+		"test": { "run": "bun run test", "parse": "generic" },
+		"market": { "run": "bun run market --check", "parse": "generic" }
 	}
 }

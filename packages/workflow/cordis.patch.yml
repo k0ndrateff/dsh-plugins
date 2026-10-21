@@ -1,0 +1,33 @@
+# dsh-workflow-plugin bundle layer: every plugin in this repository, one bundle.
+#
+# The package contains no code of its own. It depends on the eight bundles and
+# this layer mounts one row for each, so "install one thing and get everything"
+# costs one dependency and one patch file. Each row names its package the way the
+# bundle's own patch does, and the plugin's own defaults fill in the
+# configuration that patch would have written — an endpoint, a loopback port —
+# so a profile that installs this bundle alone behaves exactly like one that
+# installs the eight.
+#
+# Mount it *instead of* the individual bundles, not beside them: a bundle is a
+# profile entry, and two layers inserting a row of the same id is a duplicate.
+#
+# Disable one plugin without giving up the rest by overriding its row here:
+#   - id: figma
+#     disabled: true
+- insert:
+    - id: atlassian
+      name: dsh-atlassian-plugin
+    - id: sentry
+      name: dsh-sentry-plugin
+    - id: gitlab
+      name: dsh-gitlab-plugin
+    - id: figma
+      name: dsh-figma-plugin
+    - id: digest
+      name: dsh-digest-plugin
+    - id: correlation
+      name: dsh-correlation-plugin
+    - id: integrations
+      name: dsh-integrations-plugin
+    - id: devkit
+      name: dsh-devkit-plugin

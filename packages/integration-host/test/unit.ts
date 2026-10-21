@@ -15,6 +15,7 @@ import type { AuthorizationFlow, GrantStore, McpBridge } from "dsh-mcp-oauth";
 import { IntegrationAuth } from "../src/auth";
 import { createIntegrationCommand } from "../src/command";
 import { resolveEndpointConfig } from "../src/config";
+import { CorrelationSources } from "../src/correlation";
 import { DigestSources } from "../src/digest";
 import type { FactsReader } from "../src/facts";
 import { stripHtmlComments } from "../src/markdown";
@@ -732,6 +733,184 @@ console.log("\n=== digest sources ===");
 		) === undefined,
 	);
 	void new FakeDigest(new Context());
+}
+
+console.log("\n=== correlation sources ===");
+{
+	const context = new Context();
+
+	// The failing order again, and the one a deployment actually has: an
+	// integration loads before the correlation plugin does.
+	const gitlab = context.inject(["correlationSources"], (scoped) => {
+		scoped.effect(
+			() =>
+				scoped.correlationSources.register({
+					provider: "GitLab",
+					entry: "change",
+					resolves: ["commit", "change"],
+					resolve: async (ref) =>
+						ref.kind === "commit" && ref.sha === "7c50a1e5"
+							? [
+									{
+										id: "gitlab:acme/storefront@7c50a1e5",
+										provider: "GitLab",
+										kind: "commit",
+										label: "Commit",
+										title: "7c50a1e5 · DEV-5977: Handle split codes",
+										references: [
+											{
+												kind: "change",
+												repository: "acme/storefront",
+												number: "42",
+											},
+										],
+									},
+								]
+							: [],
+				}),
+			"gitlab: correlation source",
+		);
+	});
+
+	await gitlab;
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"a provider that loads first waits instead of failing",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"correlationSources",
+		) === undefined,
+	);
+
+	let sources: CorrelationSources | undefined;
+	const plugin = context.plugin({
+		apply: (inner: Context) => {
+			sources = new CorrelationSources(inner);
+		},
+	});
+
+	await plugin;
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"the registry arrives under its own name",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"correlationSources",
+		) !== undefined,
+	);
+	check(
+		"and the waiting provider is on offer",
+		sources?.providers[0]?.provider === "GitLab",
+		JSON.stringify(sources?.providers),
+	);
+	check(
+		"with the entry kind a chain starts from",
+		sources?.entryOf("GitLab") === "change",
+	);
+	check(
+		"a provider that is not installed has no entry kind",
+		sources?.entryOf("Sentry") === undefined,
+	);
+	check(
+		"a kind it resolves is answerable",
+		sources?.canResolve("commit") === true,
+	);
+	check("a kind nobody resolves is not", sources?.canResolve("task") === false);
+
+	const facts = await sources?.resolve({ kind: "commit", sha: "7c50a1e5" });
+
+	check(
+		"a reference reaches the provider that resolves it",
+		facts?.[0]?.id === "gitlab:acme/storefront@7c50a1e5" &&
+			facts[0]?.references?.[0]?.kind === "change",
+		JSON.stringify(facts),
+	);
+
+	check(
+		"a reference the provider does not recognize resolves to nothing",
+		(await sources?.resolve({ kind: "commit", sha: "0000000" }))?.length === 0,
+	);
+
+	sources?.register({
+		provider: "Otherhost",
+		entry: "commit",
+		resolves: ["commit"],
+		resolve: async (ref) =>
+			ref.kind === "commit" && ref.sha !== "7c50a1e5"
+				? [
+						{
+							id: `otherhost:repo@${ref.sha}`,
+							provider: "Otherhost",
+							kind: "commit",
+							label: "Commit",
+							title: ref.sha,
+						},
+					]
+				: [],
+	});
+
+	check(
+		"a second source for one kind answers when the first declines",
+		(await sources?.resolve({ kind: "commit", sha: "0000000" }))?.[0]
+			?.provider === "Otherhost",
+	);
+	check(
+		"and the first still answers the reference it recognizes",
+		(await sources?.resolve({ kind: "commit", sha: "7c50a1e5" }))?.[0]
+			?.provider === "GitLab",
+	);
+
+	const unowned = await sources
+		?.resolve({ kind: "error", id: "CHECKOUT-13P" })
+		.then(() => "")
+		.catch((error: unknown) => (error as Error).message);
+
+	check(
+		"resolving a kind nobody handles is an error",
+		(unowned ?? "").includes('no correlation source resolves "error"'),
+		unowned ?? "",
+	);
+
+	const clash = (() => {
+		try {
+			sources?.register({
+				provider: "GitLab",
+				entry: "change",
+				resolves: ["change"],
+				resolve: async () => [],
+			});
+
+			return "";
+		} catch (error) {
+			return (error as Error).message;
+		}
+	})();
+
+	check(
+		"a provider can only be registered once",
+		clash.includes("already registered"),
+		clash,
+	);
+
+	await gitlab.dispose();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"a withdrawn provider takes its kinds with it",
+		sources?.providers.map((entry) => entry.provider).join(",") ===
+			"Otherhost" && sources.canResolve("change") === false,
+		sources?.providers.map((entry) => entry.provider).join(","),
+	);
+
+	await plugin.dispose();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"and the registry leaves with the correlation plugin",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"correlationSources",
+		) === undefined,
+	);
 }
 
 console.log("\n=== markdown ===");

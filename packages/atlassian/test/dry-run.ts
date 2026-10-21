@@ -54,6 +54,7 @@ const registered = {
 	flows: [] as unknown[],
 	routes: [] as unknown[],
 	digestSources: [] as { blocks: { id: string }[] }[],
+	correlationSources: [] as { resolves: string[] }[],
 };
 
 /**
@@ -153,22 +154,31 @@ function fakeContext(): Context {
 		// The route waits for this service; the fake answers as the harness does
 		// once it is there, which is what a dry-run cares about.
 		inject: (deps: readonly string[], callback: (scoped: unknown) => void) => {
-			if (deps.includes("digestSources")) {
-				callback({
-					...fake,
-					digestSources: {
-						register: (source: { blocks: { id: string }[] }) => {
-							registered.digestSources.push(source);
+			callback({
+				...fake,
+				...(deps.includes("digestSources")
+					? {
+							digestSources: {
+								register: (source: { blocks: { id: string }[] }) => {
+									registered.digestSources.push(source);
 
-							return () => {};
-						},
-					},
-				});
+									return () => {};
+								},
+							},
+						}
+					: {}),
+				...(deps.includes("correlationSources")
+					? {
+							correlationSources: {
+								register: (source: { resolves: string[] }) => {
+									registered.correlationSources.push(source);
 
-				return () => {};
-			}
-
-			callback(fake);
+									return () => {};
+								},
+							},
+						}
+					: {}),
+			});
 
 			return () => {};
 		},
@@ -288,6 +298,12 @@ check(
 	registered.digestSources
 		.flatMap((source) => source.blocks.map((block) => block.id))
 		.join(","),
+);
+check(
+	"and offers a chain the Jira issue a ticket key names",
+	registered.correlationSources.length === 1 &&
+		registered.correlationSources[0]?.resolves.join(",") === "task",
+	registered.correlationSources.flatMap((source) => source.resolves).join(","),
 );
 
 // A grant read back from the store is plain JSON, not a class instance: this is

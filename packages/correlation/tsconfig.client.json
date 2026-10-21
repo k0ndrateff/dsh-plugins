@@ -1,0 +1,23 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"types": ["react"],
+		"jsx": "react-jsx",
+		"paths": {
+			"dsh-integration-host/correlation": [
+				"../integration-host/src/correlation.ts"
+			],
+			"dsh-integration-host/digest": ["../integration-host/src/digest.ts"],
+			"dsh-integration-host/status": ["../integration-host/src/status.ts"],
+			"dsh-integration-ui": ["../integration-ui/src/index.ts"],
+			"dsh-integration-ui/styles": ["../integration-ui/src/styles/index.ts"]
+		}
+	},
+	"include": [
+		"src/client/**/*.ts",
+		"src/client/**/*.tsx",
+		"src/client/**/*.d.ts",
+		"src/shared/**/*.ts"
+	]
+}

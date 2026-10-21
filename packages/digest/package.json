@@ -1,7 +1,6 @@
 {
 	"name": "dsh-digest-plugin",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "A read-only daily work digest assembled from Jira, GitLab and Sentry",
 	"license": "MIT",
@@ -41,7 +40,8 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/settings.ts && bun run test/schedule.ts && bun run test/collect.ts && bun run test/command.ts"
+		"test": "bun run test/settings.ts && bun run test/schedule.ts && bun run test/collect.ts && bun run test/command.ts",
+		"prepack": "bun run build"
 	},
 	"dependencies": {
 		"@vanilla-extract/css": "^1.21.3"
@@ -55,6 +55,17 @@
 	"devDependencies": {
 		"dsh-integration-host": "workspace:*",
 		"dsh-integration-ui": "workspace:*",
-		"dsh-mcp-oauth": "workspace:*"
+		"dsh-mcp-oauth": "workspace:*",
+		"dsh-plugin-build": "workspace:*"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/digest#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/digest"
 	}
 }

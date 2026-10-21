@@ -1,7 +1,6 @@
 {
 	"name": "dsh-sentry-plugin",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "Sentry for DeepSeek Harness: OAuth sign-in and the tools of Sentry's MCP server",
 	"license": "MIT",
@@ -42,7 +41,8 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/parse.ts && bun run test/digest.ts && bun run test/surface.ts && bun run test/dry-run.ts"
+		"test": "bun run test/parse.ts && bun run test/digest.ts && bun run test/correlation.ts && bun run test/surface.ts && bun run test/dry-run.ts",
+		"prepack": "bun run build"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/client": "2.2.0",
@@ -58,6 +58,17 @@
 	"devDependencies": {
 		"dsh-integration-host": "workspace:*",
 		"dsh-integration-ui": "workspace:*",
-		"dsh-mcp-oauth": "workspace:*"
+		"dsh-mcp-oauth": "workspace:*",
+		"dsh-plugin-build": "workspace:*"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/sentry#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/sentry"
 	}
 }
