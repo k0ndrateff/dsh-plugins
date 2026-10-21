@@ -2,7 +2,8 @@
  * Build the plugin market index the Web Client's Discover tab reads.
  *
  *   bun run market           write docs/market.json
- *   bun run market --check   fail when the committed index is out of date
+ *   bun run market --check   fail when the committed index no longer describes
+ *                            the packages (publish times are not compared)
  *
  * Format 1 of the index is a document DSH validates before it shows anything, so
  * this writes what the validator returns rather than what it built: a file that
@@ -324,24 +325,28 @@ const checkCoverage = (bundles, catalogued) => {
 };
 
 /**
- * Why the committed index no longer matches the packages.
+ * Whether the committed index still describes these packages.
  *
- * The one field this cannot see is the publish time a registry decides, and that
- * changes the moment a version is released — saying so is the difference between
- * "regenerate this and commit it" and "something about the packages moved".
+ * Compared without the publish times, and that is deliberate. A publish time is
+ * the one value in the document that is not a property of the packages: it exists
+ * only once a version is on the registry, and it is written into the file at
+ * about the same moment the file is committed. So the value a release commit
+ * carries is either the registry's answer for a version that has just landed or
+ * the commit time it fell back to — and the two sides of the comparison walk
+ * through that window in opposite directions, reddening every push for a field
+ * whose only reader is a sort order. What the check is for is that the index
+ * still names the right versions with the right text, icons and declarations.
  */
-const whyDifferent = (committed, fresh) => {
+const describesPackages = (committed, fresh) => {
 	const withoutTimes = (value) =>
 		JSON.stringify(value, (key, member) =>
 			key === "publishTimestamp" ? undefined : member,
 		);
 
 	try {
-		return withoutTimes(JSON.parse(committed)) === withoutTimes(fresh)
-			? "only the publish times moved; regenerate it and commit that"
-			: "run `bun run market` and commit it";
+		return withoutTimes(JSON.parse(committed)) === withoutTimes(fresh);
 	} catch {
-		return "run `bun run market` and commit it";
+		return false;
 	}
 };
 
@@ -391,15 +396,22 @@ if (process.argv.includes("--check")) {
 		? readFileSync(`${ROOT}${OUTPUT}`, "utf8")
 		: "";
 
-	if (committed !== text) {
-		console.error(
-			`[market] ${OUTPUT} is out of date: ${whyDifferent(committed, validated)}`,
-		);
-		process.exit(1);
+	if (committed === text) {
+		console.log(`[market] ${OUTPUT} is up to date`);
+		process.exit(0);
 	}
 
-	console.log(`[market] ${OUTPUT} is up to date`);
-	process.exit(0);
+	if (describesPackages(committed, validated)) {
+		console.log(
+			`[market] ${OUTPUT} describes every package; its publish times are older than the registry's, which is not a difference to fail a push over`,
+		);
+		process.exit(0);
+	}
+
+	console.error(
+		`[market] ${OUTPUT} is out of date: run \`bun run market\` and commit it`,
+	);
+	process.exit(1);
 }
 
 mkdirSync(`${ROOT}docs`, { recursive: true });

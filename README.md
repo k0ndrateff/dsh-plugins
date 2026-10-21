@@ -174,7 +174,9 @@ bun run format       # biome
 ```
 
 From the root, `bun run market` rewrites `docs/market.json` and `bun run market
---check` fails when the committed index no longer matches the packages. Releases
+--check` fails when the committed index no longer describes the packages. Publish
+times are not compared: they move the moment a version is released, which is the
+same moment the file is committed, so they would redden every push. Releases
 go through changesets:
 
 ```sh
