@@ -12,6 +12,7 @@
  * the truthful answer to "this version cannot read that part".
  */
 
+import { stripHtmlComments } from "dsh-integration-host";
 import { asRecord, pickNumber, pickString } from "dsh-mcp-oauth";
 import type { MergeRequestCard, PresentationItem } from "../../shared/meta";
 import type {
@@ -24,6 +25,17 @@ import type {
 	PipelineJob,
 	PipelineSummary,
 } from "../../shared/panel";
+
+/**
+ * One markdown field, without the comments GitLab stores for its own editors.
+ *
+ * `undefined` stays `undefined`: a caller distinguishes "the server said nothing"
+ * from "the server said something empty", and stripping must not blur that.
+ * @param value - the field as the server sent it.
+ * @returns the field without its HTML comments.
+ */
+const markdownOf = (value: string | undefined): string | undefined =>
+	value === undefined ? undefined : stripHtmlComments(value);
 
 /** The records a GitLab answer may wrap its payload in. */
 const WRAPPERS = [
@@ -362,7 +374,7 @@ export function parseMergeRequestDetail(
 		"userNotesCount",
 	);
 	const diffHeadSha = pickString(record, "diff_head_sha", "diffHeadSha", "sha");
-	const description = pickString(record, "description");
+	const description = markdownOf(pickString(record, "description"));
 
 	return {
 		project: subject.project,
@@ -509,7 +521,7 @@ function threadOf(
 
 /** One note of a thread. */
 function noteOf(record: Record<string, unknown>): DiscussionNote | undefined {
-	const body = pickString(record, "body", "note", "text");
+	const body = markdownOf(pickString(record, "body", "note", "text"));
 	if (body === undefined) return undefined;
 
 	const id = pickString(record, "id", "note_id");

@@ -17,7 +17,6 @@ import {
 	type ToolRowBlock,
 } from "dsh-integration-ui";
 import { asSentryPresentation } from "../../shared/meta";
-import { SENTRY_TOOL_NAME } from "../conversation/card-definition";
 
 /** The first issue id of a preparing call's arguments, when it named any. */
 const firstIssue = (value: unknown): string | undefined => {
@@ -51,7 +50,7 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 
 /** One `sentry_present` call, as a single line. */
 export const SentryToolRow = createToolRow({
-	displayName: () => SENTRY_TOOL_NAME,
+	displayName: () => "Sentry issues",
 	asked: askedFor,
 	summarize,
 });

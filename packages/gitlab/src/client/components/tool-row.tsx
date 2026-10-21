@@ -18,10 +18,6 @@ import {
 	type ToolRowBlock,
 } from "dsh-integration-ui";
 import { asGitLabPresentation } from "../../shared/meta";
-import {
-	GITLAB_PRESENT_TOOL,
-	GITLAB_REVIEW_TOOL,
-} from "../conversation/card-definition";
 
 /** The server's own words, as the last resort for a row with no payload. */
 const textOf = (block: ToolRowBlock | undefined): string =>
@@ -80,7 +76,7 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 
 /** One `gitlab_present` call, as a single line. */
 export const GitLabPresentRow = createToolRow({
-	displayName: () => GITLAB_PRESENT_TOOL,
+	displayName: () => "Merge requests",
 	asked: askedFor,
 	summarize,
 });
@@ -106,7 +102,7 @@ const summarizeReview = (block: ToolRowBlock | undefined): string => {
 
 /** One `gitlab_review` call, as a single line. */
 export const GitLabReviewRow = createToolRow({
-	displayName: () => GITLAB_REVIEW_TOOL,
+	displayName: () => "Merge request review",
 	asked: askedReview,
 	summarize: summarizeReview,
 });

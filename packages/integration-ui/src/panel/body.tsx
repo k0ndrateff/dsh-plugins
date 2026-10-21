@@ -15,6 +15,8 @@
 import {
 	Button,
 	MarkdownDelegateProvider,
+	StateDot,
+	TextShimmer,
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
@@ -137,7 +139,15 @@ export const createPanelBody = <TData, TParams>(
 			<div className={styles.panel}>
 				<div className={styles.panelScroll}>
 					{load.status === "loading" ? (
-						<span className={styles.caption}>Loading…</span>
+						<div
+							className={styles.panelLoading}
+							role="status"
+							aria-live="polite"
+						>
+							<StateDot state="ongoing" size={20} />
+
+							<TextShimmer active>Loading…</TextShimmer>
+						</div>
 					) : null}
 
 					{load.status === "error" ? (

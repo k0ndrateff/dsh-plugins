@@ -494,6 +494,35 @@ check(
 		parseReference("acme/storefront#12") === undefined,
 );
 
+console.log("\n=== the comments GitLab keeps for its own editors ===");
+
+check(
+	"a description carries its prose, not the comment beside it",
+	parseMergeRequestDetail(
+		{ ...MR, description: "Retries the upload.\n\n<!-- link the incident -->" },
+		{ project: "acme/storefront", iid: 12 },
+	)?.description === "Retries the upload.",
+);
+check(
+	"an inline comment in a note leaves the sentence it interrupted",
+	parseDiscussions([
+		{
+			id: "7f1e2d3c4b5a69788796a5b4c3d2e1f0a9b8c7d6",
+			individual_note: false,
+			notes: [
+				{
+					id: 201,
+					body: "Looks good <!-- after the fix --> to me.",
+					system: false,
+					resolvable: true,
+					resolved: false,
+					author: { username: "grace" },
+				},
+			],
+		},
+	])[0]?.notes[0]?.body === "Looks good to me.",
+);
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 
 if (failures > 0) process.exit(1);

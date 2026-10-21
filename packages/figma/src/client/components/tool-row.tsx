@@ -22,7 +22,6 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { asFigmaPresentation } from "../../shared/meta";
-import { FIGMA_PRESENT_TOOL } from "../conversation/card-definition";
 import { openPanel } from "../sidebar/open";
 
 /** The node a preparing call asked for, as the arguments spell it. */
@@ -50,7 +49,7 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 };
 
 const Row = createToolRow({
-	displayName: () => FIGMA_PRESENT_TOOL,
+	displayName: () => "Figma frame",
 	asked: askedFor,
 	summarize,
 });

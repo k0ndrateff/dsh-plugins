@@ -2,9 +2,10 @@
  * The turn-scoped card behind `checks`.
  *
  * The card itself — its wire name, the Turn-data key it publishes under, and
- * the state machine that collects one run per settled call — belongs to
- * `dsh-integration-ui`; what is devkit's is the payload narrowing and how the
- * card draws itself. Nothing extra is written to the session: the card is
+ * the state machine that collects runs — belongs to `dsh-integration-ui`; what
+ * is devkit's is the payload narrowing, how the card draws itself, and the rule
+ * that one Turn keeps the newest run: a project has one state, and a turn that
+ * ran the checks three times was looking for that state, not for three reports. Nothing extra is written to the session: the card is
  * narrowed from the tool result's persisted `presentationMeta`, which means
  * Session-log replay reproduces it exactly.
  */
@@ -36,6 +37,7 @@ export const checksPresentation = createPresentationType<
 >({
 	turnDataKey: CHECKS_TURN_DATA_KEY,
 	toolName: CHECKS_TOOL_NAME,
+	keep: "last",
 	parse: asChecksCard,
 	card: checksCard,
 });

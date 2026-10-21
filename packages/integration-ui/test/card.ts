@@ -295,6 +295,43 @@ console.log("\n=== two cards in one turn ===");
 	);
 }
 
+console.log("\n=== a card that reports a state, not a thing ===");
+{
+	const latest = createPresentationType<TestCard, "test-presented">({
+		turnDataKey: "test-presented",
+		toolName: "test_present",
+		keep: "last",
+		parse: parseCard,
+		card,
+	});
+	let state = latest.definition.start(startContext(), startEvent(9), reader);
+
+	state = latest.definition.update(
+		context(state),
+		callEvent(9, "c1", "test_present", 3),
+	);
+	state = latest.definition.update(
+		context(state),
+		callEvent(9, "c2", "test_present", 5),
+	);
+	state = latest.definition.update(
+		context(state),
+		resultEvent(9, "c1", CARD, 6),
+	);
+	state = latest.definition.update(
+		context(state),
+		resultEvent(9, "c2", { callId: "c2", items: ["z"] }, 7),
+	);
+
+	check(
+		"the newest run is the one the turn keeps",
+		state.presentations.length === 1 &&
+			state.presentations[0]?.card.callId === "c2" &&
+			state.presentations[0]?.seq === 7,
+		JSON.stringify(state.presentations.map((item) => item.card.callId)),
+	);
+}
+
 console.log("\n=== the card's own drawing rules ===");
 {
 	const presented: PresentedCard<TestCard> = { card: CARD, seq: 4 };

@@ -4,8 +4,9 @@
  * A plugin's host half owns what is its provider's — the profile, the tools,
  * the panel data, the account facts — while this library owns the shell around
  * them: normalizing the endpoint patch, holding the sign-in state, answering
- * the settings route, and running the slash command. `dsh-mcp-oauth` owns the
- * OAuth flow and the MCP connection underneath both.
+ * the settings route, running the slash command, and reading a provider's
+ * markdown the way a reader means it. `dsh-mcp-oauth` owns the OAuth flow and
+ * the MCP connection underneath both.
  */
 
 export {
@@ -36,6 +37,7 @@ export {
 	DigestSources,
 } from "./digest";
 export type { AccountFacts, FactsReader } from "./facts";
+export { stripHtmlComments } from "./markdown";
 export {
 	BadRequest,
 	createIntegrationRoute,

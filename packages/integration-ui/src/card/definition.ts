@@ -72,6 +72,15 @@ export interface PresentationSpec<
 	readonly turnDataKey: K;
 	/** The wire name whose settled result carries one card. */
 	readonly toolName: string;
+	/**
+	 * How many of this kind's cards one Turn keeps.
+	 *
+	 * `all` (the default) is for a card that shows a *thing* the reader asked to
+	 * see: two searches in one Turn are two answers, and each keeps its place.
+	 * `last` is for a card that reports a *state*: a second run supersedes the
+	 * first, and a wall of them buries the one that is current.
+	 */
+	readonly keep?: "all" | "last";
 	/** Narrow one tool result's `meta`. */
 	parse(value: unknown): TCard | undefined;
 	/** How the card draws itself. */
@@ -174,12 +183,14 @@ export const createPresentationType = <
 			const card = spec.parse(match.event.data.meta);
 			if (card === undefined) return context.state;
 
+			const present = { card, seq: match.event.seq };
+
 			return {
 				...context.state,
-				presentations: [
-					...context.state.presentations,
-					{ card, seq: match.event.seq },
-				],
+				presentations:
+					spec.keep === "last"
+						? [present]
+						: [...context.state.presentations, present],
 			};
 		},
 		buildLocationData: (context, scope, previous) => {

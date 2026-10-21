@@ -8,6 +8,7 @@
  * bounded text excerpt, because the server's own words are always truthful.
  */
 
+import { stripHtmlComments } from "dsh-integration-host";
 import { mcpJson, mcpText } from "dsh-mcp-oauth";
 import type {
 	AtlassianMeta,
@@ -340,7 +341,9 @@ class Extractor {
 	 * nodes in order, with a break between the blocks that carry one.
 	 */
 	private plainText = (value: unknown): string | undefined => {
-		if (typeof value === "string") return this.tidy(value);
+		// A markdown field is where a provider's own notes-to-editors hide; the ADF
+		// branch below carries text nodes, which have no comments to remove.
+		if (typeof value === "string") return this.tidy(stripHtmlComments(value));
 
 		const text = this.tidy(this.richText(value, 0));
 

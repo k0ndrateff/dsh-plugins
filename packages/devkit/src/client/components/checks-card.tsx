@@ -61,7 +61,14 @@ const Failure = ({
 	);
 };
 
-/** One check: its line, its failures, and the output nothing parsed. */
+/**
+ * One check: its line, its failures, and — when it did not pass — its output.
+ *
+ * A passing check's log is the length of the command's own chatter, and the
+ * reader came for the recipe's verdict; the log stays in the session for whoever
+ * wants it. A failing check's output is the opposite: it is the part the parser
+ * could not turn into a file and a line, so it is the only place the reason is.
+ */
 const Run = ({
 	run,
 	openFile,
@@ -96,7 +103,7 @@ const Run = ({
 			</ul>
 		)}
 
-		{run.output === undefined ? null : (
+		{run.status === "passed" || run.output === undefined ? null : (
 			<pre className={styles.output}>{run.output}</pre>
 		)}
 	</li>
@@ -105,7 +112,7 @@ const Run = ({
 /** How one run of checks draws itself. */
 export const checksCard: CardProvider<ChecksCard, TurnTailOwner> = {
 	callId: (run) => run.callId,
-	title: () => "checks",
+	title: () => "Project checks",
 	count: (run) => {
 		const passed = run.checks.filter(
 			(check) => check.status === "passed",

@@ -8,7 +8,11 @@
  * It stays deliberately terse. The server's payload is large, and a tool group
  * that reproduces it buries the answer; the cards belong to the integration's
  * own `present` tool, which puts them where the user is actually reading. What
- * this row adds is the count and the query the call resolved.
+ * this row adds is a human label, the count, and the query the call resolved.
+ *
+ * The label is the integration's own words rather than the wire name: a reader
+ * watching the work wants "Project checks", not `checks`. The wire name stays on
+ * the row as its tooltip, which is where somebody debugging a claim looks for it.
  */
 
 import { StateDot } from "@deepseek-ai/dsh-client-ui-primitives";
@@ -29,7 +33,11 @@ export interface ToolRowBlock {
 
 /** What one integration says about its own calls. */
 export interface ToolRowSpec {
-	/** What the row calls the tool, given the name the slot dispatched it under. */
+	/**
+	 * What the row leads with, in the reader's words rather than the wire's.
+	 * @param toolName - the name the slot dispatched the call under, for a
+	 *   provider that draws several tools with one row.
+	 */
 	displayName(toolName: string | undefined): string;
 	/** What a preparing call asked for, from its arguments. */
 	asked?(block: ToolRowBlock | undefined): string | undefined;
@@ -93,7 +101,7 @@ export const blockArgs = (
 
 /**
  * Build the tool row for one integration.
- * @param spec - the integration's name for the tool and what it says about calls.
+ * @param spec - the integration's label for the tool and what it says about calls.
  * @returns the component the plugin registers under each tool name it draws.
  */
 export const createToolRow = (
@@ -104,9 +112,9 @@ export const createToolRow = (
 
 		if (phase !== "result") {
 			return (
-				<div className={styles.toolRow} data-tool={toolName}>
+				<div className={styles.toolRow} data-tool={toolName} title={toolName}>
 					<StateDot state="ongoing" />
-					<span className={styles.toolName}>{name}</span>
+					<span className={styles.toolLabel}>{name}</span>
 					{spec.asked === undefined ? null : (
 						<span className={styles.caption}>{spec.asked(block) ?? "…"}</span>
 					)}
@@ -116,9 +124,9 @@ export const createToolRow = (
 
 		if (block?.isError === true) {
 			return (
-				<div className={styles.toolRow} data-tool={toolName}>
+				<div className={styles.toolRow} data-tool={toolName} title={toolName}>
 					<StateDot state="error" />
-					<span className={styles.toolName}>{name}</span>
+					<span className={styles.toolLabel}>{name}</span>
 					<span className={`${styles.caption} ${styles.error}`}>
 						{resultText(block) || "failed"}
 					</span>
@@ -127,9 +135,9 @@ export const createToolRow = (
 		}
 
 		return (
-			<div className={styles.toolRow} data-tool={toolName}>
+			<div className={styles.toolRow} data-tool={toolName} title={toolName}>
 				<StateDot state={spec.state?.(block) ?? "done"} />
-				<span className={styles.toolName}>{name}</span>
+				<span className={styles.toolLabel}>{name}</span>
 				<span className={styles.caption}>{spec.summarize(block)}</span>
 			</div>
 		);

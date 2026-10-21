@@ -17,6 +17,7 @@ import { createIntegrationCommand } from "../src/command";
 import { resolveEndpointConfig } from "../src/config";
 import { DigestSources } from "../src/digest";
 import type { FactsReader } from "../src/facts";
+import { stripHtmlComments } from "../src/markdown";
 import { createIntegrationRoute, mountIntegrationRoute } from "../src/route";
 import { RuntimeState } from "../src/state";
 import type { IntegrationStatus } from "../src/status";
@@ -732,6 +733,56 @@ console.log("\n=== digest sources ===");
 	);
 	void new FakeDigest(new Context());
 }
+
+console.log("\n=== markdown ===");
+
+check(
+	"a document without a comment is returned as it stands",
+	stripHtmlComments("# Title\n\nBody.") === "# Title\n\nBody.",
+);
+check(
+	"a comment that stood as a paragraph takes its empty lines with it",
+	stripHtmlComments("one\n\n<!-- note -->\n\ntwo") === "one\n\ntwo",
+);
+check(
+	"an inline comment leaves one space where the page renders one",
+	stripHtmlComments("before <!-- note -->after") === "before after",
+);
+check(
+	"a comment between two spaces leaves one of them",
+	stripHtmlComments("one <!-- note --> two") === "one two",
+);
+check(
+	"a comment that spans lines goes whole",
+	stripHtmlComments("a\n<!-- one\ntwo -->\nb") === "a\n\nb",
+);
+check(
+	"a fenced example of a comment is content",
+	stripHtmlComments("```\n<!-- an example -->\n```") ===
+		"```\n<!-- an example -->\n```",
+);
+check(
+	"a tilde fence counts as a fence too",
+	stripHtmlComments("~~~\n<!-- kept -->\n~~~") === "~~~\n<!-- kept -->\n~~~",
+);
+check(
+	"two comments on one line both go",
+	stripHtmlComments("a<!-- one -->b<!-- two -->c") === "abc",
+);
+check(
+	"an unterminated comment swallows what follows it",
+	stripHtmlComments("a\n<!-- b\nc") === "a",
+);
+check(
+	"a line no comment touched keeps the trailing spaces markdown reads",
+	stripHtmlComments("keep my  \n<!-- drop me -->\nafter") ===
+		"keep my  \n\nafter",
+);
+check(
+	"blank lines inside a fence are the example's, not the document's",
+	stripHtmlComments("```\na\n\n\nb\n```\n<!-- gone -->") ===
+		"```\na\n\n\nb\n```",
+);
 
 console.log(`\n${checks - failures}/${checks} checks passed`);
 

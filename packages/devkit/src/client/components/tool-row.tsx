@@ -15,7 +15,6 @@ import {
 	type ToolRowBlock,
 } from "dsh-integration-ui";
 import { asChecksCard, type ChecksCard, checkLabel } from "../../shared/checks";
-import { CHECKS_TOOL_NAME } from "../conversation/card-definition";
 
 /** How many checks the row names before it counts the rest. */
 const NAMED_CHECKS = 3;
@@ -44,7 +43,7 @@ const summarizeCard = (card: ChecksCard): string => {
 
 /** One `checks` call, as a single line. */
 export const ChecksToolRow = createToolRow({
-	displayName: () => CHECKS_TOOL_NAME,
+	displayName: () => "Project checks",
 	asked: askedName,
 	summarize: (block) => {
 		const card = asChecksCard(block?.meta);

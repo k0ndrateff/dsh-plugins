@@ -360,9 +360,15 @@ export const toolRow = style({
 	minHeight: "24px",
 });
 
-export const toolName = style({
-	fontFamily: theme.font.code,
-	fontSize: "12px",
+/**
+ * What one claimed call leads with.
+ *
+ * The integration's own words, in the reading type rather than the code type: a
+ * wire name here would be the only monospace string in a sentence of prose.
+ */
+export const toolLabel = style({
+	fontSize: "13px",
+	lineHeight: "20px",
 	color: theme.color.labelPrimary,
 });
 
@@ -388,6 +394,24 @@ export const panelScroll = style({
 	overflowX: "hidden",
 	fontSize: "13px",
 	lineHeight: "20px",
+});
+
+/**
+ * The panel's own loading state.
+ *
+ * The harness's spinner and shimmer, centred in the room the answer will take: a
+ * line of grey text at the top of an empty pane reads as a page that failed
+ * rather than one that is still coming.
+ */
+export const panelLoading = style({
+	display: "flex",
+	flex: "1 1 auto",
+	alignItems: "center",
+	justifyContent: "center",
+	gap: "10px",
+	minHeight: "120px",
+	fontSize: "13px",
+	color: theme.color.labelTertiary,
 });
 
 export const panelHead = style({

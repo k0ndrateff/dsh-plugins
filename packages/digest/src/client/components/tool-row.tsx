@@ -9,7 +9,6 @@
 
 import { createToolRow, type ToolRowBlock } from "dsh-integration-ui";
 import { asDigestReport } from "../../shared/digest";
-import { DIGEST_TOOL_NAME } from "../conversation/card-definition";
 
 /** One short phrase describing what a settled call assembled. */
 const summarize = (block: ToolRowBlock | undefined): string => {
@@ -36,6 +35,6 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 
 /** One `digest` call, as a single line. */
 export const DigestToolRow = createToolRow({
-	displayName: () => DIGEST_TOOL_NAME,
+	displayName: () => "Daily digest",
 	summarize,
 });
