@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "Sentry",
-		"description": "Sentry for DeepSeek Harness: OAuth sign-in and the tools of Sentry's MCP server"
+		"description": "Sentry errors in DeepSeek Harness: search them, read one with its stack trace, and resolve, ignore or assign it."
 	}
 }

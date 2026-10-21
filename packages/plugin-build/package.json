@@ -2,7 +2,7 @@
 	"name": "dsh-plugin-build",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "The build every DSH plugin in this repository runs: both halves, the inlined stylesheet, and the workspace libraries bundled from source",
+	"description": "The build every plugin of k0ndrateff/dsh-plugins runs \u2014 a library, not a plugin",
 	"license": "MIT",
 	"main": "src/build.mjs",
 	"exports": {

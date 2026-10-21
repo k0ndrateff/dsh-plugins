@@ -34,6 +34,9 @@ Or install one bundle straight from npm:
 dsh plugin --profile <profile> add dsh-sentry-plugin
 ```
 
+> [!WARNING]
+> All plugins are in **active development**. Each version may contain **breaking changes**, be **unstable**, or have **security vulnerabilities**. Use them **at your own risk**.
+
 ## Packages
 
 | Package | What it is |

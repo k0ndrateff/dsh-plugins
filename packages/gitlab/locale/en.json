@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "GitLab",
-		"description": "GitLab for DeepSeek Harness: OAuth sign-in and the tools of GitLab's MCP server"
+		"description": "Merge requests, review threads and pipelines in DeepSeek Harness, over GitLab's REST API with a personal access token."
 	}
 }

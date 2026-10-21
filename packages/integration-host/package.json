@@ -2,7 +2,7 @@
 	"name": "dsh-integration-host",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "The host-half shell every integration plugin shares: endpoint configuration, sign-in state, the settings route, and the slash command",
+	"description": "The host-half shell the integrations of k0ndrateff/dsh-plugins share \u2014 a library, not a plugin",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",

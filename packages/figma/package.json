@@ -2,7 +2,7 @@
 	"name": "dsh-figma-plugin",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "Figma for DeepSeek Harness: a frame, its tokens and its Code Connect mapping in one panel",
+	"description": "Figma for DeepSeek Harness: a frame, its variables and its Code Connect mapping, from the local Dev Mode MCP server",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"icon": "./icon.svg",

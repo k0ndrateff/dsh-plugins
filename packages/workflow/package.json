@@ -2,7 +2,7 @@
 	"name": "dsh-workflow-plugin",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "Every DeepSeek Harness plugin in this repository behind one bundle: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks",
+	"description": "Every plugin of the collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks",
 	"license": "MIT",
 	"icon": "./icon.svg",
 	"exports": {

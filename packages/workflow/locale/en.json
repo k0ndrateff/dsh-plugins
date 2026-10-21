@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "All plugins",
-		"description": "Every plugin of this repository behind one bundle: Jira and Confluence, Sentry, GitLab, Figma, the daily digest, cross-provider correlation, the Integrations page and project checks."
+		"description": "Every plugin of the collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks."
 	}
 }

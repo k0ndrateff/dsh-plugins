@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "Atlassian (Jira & Confluence)",
-		"description": "Sign in to Atlassian and use the tools of Atlassian's MCP server: search and read Jira issues, and find Confluence pages."
+		"description": "Jira and Confluence in DeepSeek Harness: search, read and create issues, and read pages, through Atlassian's own tools."
 	}
 }

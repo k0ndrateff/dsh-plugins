@@ -1,6 +1,6 @@
 {
 	"meta": {
 		"title": "Figma",
-		"description": "Figma for DeepSeek Harness: a frame, its tokens and its Code Connect mapping in one panel"
+		"description": "A design frame, its variables and its Code Connect mapping in DeepSeek Harness, from the local Figma Dev Mode server."
 	}
 }

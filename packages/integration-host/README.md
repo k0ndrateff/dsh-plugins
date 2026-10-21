@@ -1,10 +1,21 @@
 # dsh-integration-host
 
-The host-half shell every integration plugin here shares: normalizing the endpoint
-patch, holding the sign-in state and the operations that change it, answering the
-settings route, running the slash command, and owning the two registries
-integrations contribute to. A plugin supplies its provider profile, how its server
-names the account, and the paths its own panel uses.
+The host-half shell that the integration plugins of
+**[DeepSeek Harness Plugins](https://github.com/k0ndrateff/dsh-plugins)** share:
+normalizing the endpoint patch, holding the sign-in state, answering a settings
+route, running a slash command, and owning the registries an integration
+contributes to.
+
+Part of DeepSeek Harness Plugins by [@k0ndrateff](https://github.com/k0ndrateff) —
+Jira, Confluence, Sentry, GitLab and Figma integrations for
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
+a cross-provider correlation and project checks built on top of them.
+
+**This is a library, not a plugin.** It exists so a provider plugin writes only
+what is its own; nothing appears in the app by installing it, and it is already
+bundled into every plugin that uses it.
+
+## Entries
 
 | Entry | What it is |
 |---|---|
@@ -13,8 +24,8 @@ names the account, and the paths its own panel uses.
 | `dsh-integration-host/correlation` | the fact-and-reference contract, and the registry |
 | `dsh-integration-host/status` | the status document a browser half reads |
 
-The entries exist because a browser half must not pull node code into its program:
-it reads a contract, which is client-safe on its own.
+The separate entries exist because a browser half must not pull node code into its
+program: it reads a contract, which is client-safe on its own.
 
-Used by Atlassian, Sentry, GitLab, Figma, devkit, the digest plugin and the
-correlation plugin.
+Used by the Atlassian, Sentry, GitLab, Figma, devkit, digest and correlation
+plugins.

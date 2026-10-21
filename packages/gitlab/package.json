@@ -2,7 +2,7 @@
 	"name": "dsh-gitlab-plugin",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "GitLab for DeepSeek Harness: OAuth sign-in and the tools of GitLab's MCP server",
+	"description": "Merge requests, review threads and pipelines for DeepSeek Harness, over GitLab's REST API with a personal access token",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"icon": "./icon.svg",

@@ -1,10 +1,19 @@
 # dsh-devkit-plugin
 
-A project's own lint, typecheck, test and build commands as one tool for DeepSeek
-Harness.
+A project's own lint, typecheck, test and build commands as one tool inside DeepSeek
+Harness, so the agent names a recipe instead of filling the conversation with shell
+output.
 
-Recipes live in `dsh-checks.json` at the project root, so the repository owns the
-command and the agent only names it:
+Part of **[DeepSeek Harness Plugins](https://github.com/k0ndrateff/dsh-plugins)**
+by [@k0ndrateff](https://github.com/k0ndrateff) — Jira, Confluence, Sentry, GitLab
+and Figma integrations for
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
+a cross-provider correlation and project checks built on top of them. Everything is
+in the [market index](https://k0ndrateff.github.io/dsh-plugins/market.json) and
+listed in the [collection README](https://github.com/k0ndrateff/dsh-plugins#packages).
+
+The recipes belong to the project, not to the agent: they live in `dsh-checks.json`
+at the project root, and the tool never accepts a command line.
 
 ```json
 {
@@ -15,9 +24,10 @@ command and the agent only names it:
 }
 ```
 
-- `checks` runs every recipe in config order; `checks test` runs one. A command
-  line is never accepted — that is what `bash` is for — and an unknown name comes
-  back with the ones the project has.
+## What you get
+
+- `checks` runs every recipe in config order; `checks test` runs one. An unknown
+  name comes back with the ones the project has.
 - One terse line per call, then a card under the answer carrying every check with
   its counts, its duration and its failures. A failure row is a `file:line` that
   opens that file in the harness's own panel.
@@ -27,5 +37,5 @@ command and the agent only names it:
   `package.json` without writing a file.
 
 Nothing is written to the project, and each recipe runs through the harness's own
-shell seam, so the same sandbox and environment rules as `bash` apply. A recipe
-may set its own `timeoutMs`; the default is ten minutes.
+shell seam, so the same sandbox and environment rules as `bash` apply. A recipe may
+set its own `timeoutMs`; the default is ten minutes.

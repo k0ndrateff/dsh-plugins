@@ -2,7 +2,7 @@
 	"name": "dsh-sentry-plugin",
 	"version": "0.1.3",
 	"type": "module",
-	"description": "Sentry for DeepSeek Harness: OAuth sign-in and the tools of Sentry's MCP server",
+	"description": "Sentry for DeepSeek Harness: the tools of Sentry's MCP server, a result card, and an issue panel with resolve, ignore and assign",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"icon": "./icon.svg",
