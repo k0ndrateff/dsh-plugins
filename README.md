@@ -1,4 +1,6 @@
-# dsh-plugins
+# DeepSeek Harness Plugins
+
+![Promo decorative illustration](./promo.png)
 
 Plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 Each one gives the agent a provider's tools and draws what it finds as cards and
