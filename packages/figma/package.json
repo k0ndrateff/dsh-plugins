@@ -1,6 +1,6 @@
 {
 	"name": "dsh-figma-plugin",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"type": "module",
 	"description": "Figma for DeepSeek Harness: a frame, its tokens and its Code Connect mapping in one panel",
 	"license": "MIT",
@@ -54,10 +54,10 @@
 		"@deepseek-ai/dsh-tools": "0.2.1-rc.2"
 	},
 	"devDependencies": {
-		"dsh-integration-host": "^0.1.2",
-		"dsh-integration-ui": "^0.1.2",
-		"dsh-mcp-oauth": "^0.1.2",
-		"dsh-plugin-build": "^0.1.2"
+		"dsh-integration-host": "^0.1.3",
+		"dsh-integration-ui": "^0.1.3",
+		"dsh-mcp-oauth": "^0.1.3",
+		"dsh-plugin-build": "^0.1.3"
 	},
 	"publishConfig": {
 		"access": "public"
