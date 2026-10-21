@@ -15,6 +15,7 @@ import type { AuthorizationFlow, GrantStore, McpBridge } from "dsh-mcp-oauth";
 import { IntegrationAuth } from "../src/auth";
 import { createIntegrationCommand } from "../src/command";
 import { resolveEndpointConfig } from "../src/config";
+import { DigestSources } from "../src/digest";
 import type { FactsReader } from "../src/facts";
 import { createIntegrationRoute, mountIntegrationRoute } from "../src/route";
 import { RuntimeState } from "../src/state";
@@ -591,6 +592,145 @@ console.log("\n=== mounting the route ===");
 		!server.mounted.includes("/dsh-early"),
 		server.mounted.join(", "),
 	);
+}
+
+console.log("\n=== digest sources ===");
+{
+	/** A digest plugin that provides the registry its sources register into. */
+	class FakeDigest extends Service {
+		constructor(ctx: Context) {
+			super(ctx, "digestSources" as never);
+		}
+
+		// The real plugin is DigestSources; this only stands in for its lifetime.
+		readonly registry = new DigestSources(new Context());
+	}
+
+	const context = new Context();
+
+	// The failing order, and the one a deployment actually has: an integration
+	// loads before the digest plugin does. A registration that merely read
+	// `ctx.get("digestSources")` would be lost here.
+	const provider = context.inject(["digestSources"], (scoped) => {
+		scoped.effect(
+			() =>
+				scoped.digestSources.register({
+					provider: "Atlassian",
+					blocks: [
+						{ id: "jira-active", title: "Jira · In progress", defaultOn: true },
+					],
+					load: async () => [{ id: "DEV-1", title: "DEV-1 · Fix it" }],
+				}),
+			"provider: digest source",
+		);
+	});
+
+	await provider;
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"a provider that loads first waits instead of failing",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"digestSources",
+		) === undefined,
+	);
+
+	let sources: DigestSources | undefined;
+	const digest = context.plugin({
+		apply: (inner: Context) => {
+			sources = new DigestSources(inner);
+		},
+	});
+
+	await digest;
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"the registry arrives under its own name",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"digestSources",
+		) !== undefined,
+	);
+	check(
+		"and the waiting provider's block is now on offer",
+		sources?.blocks.length === 1 &&
+			sources.blocks[0]?.provider === "Atlassian" &&
+			sources.blocks[0]?.defaultOn === true,
+		JSON.stringify(sources?.blocks),
+	);
+	check("its provider is named", sources?.providers.join(",") === "Atlassian");
+
+	check(
+		"loading reaches the owning provider",
+		(await sources?.load("jira-active", { since: new Date(0), limit: 5 }))?.[0]
+			?.id === "DEV-1",
+	);
+
+	sources?.register({
+		provider: "Sentry",
+		blocks: [
+			{ id: "sentry-errors", title: "Sentry · New errors", defaultOn: true },
+		],
+		load: async () => [],
+	});
+
+	check(
+		"a second provider's blocks follow the first's",
+		sources?.blocks.map((block) => block.id).join(",") ===
+			"jira-active,sentry-errors",
+		sources?.blocks.map((block) => block.id).join(","),
+	);
+
+	const clash = (() => {
+		try {
+			sources?.register({
+				provider: "Impostor",
+				blocks: [{ id: "jira-active", title: "Mine", defaultOn: true }],
+				load: async () => [],
+			});
+
+			return "";
+		} catch (error) {
+			return (error as Error).message;
+		}
+	})();
+
+	check(
+		"a block id can only have one owner",
+		clash.includes("already registered"),
+		clash,
+	);
+
+	const missing = await sources
+		?.load("nobody-owns-this", { since: new Date(0), limit: 5 })
+		.then(() => "")
+		.catch((error: unknown) => (error as Error).message);
+
+	check(
+		"loading an unowned block is an error",
+		(missing ?? "").includes("no digest source"),
+		missing ?? "",
+	);
+
+	await provider.dispose();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"a withdrawn provider takes its block with it",
+		sources?.providers.join(",") === "Sentry",
+		sources?.providers.join(","),
+	);
+
+	await digest.dispose();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+
+	check(
+		"and the registry leaves with the digest plugin",
+		(context as unknown as { get: (name: string) => unknown }).get(
+			"digestSources",
+		) === undefined,
+	);
+	void new FakeDigest(new Context());
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

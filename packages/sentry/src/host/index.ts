@@ -40,6 +40,7 @@ import {
 	sentryProfile,
 } from "./config";
 import { PanelApi } from "./panels/panel";
+import { registerDigestSource } from "./digest";
 import type { OrganizationFacts } from "./store/organization";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
@@ -78,6 +79,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		OrganizationFacts
 	>({ ctx, config, state, store, flow, bridge, spec: sentryAuthSpec });
 	const panel = new PanelApi({ bridge, state });
+
+	// The digest plugin, when it is installed, composes this plugin's error block
+	// into its card; nothing is read until a digest actually asks.
+	registerDigestSource(ctx, { bridge, state });
 
 	// Registering the flow tells the harness this credential can be authorized,
 	// and routes each attempt's notices to whoever started it.

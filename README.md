@@ -1,7 +1,7 @@
 # dsh-plugins
 
-DeepSeek Harness plugins: Jira and Confluence, Sentry, GitLab and Figma today,
-with the digest next. One plugin gives the agent the tools of a provider, connects
+DeepSeek Harness plugins: Jira and Confluence, Sentry, GitLab, Figma, and a daily
+digest across them. One plugin gives the agent the tools of a provider, connects
 it however that provider allows — an OAuth flow, a personal access token the user
 pastes, or no credential at all for a server on the same machine — and draws what
 it finds as cards and panels in the Web Client instead of raw JSON. The OAuth half
@@ -17,6 +17,7 @@ Built and verified against DSH `0.2.1-rc.2`.
 | [`packages/sentry`](packages/sentry) | `dsh-sentry-plugin` — Sentry errors, with a card and a panel |
 | [`packages/gitlab`](packages/gitlab) | `dsh-gitlab-plugin` — merge requests, review threads and pipelines |
 | [`packages/figma`](packages/figma) | `dsh-figma-plugin` — a frame, its variables and its Code Connect mapping |
+| [`packages/digest`](packages/digest) | `dsh-digest-plugin` — one read-only daily digest across the integrations above |
 | [`packages/devkit`](packages/devkit) | `dsh-devkit-plugin` — the project's own lint, typecheck, test and build recipes |
 | [`packages/mcp-oauth`](packages/mcp-oauth) | `dsh-mcp-oauth` — OAuth for MCP servers, and the authenticated bridge (a library, no bundle) |
 | [`packages/integration-host`](packages/integration-host) | `dsh-integration-host` — the host-half shell every integration shares: endpoint patch, sign-in state, settings route, slash command (a library) |
@@ -214,6 +215,46 @@ own `/dsh-figma/screenshot` route rather than through the document. All of it is
 pinned twice: `test/readers.ts` against recorded shapes, and `test/dry-run.ts`
 against the running desktop app — the latter skips when it is not running.
 
+## Digest
+
+The sixth bundle is a *meta* one: it owns no provider and no credential, and it
+never writes to an external system. It asks the integrations you already have
+connected for the work that is waiting for you and lays the answers out as one
+card — Jira issues in flight and overdue, Jira work assigned but not started,
+merge requests waiting for your review, your own merge requests, new Sentry
+errors, and (off by default) CodeRabbit's review notes.
+
+The seam is a registry, not an import. `dsh-integration-host` declares what a
+digest source is, `dsh-digest-plugin` provides the registry as `ctx.digestSources`,
+and Atlassian, Sentry and GitLab each offer their blocks through a scoped
+`ctx.inject` — so a deployment without the digest plugin simply never calls them,
+and no plugin reaches into another's code. Each block's heading and its default
+switch travel with the provider that owns it, which is why the settings card is
+drawn from whatever is installed rather than from a list kept in one place.
+
+- **The `digest` tool.** It takes no arguments: what a digest contains is the
+  user's saved configuration, because a digest that changed shape every morning
+  would be the one thing a digest must not be. It answers the model with text and
+  the person with a card of blocks — each with its own heading, its own rows, or
+  its own reason for being empty. "Nothing is waiting for your review" and
+  "GitLab is not connected" are different lines, and the card never merges them.
+- **A **Daily digest** section in Settings** — the blocks, the days of the week,
+  the local time, the time zone and the row cap, plus **Show now**, which
+  assembles one immediately and shows it in place so you can see what you are
+  about to schedule.
+- **`/digest`** — `now` assembles one; `on` and `off` bind and release the
+  reminder **for the session they are typed in**; `time 09:30`, `timezone
+  Europe/Moscow`, `days mon,tue,wed,thu,fri` and `blocks <id> on|off` change the
+  same settings the card writes, and re-time every reminder that already exists.
+- **The reminder is the harness's own.** Delivery goes through `ctx.schedule`, so
+  the digest arrives in the session that asked for it, and a week away produces
+  one digest rather than five — that is the schedule service's own behaviour.
+
+Nothing about it is a model call: the collector reads the providers, and one
+block failing is that block's `unavailable` line rather than a failed digest.
+The one thing it does not do yet is the optional introductory sentence from the
+model; [docs/roadmap.md](docs/roadmap.md) records why.
+
 ## Configuration
 
 The Atlassian bundle's patch inserts one row with defaults; override the row from
@@ -271,7 +312,33 @@ Disable any plugin without uninstalling it:
   disabled: true
 - id: figma
   disabled: true
+- id: digest
+  disabled: true
 ```
+
+The digest bundle takes no configuration of its own. What a digest contains and
+when it arrives are *settings*, not deployment facts: they live in
+`$DSH_HOME/digest/settings.json`, written by the settings card and by `/digest`,
+and the file is read forgivingly — a hand-edited typo falls back to its default
+rather than taking the plugin down.
+
+```json
+{
+  "time": "09:00",
+  "days": [1, 2, 3, 4, 5],
+  "timeZone": "Europe/Moscow",
+  "blocks": { "coderabbit": true },
+  "limit": 10
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `time` | `09:00` | Local wall-clock time the digest is delivered |
+| `days` | Monday–Friday | JS weekday numbers, `0` = Sunday; all seven becomes a daily rule, anything narrower a weekly one |
+| `timeZone` | the machine's zone | The IANA zone `time` is read in |
+| `blocks` | each provider's own default | Saved switches by block id; a block with no entry keeps its default |
+| `limit` | `10` | Rows one block may contribute (5, 10, 15 or 25) |
 
 The devkit bundle takes no configuration of its own: what it runs is the
 project's, and that lives in the project.
@@ -354,3 +421,24 @@ project's, and that lives in the project.
 - **The card's copy is English and not routed through the client locale
   service**, which is registered per namespace at build time in TypeScript. The
   facts on a card are whatever the site says, in the site's own language.
+- **A digest block looks back one day.** The window is 24 hours whatever the
+  delivery cadence, so a weekly digest reports the last day rather than the last
+  week; the block's own heading says "in the last 24 hours" instead of implying
+  otherwise.
+- **The digest's reminder belongs to a session.** The harness stores reminders
+  against the session that created them, so `/digest on` binds one where you type
+  it — the settings card configures *what* and *when* but has no session to bind
+  to, and says so.
+- **CodeRabbit's block matches on the note's author.** GitLab's list endpoints do
+  not expose review comments, so the block reads the discussions of the user's
+  most recently updated merge requests and keeps the notes whose author name
+  matches `coderabbit`. It is off by default, and its rows link to the note.
+- **The digest has no model-written introduction yet.** The roadmap's optional
+  "вводная фраза от модели" would need a model route the host half can call
+  outside a turn; the collector is deliberately deterministic until that exists.
+- **A digest does not correlate across providers.** "This Sentry error came from
+  that merge request" is the next milestone, not this one: today a block reports
+  what one provider answered.
+- **The digest's `/dsh-digest` route is unauthenticated** like the other
+  integrations' routes: loopback-only, but any local process can read the
+  settings, change them, or assemble a digest. It cannot write anywhere.

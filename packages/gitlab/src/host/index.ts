@@ -29,6 +29,7 @@ import type { GitLabAccount } from "./account";
 import { GitLabApi } from "./api";
 import { GitLabAuth } from "./auth";
 import { type ConfigInput, PLUGIN_NAME, resolveConfig } from "./config";
+import { registerDigestSource } from "./digest";
 import { PanelApi } from "./panels/panel";
 import { ReviewService } from "./review";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
@@ -56,6 +57,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const auth = new GitLabAuth({ ctx, config, api, token, state });
 	const panel = new PanelApi({ api, state });
 	const review = new ReviewService(api);
+
+	// The digest plugin, when it is installed, composes this plugin's merge
+	// request and review blocks into its card; nothing is read until asked.
+	registerDigestSource(ctx, { api, state });
 
 	// The command registration belongs to this plugin's Cordis fiber, so it is
 	// withdrawn with the plugin.

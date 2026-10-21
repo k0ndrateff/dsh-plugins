@@ -12,6 +12,10 @@
 			"types": "./lib/index.d.ts",
 			"default": "./lib/index.js"
 		},
+		"./digest": {
+			"types": "./lib/digest.d.ts",
+			"default": "./lib/digest.js"
+		},
 		"./status": {
 			"types": "./lib/status.d.ts",
 			"default": "./lib/status.js"

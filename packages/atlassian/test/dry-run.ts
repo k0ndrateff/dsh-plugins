@@ -53,6 +53,7 @@ const registered = {
 	commands: [] as unknown[],
 	flows: [] as unknown[],
 	routes: [] as unknown[],
+	digestSources: [] as { blocks: { id: string }[] }[],
 };
 
 /**
@@ -151,7 +152,22 @@ function fakeContext(): Context {
 				: undefined,
 		// The route waits for this service; the fake answers as the harness does
 		// once it is there, which is what a dry-run cares about.
-		inject: (_deps: readonly string[], callback: (scoped: unknown) => void) => {
+		inject: (deps: readonly string[], callback: (scoped: unknown) => void) => {
+			if (deps.includes("digestSources")) {
+				callback({
+					...fake,
+					digestSources: {
+						register: (source: { blocks: { id: string }[] }) => {
+							registered.digestSources.push(source);
+
+							return () => {};
+						},
+					},
+				});
+
+				return () => {};
+			}
+
 			callback(fake);
 
 			return () => {};
@@ -264,6 +280,16 @@ check(
 	registered.commands.length === 1,
 );
 check("apply registers the loopback API route", registered.routes.length === 1);
+check(
+	"apply offers the digest its Jira blocks",
+	registered.digestSources.length === 1 &&
+		registered.digestSources[0]?.blocks
+			.map((block) => block.id)
+			.join(",") === "jira-active,jira-queued",
+	registered.digestSources
+		.flatMap((source) => source.blocks.map((block) => block.id))
+		.join(","),
+);
 
 // A grant read back from the store is plain JSON, not a class instance: this is
 // the shape the credential store hands to every caller, so it must still work.

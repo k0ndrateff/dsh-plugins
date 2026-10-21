@@ -41,6 +41,7 @@ import {
 } from "./config";
 import { PanelApi } from "./panels/panel";
 import { extractor } from "./presentation/extract";
+import { registerDigestSource } from "./digest";
 import type { SiteFacts } from "./store/site";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
@@ -93,6 +94,10 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		SiteFacts
 	>({ ctx, config, state, store, flow, bridge, spec: atlassianAuthSpec });
 	const panel = new PanelApi({ bridge, state });
+
+	// The digest plugin, when it is installed, composes this plugin's Jira blocks
+	// into its card; nothing is read until a digest actually asks.
+	registerDigestSource(ctx, { bridge, state });
 
 	// Registering the flow tells the harness this credential can be authorized,
 	// and routes each attempt's notices to whoever started it.
