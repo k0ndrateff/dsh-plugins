@@ -1,13 +1,10 @@
-# Publish the plugin market index to GitHub Pages.
+# The market index is served by GitHub Pages from `docs/` on the default branch,
+# so the committed file *is* the site. This workflow only checks that it still
+# describes the packages: a version bumped without a `bun run market` would
+# otherwise publish an index pointing at a release that does not exist.
 #
-# The index is generated, never hand-edited: `docs/market.json` in the tree is a
-# snapshot of the same run, and this workflow regenerates it so the served
-# document follows the versions that are actually on npm. Nothing is committed
-# back — the artifact is the site.
-#
-# Pages must be set to "GitHub Actions" as its source; the site then answers at
-# https://<owner>.github.io/<repository>/market.json, which is the URL
-# `scripts/market/catalog.mjs` hands the validator.
+# Pages must be set to "Deploy from a branch" → `main` / `docs` and nothing else;
+# there is no deployment here to conflict with it.
 name: market
 
 on:
@@ -16,36 +13,28 @@ on:
     paths:
       - "packages/**"
       - "scripts/market/**"
+      - "docs/market.json"
       - ".github/workflows/market.yml"
+  pull_request:
+    paths:
+      - "packages/**"
+      - "scripts/market/**"
+      - "docs/market.json"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A publish time for a version the registry does not know yet comes from
+          # the commit that wrote the package, so the check needs the history
+          # rather than the tip.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run market
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      - run: bun run market --check
