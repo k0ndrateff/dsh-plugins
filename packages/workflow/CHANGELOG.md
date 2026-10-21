@@ -1,5 +1,11 @@
 # dsh-workflow-plugin
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated title and description of the plugin.
+
 ## 0.1.4
 
 ### Patch Changes

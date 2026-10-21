@@ -359,8 +359,8 @@
 		},
 		{
 			"name": "dsh-workflow-plugin",
-			"title": "All plugins",
-			"description": "Every plugin of the collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks.",
+			"title": "All k0ndrateff’s plugins",
+			"description": "Every plugin of the k0ndrateff’s collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks.",
 			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJBbGwgcGx1Z2lucyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB4PSI2IiB5PSI2IiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHJ4PSIyLjYiIHN0cm9rZT0idXJsKCNkc2gtd29ya2Zsb3ctYSkiIHN0cm9rZS13aWR0aD0iMi42Ii8+CiAgPHJlY3QgeD0iMjAiIHk9IjYiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgcng9IjIuNiIgc3Ryb2tlPSJ1cmwoI2RzaC13b3JrZmxvdy1hKSIgc3Ryb2tlLXdpZHRoPSIyLjYiLz4KICA8cmVjdCB4PSI2IiB5PSIyMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiByeD0iMi42IiBzdHJva2U9InVybCgjZHNoLXdvcmtmbG93LWEpIiBzdHJva2Utd2lkdGg9IjIuNiIvPgogIDxyZWN0IHg9IjIwIiB5PSIyMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiByeD0iMi42IiBzdHJva2U9InVybCgjZHNoLXdvcmtmbG93LWEpIiBzdHJva2Utd2lkdGg9IjIuNiIvPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJkc2gtd29ya2Zsb3ctYSIgeDE9IjYiIHkxPSI2IiB4Mj0iMzAiIHkyPSIzMCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBzdG9wLWNvbG9yPSIjNjdDN0ZFIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzNGNzdEOCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+Cjwvc3ZnPgo=",
 			"author": "k0ndrateff",
 			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/workflow#readme",
@@ -381,8 +381,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.1.4",
-					"publishTimestamp": 1792619703,
+					"version": "0.1.5",
+					"publishTimestamp": 1792619609,
 					"source": {
 						"type": "npm"
 					},

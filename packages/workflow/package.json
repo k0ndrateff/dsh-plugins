@@ -1,6 +1,6 @@
 {
 	"name": "dsh-workflow-plugin",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"type": "module",
 	"description": "Every plugin of the collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks",
 	"license": "MIT",
