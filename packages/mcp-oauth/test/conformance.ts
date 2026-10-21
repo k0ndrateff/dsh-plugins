@@ -44,6 +44,18 @@ const rateLimited = (reason: string): boolean =>
 /** The name a consent screen shows for a conformance client. */
 const CLIENT_NAME = "DeepSeek Harness conformance";
 
+/** How many times a just-registered client is asked for before it is called refused. */
+const PROPAGATION_ATTEMPTS = 4;
+
+/** How long to wait between those asks. */
+const PROPAGATION_WAIT_MS = 2_000;
+
+/** Wait without holding the process open. */
+const wait = (ms: number): Promise<void> =>
+	new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+
 let failures = 0;
 let checks = 0;
 
@@ -196,6 +208,11 @@ async function tokenError(
  * for the registered one means anything. A server that validates the grant
  * first — Atlassian's second generation does — answers the same way for both,
  * and then the authorize endpoint is what proves the client is usable.
+ *
+ * A server that does refuse the unknown client can also refuse a client it has
+ * just registered: token endpoints do not always know about a registration the
+ * moment they answered it. That is indistinguishable from a real refusal except
+ * by asking again a little later, so this waits before it concludes.
  */
 async function checkClientAccepted(
 	oauth: OAuthServer,
@@ -205,20 +222,32 @@ async function checkClientAccepted(
 	>,
 	label = "the registered client is accepted at the token endpoint",
 ): Promise<void> {
-	const accepted = await tokenError(oauth, client);
 	const unknown = await tokenError(oauth, {
 		...client,
 		clientId: "conformance-unknown-client",
 	});
+	let accepted = await tokenError(oauth, client);
 
-	if (unknown === "invalid_client")
-		check(label, accepted !== "invalid_client", String(accepted));
-	else
+	if (unknown !== "invalid_client") {
 		check(
 			"the token endpoint validates the grant before the client, as recorded",
 			accepted === unknown,
 			`registered: ${String(accepted)}, unknown: ${String(unknown)}`,
 		);
+
+		return;
+	}
+
+	for (
+		let attempt = 1;
+		attempt < PROPAGATION_ATTEMPTS && accepted === "invalid_client";
+		attempt += 1
+	) {
+		await wait(PROPAGATION_WAIT_MS);
+		accepted = await tokenError(oauth, client);
+	}
+
+	check(label, accepted !== "invalid_client", String(accepted));
 }
 
 /** Register a client asking for one method, whatever the server prefers. */
