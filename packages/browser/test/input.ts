@@ -12,7 +12,7 @@
 import {
 	buttonOf,
 	modifiersOf,
-	viewportPointOf,
+	pagePointOf,
 } from "../src/client/sidebar/input";
 import { readPanelInput } from "../src/host/panel/input";
 import { humanLineOf, wireMessagesOf } from "../src/host/stream/input";
@@ -303,38 +303,82 @@ check(
 );
 
 section("where a click lands in the page");
-const pictureBox = { left: 16, top: 100, width: 400, height: 300 };
-const page = { width: 1_280, height: 720 };
-const middle = viewportPointOf(
-	{ clientX: 16 + 200, clientY: 100 + 150 },
+const pictureBox = { left: 16, top: 100, width: 400, height: 198 };
+const desktopPicture = { naturalWidth: 1_280, naturalHeight: 633 };
+const desktopPage = { width: 1_280, height: 633 };
+const middle = pagePointOf(
+	{ clientX: 16 + 200, clientY: 100 + 99 },
 	pictureBox,
-	page,
+	desktopPicture,
+	desktopPage,
 );
 check(
 	"the middle of the picture is the middle of the page",
-	middle?.x === 640 && middle?.y === 360,
-);
-const corner = viewportPointOf({ clientX: 16, clientY: 100 }, pictureBox, page);
-check("the corner is the corner", corner?.x === 0 && corner?.y === 0);
-const outside = viewportPointOf({ clientX: 0, clientY: 0 }, pictureBox, page);
-check(
-	"a point outside the picture is its edge, not a drop",
-	outside?.x === 0 && outside?.y === 0,
+	middle !== undefined &&
+		Math.abs(middle.x - 640) <= 2 &&
+		Math.abs(middle.y - 316) <= 2,
 );
 check(
-	"a picture with no size measures nothing",
-	viewportPointOf(
+	"the corner is the corner",
+	pagePointOf(
+		{ clientX: 16, clientY: 100 },
+		pictureBox,
+		desktopPicture,
+		desktopPage,
+	)?.x === 0,
+);
+check(
+	"a picture that decoded to nothing measures nothing",
+	pagePointOf(
 		{ clientX: 1, clientY: 1 },
-		{ left: 0, top: 0, width: 0, height: 0 },
-		page,
+		pictureBox,
+		{ naturalWidth: 0, naturalHeight: 0 },
+		desktopPage,
 	) === undefined,
 );
 check(
 	"and neither does a page with no size",
-	viewportPointOf({ clientX: 1, clientY: 1 }, pictureBox, {
+	pagePointOf({ clientX: 1, clientY: 1 }, pictureBox, desktopPicture, {
 		width: 0,
 		height: 0,
 	}) === undefined,
+);
+
+// A phone viewport inside a desktop window: the page is 390x844, the picture is
+// 474x800 because the page was fitted into the window's surface and the leftover
+// sits beside it.
+const phonePicture = { naturalWidth: 474, naturalHeight: 800 };
+const phonePage = { width: 390, height: 844 };
+const phoneBox = { left: 0, top: 0, width: 474, height: 800 };
+const aimedAtButton = pagePointOf(
+	{ clientX: 184, clientY: 536 },
+	phoneBox,
+	phonePicture,
+	phonePage,
+);
+check(
+	"a fitted page is measured by the factor the fit used",
+	aimedAtButton !== undefined &&
+		Math.abs(aimedAtButton.x - 194) <= 1 &&
+		Math.abs(aimedAtButton.y - 565) <= 2,
+);
+check(
+	"the strip beside the page is not the page",
+	pagePointOf(
+		{ clientX: 430, clientY: 300 },
+		phoneBox,
+		phonePicture,
+		phonePage,
+	) === undefined,
+);
+check(
+	"and a point above the picture is not either",
+	pagePointOf(
+		{ clientX: 10, clientY: -4 },
+		{ ...phoneBox, top: 0 },
+		phonePicture,
+		phonePage,
+	) === undefined,
 );
 check(
 	"the right and middle buttons keep their names",

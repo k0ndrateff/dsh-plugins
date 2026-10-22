@@ -48,6 +48,7 @@ const LABELS: Readonly<Record<string, string>> = {
 	close: "Closed the browser",
 	tab: "Changed tabs",
 	network: "Checked the network",
+	viewport: "Resized the page",
 };
 
 /**

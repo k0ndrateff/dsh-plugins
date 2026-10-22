@@ -17,6 +17,7 @@ import {
 } from "../src/host/stream/events";
 import { parseStreamStatus } from "../src/host/stream/facts";
 import { StreamHub } from "../src/host/stream/hub";
+import { PAGE_SIZE_SCRIPT, parsePageSize } from "../src/host/stream/page";
 import type { WirePeer } from "../src/host/wire/peer";
 import { check, report, section } from "./harness";
 
@@ -42,6 +43,28 @@ check(
 check(
 	"and nonsense means none either",
 	parseStreamStatus("ws://…") === undefined,
+);
+
+section("what the page says about itself");
+check(
+	"a pair is the page's size",
+	parsePageSize({ result: "[1280,633]" })?.height === 633,
+);
+check(
+	"and its width is the other half",
+	parsePageSize({ result: "[1280,633]" })?.width === 1280,
+);
+check(
+	"a page that could not be measured is nothing",
+	parsePageSize({ result: "[0,633]" }) === undefined,
+);
+check(
+	"and so is a script that answered something else",
+	parsePageSize({ result: "undefined" }) === undefined,
+);
+check(
+	"or an answer that is not a pair",
+	parsePageSize({ result: "{}" }) === undefined,
 );
 
 section("what one screencast message means");
@@ -120,6 +143,28 @@ check(
 );
 
 check(
+	"the page-size probe is not the agent's work",
+	parseStreamMessage(
+		JSON.stringify({
+			type: "command",
+			id: "p1",
+			action: "evaluate",
+			params: { script: PAGE_SIZE_SCRIPT },
+		}),
+	) === undefined,
+);
+check(
+	"while the agent's own evaluate is still worth a line",
+	parseStreamMessage(
+		JSON.stringify({
+			type: "command",
+			id: "p2",
+			action: "evaluate",
+			params: { script: "document.title" },
+		}),
+	)?.kind === "activity",
+);
+check(
 	"the CLI attaching itself is dropped",
 	parseStreamMessage(
 		JSON.stringify({ type: "command", id: "r0", action: "launch", params: {} }),
@@ -148,12 +193,19 @@ check("a missing duration reads as done", resultText(undefined) === "done");
 section("one hub, one screencast");
 
 /** This session's screencast, as the test decides it. */
-const scenario = (port: number | undefined) => {
+const scenario = (
+	port: number | undefined,
+	pageSize:
+		| { readonly width: number; readonly height: number }
+		| readonly { readonly width: number; readonly height: number }[]
+		| undefined = undefined,
+) => {
 	const sent: string[] = [];
 	let handlers:
 		| { onMessage: (text: string) => void; onClose: (reason: string) => void }
 		| undefined;
 	let connections = 0;
+	let asked = 0;
 	let closed = false;
 
 	const peer = {
@@ -166,6 +218,15 @@ const scenario = (port: number | undefined) => {
 	const hub = new StreamHub({
 		session: "dsh-test",
 		port: async () => port,
+		page: async () => {
+			if (pageSize === undefined) return undefined;
+			if (!Array.isArray(pageSize)) return pageSize;
+
+			const answer = pageSize[Math.min(asked, pageSize.length - 1)];
+			asked += 1;
+
+			return answer;
+		},
 		connect: async (_port, given) => {
 			connections += 1;
 			handlers = given;
@@ -180,13 +241,13 @@ const scenario = (port: number | undefined) => {
 		sent,
 		connections: () => connections,
 		closed: () => closed,
-		frame: (data: string) =>
+		frame: (data: string, width = 1_280, height = 720) =>
 			handlers?.onMessage(
 				JSON.stringify({
 					type: "frame",
 					seq: 7,
 					data,
-					metadata: { deviceWidth: 1280, deviceHeight: 720 },
+					metadata: { deviceWidth: width, deviceHeight: height },
 				}),
 			),
 		feed: (message: unknown) => handlers?.onMessage(JSON.stringify(message)),
@@ -208,7 +269,7 @@ check(
 check("without the CLI being asked", quiet.connections() === 0);
 quiet.hub.stop();
 
-const running = scenario(4242);
+const running = scenario(4242, { width: 1_280, height: 633 });
 running.hub.touch();
 check(
 	"asking alone still does not start a browser",
@@ -261,10 +322,10 @@ check(
 	feed.every((item) => !item.text.includes("launch")),
 );
 
+await tick();
 check(
-	"the page's own size is what a click is measured against",
-	running.hub.snapshot().viewport.width === 1280 &&
-		running.hub.snapshot().viewport.height === 720,
+	"the page's own size is measured, not guessed",
+	running.hub.snapshot().page.height === 633,
 );
 
 const clicked = running.hub.sendInput({
@@ -281,6 +342,19 @@ check(
 	running.sent.some((text) => text.includes("mousePressed")) &&
 		running.sent.some((text) => text.includes("mouseReleased")),
 );
+const told = String(running.hub.takeNote());
+check(
+	"and the agent is told what it did not see",
+	told.includes("clicked at (10, 20)"),
+);
+check(
+	"with the warning that its refs may be stale",
+	told.includes("take a fresh snapshot"),
+);
+check(
+	"and is told once, not in every result",
+	running.hub.takeNote() === undefined,
+);
 check(
 	"and is the person's own line in the feed",
 	running.hub
@@ -288,6 +362,12 @@ check(
 		.activity.some(
 			(item) => item.kind === "human" && item.text === "click 10×20",
 		),
+);
+
+running.feed({ type: "result", id: "r9", action: "click", duration_ms: 4 });
+check(
+	"an outcome nobody saw the command for is not a line",
+	!running.hub.snapshot().activity.some((item) => item.text === "4ms"),
 );
 
 running.drop("the browser went away");
@@ -312,6 +392,27 @@ check(
 	}) === false,
 );
 running.hub.stop();
+
+const relayout = scenario(4245, [
+	{ width: 1_280, height: 633 },
+	{ width: 390, height: 844 },
+]);
+relayout.hub.markLive();
+relayout.hub.touch();
+await tick();
+await tick();
+check(
+	"a page is measured when the view connects",
+	relayout.hub.snapshot().page.height === 633,
+);
+relayout.frame("jpegbytes", 390, 844);
+await tick();
+await tick();
+check(
+	"and again when the window it is drawn in changes",
+	relayout.hub.snapshot().page.height === 844,
+);
+relayout.hub.stop();
 
 const closing = scenario(4243);
 closing.hub.markLive();

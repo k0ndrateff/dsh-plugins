@@ -346,6 +346,17 @@ check(
 );
 check("and is reported as done", json(sized).ok === true);
 
+const told = String(poke.hubs.takeNote(SESSION));
+check(
+	"the agent is told the page size changed",
+	told.includes("changed the page size to 390×844"),
+);
+check("and that the page was navigated", told.includes("went back"));
+check(
+	"and told once, not in every call",
+	poke.hubs.takeNote(SESSION) === undefined,
+);
+
 check(
 	"and an input is never a poll",
 	(await call(pokeHandler, `/dsh-browser/input?session=${SESSION}`)).status ===

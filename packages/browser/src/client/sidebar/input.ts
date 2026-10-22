@@ -16,7 +16,7 @@ import {
 	inputUrl,
 	type PanelInput,
 	type PanelModifiers,
-	type PanelViewport,
+	type PanelPage,
 } from "../../shared/panel";
 
 /** What the host said about one act, and whether it says the act did not happen. */
@@ -99,32 +99,52 @@ export interface PagePoint {
 	readonly y: number;
 }
 
+/** The size a picture decoded to, which is what the sidebar scales down. */
+export interface Picture {
+	readonly naturalWidth: number;
+	readonly naturalHeight: number;
+}
+
 /**
  * Where in the page a point in the picture landed.
  *
- * The picture is the whole viewport scaled to whatever width the sidebar has, so
- * the mapping is the ratio between the two boxes. A point outside the picture
- * is clamped to the edge rather than dropped: a drag that leaves the picture
- * should still be a click at its border, which is what the page would have seen.
+ * The picture is the page fitted into the browser window's surface — scaled by
+ * one factor on both axes and anchored at its top-left — so the surface can be
+ * larger than the page and the leftover is not the page at all. The mapping is
+ * therefore: the clicked point, in the picture's own pixels, divided by the
+ * factor the fit used.
+ *
+ * A click on the leftover is not a click on the page, and is refused rather than
+ * clamped: a strip beside a phone layout is not the phone's right edge.
  * @param point - a pointer event's position in the window.
  * @param box - the picture's own box in the window.
- * @param viewport - the page's size, as the last frame reported it.
- * @returns the page's coordinates, or undefined when there is nothing to measure.
+ * @param picture - the size the picture decoded to.
+ * @param page - the page's own size, as the browser reported it.
+ * @returns the page's coordinates, or undefined when the point is not on the page.
  */
-export const viewportPointOf = (
+export const pagePointOf = (
 	point: { readonly clientX: number; readonly clientY: number },
 	box: ScreenBox,
-	viewport: PanelViewport,
+	picture: Picture,
+	page: PanelPage,
 ): PagePoint | undefined => {
 	if (box.width <= 0 || box.height <= 0) return undefined;
-	if (viewport.width <= 0 || viewport.height <= 0) return undefined;
+	if (picture.naturalWidth <= 0 || picture.naturalHeight <= 0) return undefined;
+	if (page.width <= 0 || page.height <= 0) return undefined;
 
-	const x = ((point.clientX - box.left) / box.width) * viewport.width;
-	const y = ((point.clientY - box.top) / box.height) * viewport.height;
+	const scale = Math.min(
+		picture.naturalWidth / page.width,
+		picture.naturalHeight / page.height,
+	);
+	const x = ((point.clientX - box.left) / box.width) * picture.naturalWidth;
+	const y = ((point.clientY - box.top) / box.height) * picture.naturalHeight;
+
+	if (x < 0 || y < 0) return undefined;
+	if (x > page.width * scale || y > page.height * scale) return undefined;
 
 	return {
-		x: Math.min(Math.max(Math.round(x), 0), viewport.width - 1),
-		y: Math.min(Math.max(Math.round(y), 0), viewport.height - 1),
+		x: Math.min(Math.floor(x / scale), page.width - 1),
+		y: Math.min(Math.floor(y / scale), page.height - 1),
 	};
 };
 

@@ -39,6 +39,20 @@ export class StreamHubs {
 		this.hubs.get(session)?.markClosed();
 	}
 
+	/**
+	 * What the person did in one session since the last tool call.
+	 * @param session - the session whose browser was being used.
+	 * @returns the sentence, or undefined when nobody touched the page.
+	 */
+	takeNote(session: string): string | undefined {
+		return this.hubs.get(session)?.takeNote();
+	}
+
+	/** Remember one act of a person for the agent to be told about. */
+	note(session: string, note: string | undefined): void {
+		if (note !== undefined) this.hubs.get(session)?.note(note);
+	}
+
 	/** Stop every hub; the plugin is going away. */
 	stop(): void {
 		for (const hub of this.hubs.values()) hub.stop();

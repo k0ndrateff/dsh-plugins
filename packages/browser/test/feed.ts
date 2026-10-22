@@ -67,6 +67,13 @@ check(
 	feedLines(pair("click @e2", "done"))[0]?.durationMs === undefined,
 );
 
+section("what the CLI calls a resize");
+check(
+	"is a sentence a reader understands",
+	feedLines([{ kind: "command", text: "viewport", at: 4 }])[0]?.label ===
+		"Resized the page",
+);
+
 section("the person's own acts");
 const mine = feedLines([{ kind: "human", text: "click 412×188", at: 9 }]);
 check("read in the first person", mine[0]?.label === "You clicked");

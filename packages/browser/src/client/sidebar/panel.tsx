@@ -39,8 +39,8 @@ import { feedLines } from "./feed";
 import {
 	buttonOf,
 	modifiersOf,
+	pagePointOf,
 	sendInput,
-	viewportPointOf,
 	WheelCoalescer,
 } from "./input";
 import { type BrowserPanelState, useBrowserPanel } from "./stream";
@@ -104,7 +104,7 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 	const snapshot = panel.snapshot;
 	const url = snapshot?.url ?? "";
 	const connected = snapshot?.connected === true;
-	const viewport = snapshot?.viewport;
+	const page = snapshot?.page;
 	const feed = feedLines(snapshot?.activity ?? []).slice(-ACTIVITY_SHOWN);
 	const failure = panel.error ?? snapshot?.error;
 
@@ -112,8 +112,7 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 	// left it at, so a person can see that the layout they are looking at is not
 	// the one they picked.
 	const preset = PAGE_SIZES.findIndex(
-		(size) =>
-			size.width === viewport?.width && size.height === viewport?.height,
+		(size) => size.width === page?.width && size.height === page?.height,
 	);
 	const sizeKey = preset === -1 ? "custom" : String(preset);
 
@@ -145,11 +144,11 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 	// message is sent, so a trackpad's scroll is a couple of requests, not sixty.
 	const wheels = useMemo(() => new WheelCoalescer(act), [act]);
 
-	// The two numbers, not the object: a poll brings a new viewport object every
+	// The two numbers, not the object: a poll brings a new page object every
 	// quarter second, and rebinding the wheel listener that often would cut one
 	// gesture into slices.
-	const pageWidth = viewport?.width ?? 0;
-	const pageHeight = viewport?.height ?? 0;
+	const pageWidth = page?.width ?? 0;
+	const pageHeight = page?.height ?? 0;
 
 	const pointOf = useCallback(
 		(event: { readonly clientX: number; readonly clientY: number }) => {
@@ -157,7 +156,7 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 
 			if (image === null) return undefined;
 
-			return viewportPointOf(event, image.getBoundingClientRect(), {
+			return pagePointOf(event, image.getBoundingClientRect(), image, {
 				width: pageWidth,
 				height: pageHeight,
 			});
@@ -399,9 +398,9 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 				>
 					{sizeKey === "custom" ? (
 						<option value="custom" disabled>
-							{viewport === undefined || viewport.width === 0
+							{page === undefined || page.width === 0
 								? "Page size"
-								: `Page ${viewport.width}×${viewport.height}`}
+								: `Page ${page.width}×${page.height}`}
 						</option>
 					) : null}
 

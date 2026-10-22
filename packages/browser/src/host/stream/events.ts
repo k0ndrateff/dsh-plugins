@@ -11,6 +11,11 @@
  * them would bury the actions a reader is watching for. `status`, because the one
  * thing a reader needs from it, whether the connection is up, is what this side
  * of the socket already knows.
+ *
+ * One command is dropped for the same reason: the page-size probe this plugin
+ * runs for its own arithmetic. It is not something the agent did to the page, and
+ * a reader watching the agent work should not see the panel's bookkeeping in the
+ * middle of it.
  */
 
 /** One encoded viewport frame, as the CLI sends it. */
@@ -41,6 +46,8 @@ export type StreamEvent =
 	  }
 	| { readonly kind: "frame"; readonly frame: StreamFrame }
 	| { readonly kind: "activity"; readonly activity: StreamActivity };
+
+import { PAGE_SIZE_SCRIPT } from "./page";
 
 /** Actions the CLI reports about itself rather than about the page. */
 const DROPPED_ACTIONS: readonly string[] = ["launch"];
@@ -73,6 +80,10 @@ const textOf = (value: unknown): string | undefined =>
 /** One payload field, when it is a list. */
 const listOf = (value: unknown): readonly unknown[] | undefined =>
 	Array.isArray(value) ? value : undefined;
+
+/** Whether one command was this plugin asking the page for its own size. */
+const isProbe = (params: unknown): boolean =>
+	recordOf(params)?.script === PAGE_SIZE_SCRIPT;
 
 /**
  * What one command reads as in the feed.
@@ -164,6 +175,7 @@ export const parseStreamMessage = (text: string): StreamEvent | undefined => {
 
 		if (action === undefined || id === undefined) return undefined;
 		if (DROPPED_ACTIONS.includes(action)) return undefined;
+		if (action === "evaluate" && isProbe(message.params)) return undefined;
 
 		const at = numberOf(message.timestamp) ?? Date.now();
 

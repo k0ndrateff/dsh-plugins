@@ -32,7 +32,9 @@ import { connectStream } from "./stream/connect";
 import { askStreamStatus } from "./stream/facts";
 import { StreamHub } from "./stream/hub";
 import { StreamHubs } from "./stream/hubs";
+import { askPageSize } from "./stream/page";
 import { browserTools } from "./tools/index";
+import { withHumanNotice } from "./tools/notice";
 
 export const name = "dsh-browser";
 
@@ -63,13 +65,22 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 							signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
 						})
 					)?.port,
+				page: async () =>
+					askPageSize(runner, {
+						session,
+						cwd: process.cwd(),
+						signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+					}),
 				connect: (port, handlers) => connectStream(port, handlers),
 				maxFps: config.streamMaxFps,
 			}),
 	);
 	const deps = { runner, sessions: new SessionScope(ctx), config, hubs };
 
-	for (const tool of browserTools) ctx.tools.register(tool.create(deps));
+	// Every result carries what the person at the panel did since the last one:
+	// the agent and the human drive the same page, and only one of them knows it.
+	for (const tool of browserTools)
+		ctx.tools.register(withHumanNotice(tool.create(deps), hubs));
 
 	// The command registration belongs to this plugin's Cordis fiber, so it is
 	// withdrawn with the plugin.

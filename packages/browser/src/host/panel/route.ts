@@ -33,6 +33,7 @@ import {
 import type { AgentBrowserRunner } from "../runner";
 import { isSessionName } from "../session";
 import type { StreamHubs } from "../stream/hubs";
+import { noteOf } from "../stream/input";
 import { type InputReading, readPanelInput } from "./input";
 
 /** What the panel route needs from the plugin. */
@@ -230,8 +231,12 @@ export const createPanelHandler = (
 					signal: AbortSignal.timeout(NAVIGATE_TIMEOUT_MS),
 				});
 
-				// A navigation that ran is proof of a browser, the same as a tool call.
-				if (moved.ok) deps.hubs.markLive(session);
+				// A navigation that ran is proof of a browser, the same as a tool call,
+				// and the agent has to know the page moved under it.
+				if (moved.ok) {
+					deps.hubs.markLive(session);
+					deps.hubs.note(session, noteOf(reading.input));
+				}
 
 				reply(response, 200, {
 					ok: moved.ok,

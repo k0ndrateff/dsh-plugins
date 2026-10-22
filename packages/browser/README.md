@@ -59,6 +59,11 @@ and typing goes to whatever field is focused. While the picture has focus its ke
 belong to the page; `Escape` gives focus back. Nothing is sent while the panel is
 hidden.
 
+And the agent is told. The next browser tool result it gets starts with what you
+did since its last call — a click, a key, a navigation, a new page size — plus a
+warning that the refs it took earlier may be stale. Two people driving one page
+is fine as long as both know.
+
 The design and what is measured are in
 [`docs/browser.md`](../../docs/browser.md).
 

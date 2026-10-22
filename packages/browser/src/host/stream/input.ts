@@ -167,6 +167,37 @@ export const wireMessagesOf = (input: PanelInput): readonly WireMessage[] => {
 };
 
 /**
+ * What a person's act would say to the agent.
+ *
+ * The feed's line and this sentence answer different questions: the feed says
+ * what happened, this tells the model what changed under it. The page size is
+ * named because it is the act that most reliably breaks an agent's assumption
+ * about the layout it is about to click in.
+ * @param input - what a person did in the panel.
+ * @returns one clause, or undefined for an act the agent does not need told.
+ */
+export const noteOf = (input: PanelInput): string | undefined => {
+	switch (input.type) {
+		case "mouse":
+			return input.event === "click"
+				? `clicked at (${Math.round(input.x)}, ${Math.round(input.y)})`
+				: undefined;
+		case "key":
+			return input.event === "down" ? `pressed ${input.key}` : undefined;
+		case "navigate":
+			return input.to === "reload"
+				? "reloaded the page"
+				: input.to === "back"
+					? "went back"
+					: "went forward";
+		case "viewport":
+			return `changed the page size to ${input.width}×${input.height}`;
+		case "wheel":
+			return undefined;
+	}
+};
+
+/**
  * What a person's input reads as in the feed.
  *
  * Only the acts that changed the page are worth a line. A hover and a scroll

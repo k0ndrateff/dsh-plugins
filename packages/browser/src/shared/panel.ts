@@ -123,8 +123,14 @@ export type PanelInput =
 			readonly height: number;
 	  };
 
-/** The page's own size, which is what a click's coordinates are measured in. */
-export interface PanelViewport {
+/**
+ * The page's own size, which is what a click's coordinates are measured in.
+ *
+ * Not the picture's size and not `deviceWidth/Height` from the frame: the
+ * picture is the page scaled to fit the browser window's surface, and the window
+ * is taller than the page inside it.
+ */
+export interface PanelPage {
 	readonly width: number;
 	readonly height: number;
 }
@@ -140,8 +146,8 @@ export interface PanelSnapshot {
 	readonly error?: string;
 	/** The frame the picture path would answer with right now; 0 for none. */
 	readonly seq: number;
-	/** The size of the page behind the picture; zero before the first frame. */
-	readonly viewport: PanelViewport;
+	/** The page's own size; zero until the browser has been asked for it. */
+	readonly page: PanelPage;
 	/** The whole window a reader should show, newest last. */
 	readonly activity: readonly PanelActivity[];
 }

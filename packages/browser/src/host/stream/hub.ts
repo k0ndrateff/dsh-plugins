@@ -18,18 +18,29 @@
 import type {
 	PanelActivity,
 	PanelInput,
+	PanelPage,
 	PanelSnapshot,
 } from "../../shared/panel";
 import { errorText } from "../text";
 import type { WirePeer } from "../wire/peer";
-import { parseStreamMessage, type StreamFrame } from "./events";
-import { humanLineOf, wireMessagesOf } from "./input";
+import {
+	parseStreamMessage,
+	type StreamActivity,
+	type StreamFrame,
+} from "./events";
+import { humanLineOf, noteOf, wireMessagesOf } from "./input";
 
 /** How long the connection is kept after the last poll. */
 const DEFAULT_IDLE_MS = 10_000;
 
 /** How many activity lines one reader is shown. */
 const DEFAULT_ACTIVITY_LIMIT = 40;
+
+/** How many of a person's acts are kept for the agent to be told about. */
+const PENDING_LIMIT = 12;
+
+/** How many commands may be waiting for an outcome before the window is dropped. */
+const COMMAND_WINDOW = 256;
 
 /** The most frames per second this reader asks the screencast for. */
 const DEFAULT_MAX_FPS = 8;
@@ -59,6 +70,8 @@ export interface StreamHubDeps {
 			onClose: (reason: string) => void;
 		},
 	) => Promise<WirePeer>;
+	/** Ask the page how big it is; nothing is measured against a guess. */
+	readonly page?: () => Promise<PanelPage | undefined>;
 	readonly idleMs?: number;
 	readonly activityLimit?: number;
 	readonly maxFps?: number;
@@ -77,7 +90,14 @@ export class StreamHub {
 	private title = "";
 	private failure: string | undefined;
 	private frame: StreamFrame | undefined;
+	private page: PanelPage = { width: 0, height: 0 };
+	/** The window the last frame was taken in, for noticing a relayout. */
+	private device = { width: 0, height: 0 };
 	private activity: PanelActivity[] = [];
+	/** What the person did and the agent has not been told yet. */
+	private pending: string[] = [];
+	/** Commands whose outcome this feed can still place. */
+	private commanding = new Set<string>();
 
 	/** @param deps - the session, where to find its screencast, and its caps. */
 	constructor(private readonly deps: StreamHubDeps) {}
@@ -138,10 +158,7 @@ export class StreamHub {
 				? {}
 				: { error: this.failure }),
 			seq: this.frame?.seq ?? 0,
-			viewport: {
-				width: this.frame?.width ?? 0,
-				height: this.frame?.height ?? 0,
-			},
+			page: this.page,
 			activity: [...this.activity],
 		};
 	}
@@ -168,6 +185,10 @@ export class StreamHub {
 		if (line !== undefined)
 			this.remember({ kind: "human", text: line, at: Date.now() });
 
+		const note = noteOf(input);
+
+		if (note !== undefined) this.note(note);
+
 		return true;
 	}
 
@@ -179,6 +200,7 @@ export class StreamHub {
 	/** Stop for good: the plugin is going away. */
 	stop(): void {
 		this.watching = false;
+		this.pending = [];
 		this.cancelIdle();
 		this.cancelRetry();
 		this.drop("the plugin was unloaded");
@@ -222,6 +244,7 @@ export class StreamHub {
 					maxFps: this.deps.maxFps ?? DEFAULT_MAX_FPS,
 				}),
 			);
+			void this.measure();
 		} catch (error) {
 			this.gave(errorText(error));
 		} finally {
@@ -245,16 +268,111 @@ export class StreamHub {
 
 			case "frame": {
 				this.frame = event.frame;
+				this.remeasured(event.frame);
 
 				return;
 			}
 
 			case "activity": {
-				this.remember(event.activity);
+				this.placed(event.activity);
 
 				return;
 			}
 		}
+	}
+
+	/**
+	 * Remember one act of the person at the panel, for the agent to be told.
+	 *
+	 * Kept apart from the feed on purpose: the feed is what a reader is looking
+	 * at right now, while this waits for the agent's next tool call — and it
+	 * outlives a panel that closes, because the page did not go back.
+	 * @param note - the act, as one clause of a sentence.
+	 */
+	note(note: string): void {
+		this.pending = [...this.pending, note].slice(-PENDING_LIMIT);
+	}
+
+	/**
+	 * What the person did since the last tool call, and nothing afterwards.
+	 *
+	 * One tool call takes the whole sentence: the next call in the same turn has
+	 * nothing to add, and a note repeated in five results is a note a model
+	 * learns to skip.
+	 * @returns the sentence, or undefined when the person has not touched the page.
+	 */
+	takeNote(): string | undefined {
+		const acts = this.pending;
+
+		this.pending = [];
+
+		if (acts.length === 0) return undefined;
+
+		const shown = acts.slice(-4);
+		const rest = acts.length - shown.length;
+		const list = shown.join("; ");
+
+		return [
+			`The person at the panel used this browser since your last call: ${list}${rest > 0 ? `; and ${rest} more` : ""}.`,
+			"The page may have moved, reflowed or changed size since you last saw it: take a fresh snapshot before acting on earlier references.",
+		].join("\n");
+	}
+
+	/**
+	 * Ask the page how big it is, when the answer can have changed.
+	 *
+	 * A window the browser reports is not the page inside it, so this is the only
+	 * honest source of the coordinates a click is measured in. It costs one CLI
+	 * call per connection and per relayout, and nothing at all when the page is
+	 * left alone.
+	 */
+	private async measure(): Promise<void> {
+		const ask = this.deps.page;
+
+		if (ask === undefined || this.peer === undefined) return;
+
+		const page = await ask();
+
+		// A connection that ended while the page was being asked has nothing to
+		// measure: the answer belongs to a browser this panel is no longer showing.
+		if (page === undefined || this.peer === undefined) return;
+
+		this.page = page;
+	}
+
+	/** Notice a frame taken in a different window, which means a relayout. */
+	private remeasured(frame: StreamFrame): void {
+		if (
+			frame.width === this.device.width &&
+			frame.height === this.device.height
+		)
+			return;
+
+		this.device = { width: frame.width, height: frame.height };
+		void this.measure();
+	}
+
+	/**
+	 * One feed line, if its pair belongs together.
+	 *
+	 * An outcome whose command nobody saw — dropped as this plugin's own probe,
+	 * or older than this connection — has nothing to say: the line it would join
+	 * is not there, and folded onto the previous one it would report that
+	 * command's duration as its own.
+	 */
+	private placed(activity: StreamActivity): void {
+		if (activity.kind === "command") {
+			if (this.commanding.size > COMMAND_WINDOW) this.commanding.clear();
+
+			this.commanding.add(activity.id);
+			this.remember(activity);
+
+			return;
+		}
+
+		if (!this.commanding.delete(activity.id)) return;
+
+		this.remember(activity);
 	}
 
 	/** One line of the feed, and the window it belongs to. */
@@ -278,6 +396,7 @@ export class StreamHub {
 		this.peer = undefined;
 		this.connected = false;
 		this.frame = undefined;
+		this.page = { width: 0, height: 0 };
 		this.activity = [];
 		this.gave(reason);
 	}
@@ -297,6 +416,7 @@ export class StreamHub {
 
 		this.connected = false;
 		this.frame = undefined;
+		this.page = { width: 0, height: 0 };
 		this.activity = [];
 		this.failure = reason;
 	}

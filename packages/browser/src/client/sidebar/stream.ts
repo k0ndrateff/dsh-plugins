@@ -20,8 +20,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type PanelActivity,
+	type PanelPage,
 	type PanelSnapshot,
-	type PanelViewport,
 	panelUrl,
 } from "../../shared/panel";
 
@@ -72,7 +72,7 @@ const asActivity = (value: unknown): PanelActivity | undefined => {
 };
 
 /** The page's own size, which is what a click is measured against. */
-const asViewport = (value: unknown): PanelViewport | undefined => {
+const asPage = (value: unknown): PanelPage | undefined => {
 	if (!isRecord(value)) return undefined;
 
 	const width = asNumber(value.width);
@@ -101,7 +101,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 	const title = asString(value.title);
 	const error = asString(value.error);
 	const seq = asNumber(value.seq);
-	const viewport = asViewport(value.viewport);
+	const page = asPage(value.page);
 
 	if (
 		session === undefined ||
@@ -109,7 +109,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 		url === undefined ||
 		title === undefined ||
 		seq === undefined ||
-		viewport === undefined ||
+		page === undefined ||
 		!Array.isArray(value.activity)
 	)
 		return undefined;
@@ -126,7 +126,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 		url,
 		title,
 		seq,
-		viewport,
+		page,
 		activity,
 		...(error === undefined || error === "" ? {} : { error }),
 	};

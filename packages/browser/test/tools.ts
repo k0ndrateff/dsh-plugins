@@ -20,6 +20,7 @@ import type { SessionScope } from "../src/host/session";
 import type { StreamHubs } from "../src/host/stream/hubs";
 import { actTool } from "../src/host/tools/act";
 import type { BrowserToolDeps } from "../src/host/tools/deps";
+import { withHumanNotice } from "../src/host/tools/notice";
 import { openTool } from "../src/host/tools/open";
 import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
@@ -432,6 +433,61 @@ check(
 	(await refusalOf(() => call(escaped.run, { args: [1, 2] }))).includes(
 		"array of strings",
 	),
+);
+
+section("what the person did while the agent was away");
+const notingHubs = (note: string | undefined) => {
+	const taken: string[] = [];
+	const hubs = {
+		takeNote: (session: string) => {
+			taken.push(session);
+
+			return note;
+		},
+	} as unknown as StreamHubs;
+
+	return { hubs, taken };
+};
+
+const result = (text: string) => ({
+	isError: false as const,
+	value: {},
+	content: [{ type: "text" as const, text }],
+});
+
+const plain = snapshotTool.create(
+	toolsFor([{ ok: true, data: {}, durationMs: 0 }]).deps,
+);
+const quietNotice = withHumanNotice(plain, notingHubs(undefined).hubs);
+check(
+	"a person who did nothing adds nothing",
+	quietNotice.finalizeContent?.(
+		execOf({ session: { id: "session-9" } }),
+		result("tree"),
+	) === undefined,
+);
+
+const { hubs: telling, taken } = notingHubs(
+	"The person at the panel used this browser: clicked at (4, 5).",
+);
+const noticed = withHumanNotice(plain, telling);
+const blocks = noticed.finalizeContent?.(
+	execOf({ session: { id: "session-9" } }),
+	result("tree"),
+);
+check(
+	"a person's act leads the result",
+	blocks?.[0]?.type === "text" &&
+		String(blocks[0].text).startsWith("The person at the panel"),
+);
+check("with the tool's own answer after it", blocks?.[1]?.type === "text");
+check(
+	"and the note is asked for the session that called",
+	taken[0] === "dsh-session-9",
+);
+check(
+	"the tool itself is left as it was",
+	plain.finalizeContent === undefined && plain.name === noticed.name,
 );
 
 report();
