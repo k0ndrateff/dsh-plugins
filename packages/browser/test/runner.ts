@@ -172,8 +172,15 @@ check(
 const quiet = runnerFor({ stdout: '{"success":true}' });
 await quiet.runner.run(command(["open", "http://x"]));
 check(
-	"a default config adds no environment",
-	quiet.specs[0]?.env === undefined,
+	"a default config asks for the panel's own frame size",
+	quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_MAX_WIDTH === "640" &&
+		quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_MAX_HEIGHT === "480" &&
+		quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_QUALITY === "30",
+);
+check(
+	"and adds no window and no domain policy",
+	quiet.specs[0]?.env?.AGENT_BROWSER_HEADED === undefined &&
+		quiet.specs[0]?.env?.AGENT_BROWSER_ALLOWED_DOMAINS === undefined,
 );
 
 section("a CLI that is not installed");

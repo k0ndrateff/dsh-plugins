@@ -53,7 +53,7 @@ fetched.
 | `dsh-correlation-plugin` | Error → commit → merge request → ticket, in one card |
 | `dsh-integrations-plugin` | The one Settings page the connection cards appear on |
 | `dsh-devkit-plugin` | The project's own lint, typecheck, test and build recipes |
-| `dsh-browser-plugin` | A real browser the agent drives to check its UI work, one browser per session (tools only so far; the side-panel viewport is next) |
+| `dsh-browser-plugin` | A real browser the agent drives to check its UI work, one browser per session, live in the side panel |
 | `dsh-workflow-plugin` | Every bundle above behind one profile entry |
 | `dsh-mcp-oauth` | OAuth for MCP servers, and the authenticated bridge |
 | `dsh-integration-host` | Host-half shell: endpoint patch, sign-in state, settings route, slash command, the digest and correlation registries |

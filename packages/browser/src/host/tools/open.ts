@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { PanelOpenMeta } from "../../shared/panel";
 import { BROWSER_OPEN_TOOL } from "../../shared/tools";
 import { fieldOf, isText, modelData } from "../envelope";
 import { type BrowserToolDeps, runForSession } from "./deps";
@@ -51,10 +52,11 @@ class OpenTool {
 				type: "object",
 				additionalProperties: false,
 				properties: {
+					session: { type: "string" },
 					url: { type: "string" },
 					title: { type: "string" },
 				},
-				required: ["url", "title"],
+				required: ["session", "url", "title"],
 			},
 			render: (_args, value) => {
 				const page = value as { url: string; title: string };
@@ -69,16 +71,27 @@ class OpenTool {
 					},
 				];
 			},
+			// The browser half reads this back as `result.meta`: the page opens the
+			// panel on the browser this call just proved exists.
+			presentationMeta: (_args, value) => {
+				const page = value as unknown as PanelOpenMeta;
+
+				return { session: page.session, url: page.url, title: page.title };
+			},
 		},
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs);
-			const outcome = await runForSession(deps, exec, ["open", args.url]);
+			const { session, outcome } = await runForSession(deps, exec, [
+				"open",
+				args.url,
+			]);
 
 			if (!outcome.ok) throw new Error(outcome.error);
 
 			const data = modelData(outcome.data);
 
 			return {
+				session: session.name,
 				url: fieldOf(data, "url", isText) ?? args.url,
 				title: fieldOf(data, "title", isText) ?? "",
 			};

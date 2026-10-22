@@ -17,6 +17,7 @@ import type {
 	BrowserOutcome,
 } from "../src/host/runner";
 import type { SessionScope } from "../src/host/session";
+import type { StreamHubs } from "../src/host/stream/hubs";
 import { actTool } from "../src/host/tools/act";
 import type { BrowserToolDeps } from "../src/host/tools/deps";
 import { openTool } from "../src/host/tools/open";
@@ -72,20 +73,36 @@ const scriptedScope = () => {
 	return { sessions, asked };
 };
 
+/** The hubs the tools report a working browser to. */
+const scriptedHubs = () => {
+	const live: string[] = [];
+	const closed: string[] = [];
+	const hubs = {
+		markLive: (session: string) => live.push(session),
+		markClosed: (session: string) => closed.push(session),
+	} as unknown as StreamHubs;
+
+	return { hubs, live, closed };
+};
+
 /** One plugin's worth of tools over one script. */
 const toolsFor = (script: Script, maxOutputBytes = 400) => {
 	const { runner, commands } = scriptedRunner(script);
 	const { sessions, asked } = scriptedScope();
+	const { hubs, live, closed } = scriptedHubs();
 	const deps: BrowserToolDeps = {
 		runner,
 		sessions,
 		config: resolveConfig({ maxOutputBytes }),
+		hubs,
 	};
 
 	return {
 		deps,
 		commands,
 		asked,
+		live,
+		closed,
 		open: openTool.create(deps),
 		snapshot: snapshotTool.create(deps),
 		act: actTool.create(deps),

@@ -119,7 +119,7 @@ class ReadTool {
 		},
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs);
-			const outcome = await runForSession(deps, exec, this.argv(args));
+			const { outcome } = await runForSession(deps, exec, this.argv(args));
 
 			if (!outcome.ok) throw new Error(outcome.error);
 

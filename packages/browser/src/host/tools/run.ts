@@ -77,9 +77,13 @@ class RunTool {
 		},
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs, deps.config.executable);
-			const outcome = await runForSession(deps, exec, args.args);
+			const { session, outcome } = await runForSession(deps, exec, args.args);
 
 			if (!outcome.ok) throw new Error(outcome.error);
+
+			// A browser the agent closed through the escape hatch is as closed as one
+			// the panel closed: the hub stops looking for it either way.
+			if (args.args[0] === "close") deps.hubs.markClosed(session.name);
 
 			return {
 				command: args.args.join(" "),

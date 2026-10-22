@@ -1,0 +1,194 @@
+/**
+ * The plugin's stylesheet, authored in vanilla-extract.
+ *
+ * Every rule is compiled to static CSS at build time: the browser bundle carries
+ * class names and the harness's own variables, nothing else. What every
+ * integration draws — the card material, the panel shell, the terse tool row —
+ * is re-exported from `dsh-integration-ui`, so this file holds only what the
+ * browser's own panel draws: its head, its stage, its activity list, and the
+ * footer that carries the two actions.
+ *
+ * vanilla-extract in this build accepts `&` with modifiers and a parent
+ * selector, and nothing else; every element here has a class of its own rather
+ * than being reached through a descendant.
+ */
+
+import { style } from "@vanilla-extract/css";
+import { theme } from "dsh-integration-ui/styles";
+
+export * from "dsh-integration-ui/styles";
+
+/** The panel's own column: the head above, the footer pinned below, the frame between. */
+export const viewer = style({
+	display: "flex",
+	flex: "1 1 auto",
+	flexDirection: "column",
+	height: "100%",
+	minHeight: 0,
+	color: theme.color.labelPrimary,
+	background: theme.color.bgBase,
+});
+
+export const viewerHead = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "4px",
+	padding: "12px 16px 10px",
+	borderBottom: `0.5px solid ${theme.color.borderSubtle}`,
+});
+
+export const viewerTitleRow = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	minWidth: 0,
+});
+
+/** The page's name, which is what the reader came for; the address is beside it. */
+export const viewerTitle = style({
+	flex: "1 1 auto",
+	minWidth: 0,
+	margin: 0,
+	fontSize: "14px",
+	fontWeight: 600,
+	lineHeight: "20px",
+	overflow: "hidden",
+	textOverflow: "ellipsis",
+	whiteSpace: "nowrap",
+});
+
+export const viewerState = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "6px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	whiteSpace: "nowrap",
+});
+
+export const viewerUrl = style({
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	overflowWrap: "anywhere",
+});
+
+export const viewerScroll = style({
+	display: "flex",
+	flex: "1 1 auto",
+	flexDirection: "column",
+	gap: "12px",
+	minHeight: 0,
+	padding: "12px 16px",
+	overflowY: "auto",
+	overflowX: "hidden",
+});
+
+/**
+ * Where the viewport is drawn.
+ *
+ * A frame of its own, filled before the first picture arrives, so the panel does
+ * not jump when one does.
+ */
+export const stage = style({
+	display: "flex",
+	alignItems: "center",
+	justifyContent: "center",
+	minHeight: "140px",
+	border: `0.5px solid ${theme.color.borderSubtle}`,
+	borderRadius: theme.radius.md,
+	background: theme.color.codeFill,
+	overflow: "hidden",
+});
+
+/** The viewport, scaled to the panel's width; its own aspect is the browser's. */
+export const frame = style({
+	display: "block",
+	width: "100%",
+	height: "auto",
+});
+
+/** What the stage says while it has no picture to show. */
+export const placeholder = style({
+	padding: "16px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	textAlign: "center",
+});
+
+export const activity = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "6px",
+});
+
+export const activityTitle = style({
+	fontSize: "11px",
+	fontWeight: 600,
+	letterSpacing: "0.06em",
+	textTransform: "uppercase",
+	color: theme.color.labelTertiary,
+});
+
+export const activityList = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "4px",
+	margin: 0,
+	padding: 0,
+	listStyle: "none",
+});
+
+/**
+ * One activity line.
+ *
+ * A command and its result are the same kind of fact and stay plain text; the
+ * tint alone tells the reader which of the two they are looking at.
+ */
+export const activityItem = style({
+	fontSize: "12px",
+	lineHeight: "18px",
+	overflowWrap: "anywhere",
+	whiteSpace: "pre-wrap",
+	selectors: {
+		'&[data-kind="command"]': { color: theme.color.labelSecondary },
+		'&[data-kind="result"]': { color: theme.color.labelTertiary },
+	},
+});
+
+export const footer = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	flexWrap: "wrap",
+	padding: "10px 16px 14px",
+	borderTop: `0.5px solid ${theme.color.borderSubtle}`,
+});
+
+/** The host's own words about an action, or the reason it was not reached. */
+export const answer = style({
+	flex: "1 1 100%",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	overflowWrap: "anywhere",
+});
+
+export const answerError = style({
+	color: theme.color.danger,
+});
+
+/** The panel's state when it was opened without a browser to watch. */
+export const empty = style({
+	display: "flex",
+	flex: "1 1 auto",
+	alignItems: "center",
+	justifyContent: "center",
+	padding: "24px 16px",
+	fontSize: "13px",
+	lineHeight: "20px",
+	color: theme.color.labelTertiary,
+	textAlign: "center",
+});

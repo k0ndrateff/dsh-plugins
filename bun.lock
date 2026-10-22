@@ -65,7 +65,11 @@
     "packages/browser": {
       "name": "dsh-browser-plugin",
       "version": "0.1.0",
+      "dependencies": {
+        "@vanilla-extract/css": "^1.21.3",
+      },
       "devDependencies": {
+        "dsh-integration-ui": "^0.1.4",
         "dsh-plugin-build": "^0.1.4",
       },
       "peerDependencies": {
@@ -174,7 +178,7 @@
       "name": "dsh-integration-host",
       "version": "0.1.4",
       "dependencies": {
-        "dsh-mcp-oauth": "workspace:*",
+        "dsh-mcp-oauth": "^0.1.4",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "~4.0.5",
@@ -186,7 +190,7 @@
       "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
-        "dsh-integration-host": "workspace:*",
+        "dsh-integration-host": "^0.1.4",
       },
       "devDependencies": {
         "@deepseek-ai/dsh-client-ui-chat": "0.2.1-rc.2",

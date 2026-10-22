@@ -23,11 +23,16 @@ import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { resolveConfig } from "../src/host/config";
 import { AgentBrowserRunner } from "../src/host/runner";
 import { SessionScope } from "../src/host/session";
+import { connectStream } from "../src/host/stream/connect";
+import { askStreamStatus } from "../src/host/stream/facts";
+import { StreamHub } from "../src/host/stream/hub";
+import type { StreamHubs } from "../src/host/stream/hubs";
 import { actTool } from "../src/host/tools/act";
 import { openTool } from "../src/host/tools/open";
 import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
 import { snapshotTool } from "../src/host/tools/snapshot";
+import type { PanelMessage } from "../src/shared/panel";
 import { check, report, section } from "./harness";
 
 /** The page the browser is pointed at: a button, a heading, a log and a throw. */
@@ -131,7 +136,12 @@ const ctx = {
 } as unknown as Context;
 const config = resolveConfig(undefined);
 const runner = new AgentBrowserRunner({ ctx, config });
-const deps = { runner, sessions: new SessionScope(ctx), config };
+const live: string[] = [];
+const hubs = {
+	markLive: (session: string) => live.push(session),
+	markClosed: (session: string) => live.splice(live.indexOf(session), 1),
+} as unknown as StreamHubs;
+const deps = { runner, sessions: new SessionScope(ctx), config, hubs };
 const exec = (): ToolRunContext =>
 	({
 		signal: new AbortController().signal,
@@ -147,6 +157,104 @@ const call = async (
 	args: unknown,
 ): Promise<Record<string, unknown>> =>
 	(await tool.execute(args, exec())) as Record<string, unknown>;
+
+/** What one moment of watching a session's screencast showed. */
+interface Watched {
+	readonly connected: boolean;
+	readonly frame: number | undefined;
+	readonly viewport:
+		| { readonly width: number; readonly height: number }
+		| undefined;
+	readonly url: string;
+	readonly activity: number;
+	readonly why: string;
+}
+
+/**
+ * Join a session's screencast the way the panel does, and report what came back.
+ *
+ * The port comes from the CLI, the connection is the real WebSocket client, and
+ * the hub is the one the panel route hands frames to — everything the panel
+ * leans on except the panel itself, which needs a page to render into.
+ */
+const watchOnce = async (session: string): Promise<Watched> => {
+	const hub = new StreamHub({
+		session,
+		port: async () =>
+			(
+				await askStreamStatus(runner, {
+					session,
+					cwd: process.cwd(),
+					signal: new AbortController().signal,
+				})
+			)?.port,
+		connect: (port, handlers) => connectStream(port, handlers),
+	});
+	const seen: PanelMessage[] = [];
+	const stop = hub.watch((message) => seen.push(message));
+
+	hub.markLive();
+
+	// The connection is opened for us, so the commands wait for it: the feed is
+	// what the CLI reports from the moment a reader is attached, and a command run
+	// before then is a command nobody sees.
+	const joining = Date.now() + 5_000;
+	while (!hub.live && Date.now() < joining) {
+		await new Promise((resolve) => {
+			setTimeout(resolve, 20);
+		});
+	}
+
+	// Commands run while watching, because the feed is not a history the CLI
+	// replays.
+	for (const args of [["snapshot", "-i"], ["get", "url"], ["console"]]) {
+		await runner.run({
+			args: args,
+			session,
+			cwd: process.cwd(),
+			signal: new AbortController().signal,
+		});
+	}
+
+	// Frames arrive with the connection; the feed arrives as the commands above
+	// report themselves, which is a moment later.
+	const deadline = Date.now() + 10_000;
+	const ready = (): boolean =>
+		seen.some((message) => message.type === "frame") &&
+		(seen.filter((message) => message.type === "activity").at(-1)?.items
+			.length ?? 0) >= 6;
+
+	while (Date.now() < deadline) {
+		if (ready()) break;
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 100);
+		});
+	}
+
+	stop();
+	await new Promise((resolve) => {
+		setTimeout(resolve, 50);
+	});
+	hub.stop();
+
+	const state = seen.filter((message) => message.type === "state").at(-1);
+	const frame = seen.filter((message) => message.type === "frame").at(-1);
+	const activity = seen.filter((message) => message.type === "activity").at(-1);
+
+	return {
+		connected: state?.type === "state" && state.connected,
+		frame: frame?.type === "frame" ? frame.data.length : undefined,
+		viewport:
+			frame?.type === "frame"
+				? { width: frame.width, height: frame.height }
+				: undefined,
+		url: state?.type === "state" ? state.url : "",
+		activity: activity?.type === "activity" ? activity.items.length : 0,
+		why:
+			state?.type === "state" ? (state.error ?? "") : "the host said nothing",
+	};
+};
 
 section("is this machine able to run a browser?");
 const status = await runner.status({
@@ -223,6 +331,29 @@ try {
 		"the page's own error is read",
 		Number(thrown.count) > 0,
 		String(thrown.text).slice(0, 60),
+	);
+	section("the live view of that browser");
+	const watched = await watchOnce("dsh-dryrun");
+	check("the screencast was found and joined", watched.connected, watched.why);
+	check(
+		"a frame arrived with a picture in it",
+		(watched.frame ?? 0) > 100,
+		`${String(watched.frame ?? 0)} base64 bytes`,
+	);
+	check(
+		"the frame names the viewport it was taken in",
+		(watched.viewport?.width ?? 0) > 0 && (watched.viewport?.height ?? 0) > 0,
+		`${String(watched.viewport?.width)}x${String(watched.viewport?.height)}`,
+	);
+	check(
+		"and the address followed the page",
+		watched.url === fixture.url,
+		watched.url,
+	);
+	check(
+		"the feed shows what the agent did",
+		watched.activity >= 6,
+		`${watched.activity} lines`,
 	);
 } catch (error) {
 	check(

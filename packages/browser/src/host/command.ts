@@ -18,6 +18,7 @@ import type {
 import type { BrowserConfig } from "./config";
 import type { AgentBrowserRunner } from "./runner";
 import type { BrowserSession, SessionScope } from "./session";
+import type { StreamHubs } from "./stream/hubs";
 import { errorText } from "./text";
 
 /** What the command accepts after its name. */
@@ -30,6 +31,7 @@ export interface BrowserCommandDeps {
 	readonly runner: AgentBrowserRunner;
 	readonly sessions: SessionScope;
 	readonly config: BrowserConfig;
+	readonly hubs: StreamHubs;
 }
 
 class BrowserCommand {
@@ -122,6 +124,10 @@ class BrowserCommand {
 			cwd: session.cwd,
 			signal,
 		});
+
+		// A closed browser is one the panel should stop looking for, whether or not
+		// the close itself succeeded: there is nothing to watch either way.
+		deps.hubs.markClosed(session.name);
 
 		return outcome.ok
 			? { kind: "success", text: `Closed the browser of ${session.name}.` }

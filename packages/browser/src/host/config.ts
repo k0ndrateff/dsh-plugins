@@ -15,6 +15,10 @@ export interface ConfigInput {
 	readonly maxOutputBytes?: unknown;
 	readonly headed?: unknown;
 	readonly allowedDomains?: unknown;
+	readonly streamQuality?: unknown;
+	readonly streamMaxWidth?: unknown;
+	readonly streamMaxHeight?: unknown;
+	readonly streamMaxFps?: unknown;
 }
 
 /** Resolved configuration: every field present and of the right type. */
@@ -29,6 +33,14 @@ export interface BrowserConfig {
 	readonly headed: boolean;
 	/** Domain patterns the CLI itself enforces; empty means no restriction. */
 	readonly allowedDomains: readonly string[];
+	/** JPEG quality of the live view; the CLI's own scale, 0 to 100. */
+	readonly streamQuality: number;
+	/** The widest frame the live view encodes, in pixels. */
+	readonly streamMaxWidth: number;
+	/** The tallest frame the live view encodes, in pixels. */
+	readonly streamMaxHeight: number;
+	/** The most frames per second one panel asks the screencast for. */
+	readonly streamMaxFps: number;
 }
 
 /** The CLI these tools drive. */
@@ -39,6 +51,33 @@ export const DEFAULT_TIMEOUT_MS = 60_000;
 
 /** Roughly ten thousand tokens of answer: plenty for a page, bounded for a context. */
 export const DEFAULT_MAX_OUTPUT_BYTES = 32_768;
+
+/**
+ * The live view's own scale.
+ *
+ * Measured on a real page: the CLI's default 1280x720 at quality 80 costs about
+ * 82 KB a frame, and 640x480 at quality 30 about a tenth of that — for a picture
+ * that is drawn a few hundred pixels wide. The screencast encodes these once per
+ * attached reader, so the cheaper frame is the honest default.
+ */
+export const DEFAULT_STREAM_QUALITY = 30;
+export const DEFAULT_STREAM_MAX_WIDTH = 640;
+export const DEFAULT_STREAM_MAX_HEIGHT = 480;
+
+/** A person watching a page does not need a video rate. */
+export const DEFAULT_STREAM_MAX_FPS = 8;
+
+/** One whole number inside a range, or the fallback. */
+const boundedOf = (
+	value: unknown,
+	fallback: number,
+	low: number,
+	high: number,
+): number => {
+	if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+
+	return Math.min(Math.max(Math.round(value), low), high);
+};
 
 /** One non-empty string, or the fallback. */
 const stringOf = (value: unknown, fallback: string): string =>
@@ -71,4 +110,23 @@ export const resolveConfig = (input?: ConfigInput): BrowserConfig => ({
 	maxOutputBytes: positiveOf(input?.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES),
 	headed: input?.headed === true,
 	allowedDomains: domainsOf(input?.allowedDomains),
+	streamQuality: boundedOf(
+		input?.streamQuality,
+		DEFAULT_STREAM_QUALITY,
+		1,
+		100,
+	),
+	streamMaxWidth: boundedOf(
+		input?.streamMaxWidth,
+		DEFAULT_STREAM_MAX_WIDTH,
+		64,
+		3_840,
+	),
+	streamMaxHeight: boundedOf(
+		input?.streamMaxHeight,
+		DEFAULT_STREAM_MAX_HEIGHT,
+		64,
+		2_160,
+	),
+	streamMaxFps: boundedOf(input?.streamMaxFps, DEFAULT_STREAM_MAX_FPS, 1, 60),
 });

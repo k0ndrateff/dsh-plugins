@@ -46,6 +46,20 @@ export const sessionNameOf = (sessionId: string | undefined): string => {
 	return `${SESSION_PREFIX}${(cleaned === "" ? NO_SESSION : cleaned).slice(0, room)}`;
 };
 
+/**
+ * Whether a name is one this plugin builds.
+ *
+ * The panel asks for a browser by name, so the name it may ask for has to be
+ * recognised rather than trusted: a hub for a fabricated session would make the
+ * plugin ask the CLI about a browser that was never there.
+ * @param value - the name a caller sent.
+ */
+export const isSessionName = (value: string): boolean =>
+	new RegExp(
+		`^${SESSION_PREFIX}[A-Za-z0-9._-]{1,${MAX_SESSION_NAME - SESSION_PREFIX.length}}$`,
+		"u",
+	).test(value);
+
 /** One browser, and the directory its commands run in. */
 export interface BrowserSession {
 	/** The agent-browser session this conversation owns. */

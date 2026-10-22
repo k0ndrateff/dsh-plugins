@@ -113,7 +113,7 @@ class ActTool {
 		},
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs);
-			const outcome = await runForSession(deps, exec, this.argv(args));
+			const { outcome } = await runForSession(deps, exec, this.argv(args));
 
 			if (!outcome.ok) throw new Error(outcome.error);
 
@@ -203,7 +203,7 @@ class ActTool {
 		deps: BrowserToolDeps,
 		exec: Parameters<typeof runForSession>[1],
 	): Promise<string> {
-		const outcome = await runForSession(deps, exec, ["get", "url"]);
+		const { outcome } = await runForSession(deps, exec, ["get", "url"]);
 
 		return outcome.ok
 			? (fieldOf(modelData(outcome.data), "url", isText) ?? "")

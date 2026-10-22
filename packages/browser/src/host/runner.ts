@@ -296,18 +296,27 @@ export class AgentBrowserRunner {
 			: `the command answered something this plugin could not read: ${answer}`;
 	}
 
-	/** The environment entries the CLI reads, when the config asked for any. */
-	private environment(): NodeJS.ProcessEnv | undefined {
-		const env: Record<string, string> = {};
+	/**
+	 * The environment entries the CLI reads for a browser it starts.
+	 *
+	 * The stream's shape is launch-time rather than per-call: the CLI fixes it
+	 * when it starts a browser, so a panel that opens later cannot ask for a
+	 * cheaper frame — it can only read what was set when the browser started.
+	 */
+	private environment(): NodeJS.ProcessEnv {
+		const env: Record<string, string> = {
+			AGENT_BROWSER_STREAM_QUALITY: String(this.deps.config.streamQuality),
+			AGENT_BROWSER_STREAM_MAX_WIDTH: String(this.deps.config.streamMaxWidth),
+			AGENT_BROWSER_STREAM_MAX_HEIGHT: String(this.deps.config.streamMaxHeight),
+		};
 
-		// Both are launch-time facts the CLI owns: `--headed` and a domain policy
-		// have to be in place before a browser starts, not on the command that
-		// happens to start it.
+		// `--headed` and a domain policy are launch-time facts too: they have to be
+		// in place before a browser starts, not on the command that starts it.
 		if (this.deps.config.headed) env.AGENT_BROWSER_HEADED = "1";
 		if (this.deps.config.allowedDomains.length > 0)
 			env.AGENT_BROWSER_ALLOWED_DOMAINS =
 				this.deps.config.allowedDomains.join(",");
 
-		return Object.keys(env).length === 0 ? undefined : env;
+		return env;
 	}
 }
