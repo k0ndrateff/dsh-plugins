@@ -28,6 +28,7 @@ import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import { registerBrowserOpenRow } from "./components/tool-row";
 import { PANEL_ID, panelDefinition } from "./sidebar/definition";
+import { BrowserIndicator, INDICATOR_ID } from "./sidebar/indicator";
 import { installPanelOpener } from "./sidebar/open";
 import { BrowserPanel, BrowserPanelTitle } from "./sidebar/panel";
 import { installBrowserStyles } from "./styles/styles-runtime";
@@ -70,6 +71,15 @@ export const apply = (ctx: Context): void => {
 			),
 		);
 	});
+
+	// The way back to a panel somebody closed: a pill above the composer that
+	// exists exactly while this conversation has a browser.
+	ctx.slots.inject("conversation.input.dock", () =>
+		ctx.slots.register(
+			{ name: "conversation.input.dock", id: INDICATOR_ID, order: 30 },
+			BrowserIndicator,
+		),
+	);
 
 	// The row claims `browser_open` for itself, so its key travels with it.
 	registerBrowserOpenRow(ctx);

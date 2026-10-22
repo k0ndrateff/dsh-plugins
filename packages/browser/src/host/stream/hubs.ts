@@ -8,6 +8,7 @@
  * fabricated session name would start a daemon for it.
  */
 
+import type { PanelState } from "../../shared/panel";
 import type { StreamHub } from "./hub";
 
 export class StreamHubs {
@@ -37,6 +38,16 @@ export class StreamHubs {
 	/** This session's browser was closed on purpose. */
 	markClosed(session: string): void {
 		this.hubs.get(session)?.markClosed();
+	}
+
+	/**
+	 * Whether this conversation has a browser, without making a hub for it.
+	 * @param session - the conversation's browser session.
+	 */
+	state(session: string): PanelState {
+		return (
+			this.hubs.get(session)?.state() ?? { open: false, url: "", title: "" }
+		);
 	}
 
 	/**

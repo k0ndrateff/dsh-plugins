@@ -20,6 +20,7 @@ import type {
 	PanelInput,
 	PanelPage,
 	PanelSnapshot,
+	PanelState,
 } from "../../shared/panel";
 import { errorText } from "../text";
 import type { WirePeer } from "../wire/peer";
@@ -190,6 +191,16 @@ export class StreamHub {
 		if (note !== undefined) this.note(note);
 
 		return true;
+	}
+
+	/**
+	 * Whether this conversation has a browser, and where it was last seen.
+	 *
+	 * Read by the chip above the chat, which exists to bring a closed panel back:
+	 * it says nothing about frames, and asking it must not cost one.
+	 */
+	state(): PanelState {
+		return { open: this.watching, url: this.url, title: this.title };
 	}
 
 	/** The last frame, for a reader that does not have it yet. */

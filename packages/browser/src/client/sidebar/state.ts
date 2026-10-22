@@ -1,0 +1,118 @@
+/**
+ * Whether this conversation has a browser, for the chip above the chat.
+ *
+ * The panel is a tab someone can close, and until this existed the only way back
+ * was the agent opening a page again. The chip answers a much smaller question
+ * than the panel does — is there a browser, and where was it last seen — and
+ * asks it slowly: every few seconds, and never while the tab is hidden. It is
+ * deliberately not the panel's poll: that one keeps the screencast alive, and a
+ * chip nobody clicks must not cost a frame.
+ */
+
+import { useEffect, useState } from "react";
+import { type PanelState, stateUrl } from "../../shared/panel";
+
+/** How often the chip asks. */
+export const STATE_POLL_MS = 4_000;
+
+/** What the chip knows before the first answer: nothing yet. */
+const CLOSED: PanelState = { open: false, url: "", title: "" };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value);
+
+const asString = (value: unknown): string | undefined =>
+	typeof value === "string" ? value : undefined;
+
+/**
+ * Read one answer from the state route.
+ * @param value - the parsed body.
+ * @returns the state, or undefined when it is not one this half reads.
+ */
+export const asPanelState = (value: unknown): PanelState | undefined => {
+	if (!isRecord(value)) return undefined;
+
+	const open = value.open;
+	const url = asString(value.url);
+	const title = asString(value.title);
+
+	if (typeof open !== "boolean" || url === undefined || title === undefined)
+		return undefined;
+
+	return { open, url, title };
+};
+
+/**
+ * Watch whether one session's browser is open.
+ *
+ * A failure keeps what was last known and says nothing: a chip is an aside, and
+ * a host that is briefly unreachable should not turn it into an error banner.
+ * @param session - the conversation's browser session, or undefined to watch none.
+ * @returns the last answer, or the closed state before the first one.
+ */
+export const useBrowserState = (session: string | undefined): PanelState => {
+	const [state, setState] = useState<PanelState>(CLOSED);
+
+	useEffect(() => {
+		setState(CLOSED);
+
+		if (session === undefined) return;
+
+		let stopped = false;
+		let asking = false;
+		let timer: number | undefined;
+
+		const schedule = (): void => {
+			if (stopped || document.hidden) return;
+
+			timer = window.setTimeout(() => void ask(), STATE_POLL_MS);
+		};
+
+		const ask = async (): Promise<void> => {
+			if (asking) return;
+
+			asking = true;
+			timer = undefined;
+
+			try {
+				const response = await fetch(stateUrl(session), {
+					headers: { accept: "application/json" },
+				});
+
+				if (!response.ok) return;
+
+				const answer = asPanelState(await response.json());
+
+				if (!stopped && answer !== undefined) setState(answer);
+			} catch {
+				// The chip has nothing to say about a host it could not reach.
+			} finally {
+				asking = false;
+				schedule();
+			}
+		};
+
+		const onVisibility = (): void => {
+			if (document.hidden) return;
+
+			if (timer !== undefined) {
+				window.clearTimeout(timer);
+				timer = undefined;
+			}
+
+			void ask();
+		};
+
+		document.addEventListener("visibilitychange", onVisibility);
+		void ask();
+
+		return () => {
+			stopped = true;
+			document.removeEventListener("visibilitychange", onVisibility);
+
+			if (timer !== undefined) window.clearTimeout(timer);
+		};
+	}, [session]);
+
+	return state;
+};

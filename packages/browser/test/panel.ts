@@ -263,6 +263,25 @@ check(
 		404,
 );
 
+section("the chip's question");
+const status = await call(idleHandler, `/dsh-browser/state?session=${SESSION}`);
+check("a conversation without a browser says so", json(status).open === false);
+check(
+	"and asking does not start watching",
+	idle.sent.length === 0 && idle.hubs.state(SESSION).open === false,
+);
+
+live.hubs.markLive(SESSION);
+const known = json(
+	await call(liveHandler, `/dsh-browser/state?session=${SESSION}`),
+);
+check("a browser that was opened says so", known.open === true);
+check("with the page it was last seen on", known.url === "http://x/");
+check(
+	"and the answer costs no connection",
+	live.hubs.state(SESSION).open === true,
+);
+
 section("a person's click");
 const poke = screencast(4242);
 const { runner: poking, commands: poked } = closingRunner(true);
@@ -381,6 +400,10 @@ const after = json(
 check(
 	"and the session stops being looked for",
 	String(after.error).includes("closed"),
+);
+check(
+	"and the chip has nothing to offer any more",
+	closed.hubs.state(SESSION).open === false,
 );
 
 const refusing = screencast(4242);

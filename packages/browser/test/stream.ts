@@ -259,6 +259,10 @@ const quiet = scenario(undefined);
 quiet.hub.touch();
 const quietAnswer = quiet.hub.snapshot();
 check(
+	"a hub nobody opened a browser in has no chip",
+	quiet.hub.state().open === false,
+);
+check(
 	"a panel may ask before any browser exists",
 	quietAnswer.connected === false,
 );
@@ -381,6 +385,11 @@ check(
 	"and the stale picture is gone",
 	running.hub.latestFrame() === undefined && lost.seq === 0,
 );
+check(
+	"a session that never opened a browser has nothing to show",
+	running.hub.state().url === "http://x/" && running.hub.state().open === true,
+);
+
 check(
 	"a click with nothing to carry it is refused",
 	running.hub.sendInput({

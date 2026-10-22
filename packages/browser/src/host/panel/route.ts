@@ -29,6 +29,7 @@ import {
 	PANEL_PATH,
 	type PanelInput,
 	ROUTE_PREFIX,
+	STATE_PATH,
 } from "../../shared/panel";
 import type { AgentBrowserRunner } from "../runner";
 import { isSessionName } from "../session";
@@ -207,6 +208,14 @@ export const createPanelHandler = (
 			// `no-store`, so a reader has no copy to be told it already has — a 304
 			// here is a broken image, which is exactly what it used to be.
 			sendFrame(response, frame.data);
+
+			return;
+		}
+
+		// Answered from what the host knows, without touching the screencast: a
+		// chip that asks whether a browser exists must not keep one streaming.
+		if (url.pathname === STATE_PATH && method === "GET") {
+			reply(response, 200, deps.hubs.state(session));
 
 			return;
 		}

@@ -265,6 +265,20 @@ export const answerError = style({
 	color: theme.color.danger,
 });
 
+/** The chip above the chat: one pill on its own row, left aligned. */
+export const indicatorRow = style({
+	display: "flex",
+	alignItems: "center",
+	padding: "0 2px 6px",
+});
+
+/** The address the browser is on, quiet enough not to compete with the word. */
+export const indicatorHost = style({
+	fontFamily: theme.font.code,
+	fontSize: "11px",
+	color: theme.color.labelTertiary,
+});
+
 /** The panel's state when it was opened without a browser to watch. */
 export const empty = style({
 	display: "flex",

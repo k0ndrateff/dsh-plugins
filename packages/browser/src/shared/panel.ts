@@ -28,6 +28,15 @@ export const CLOSE_PATH = `${ROUTE_PREFIX}/close`;
 export const INPUT_PATH = `${ROUTE_PREFIX}/input`;
 
 /**
+ * Whether this conversation has a browser, and where it was last seen.
+ *
+ * A poll that costs nothing: it answers from what the host already knows and
+ * does not touch the screencast, so the chip that shows a closed panel's browser
+ * cannot keep frames flowing by looking at it.
+ */
+export const STATE_PATH = `${ROUTE_PREFIX}/state`;
+
+/**
  * The page kind this plugin registers.
  *
  * Deliberately not `browser`: the product ships its own Browser tab under that
@@ -135,6 +144,16 @@ export interface PanelPage {
 	readonly height: number;
 }
 
+/** What the chip above the chat needs: is there a browser, and where. */
+export interface PanelState {
+	/** Whether this conversation opened a browser and has not closed it. */
+	readonly open: boolean;
+	/** The address it was last seen at, empty when none is known. */
+	readonly url: string;
+	/** The page's title at that address, empty when none is known. */
+	readonly title: string;
+}
+
 /** Everything one poll of the host answers with. */
 export interface PanelSnapshot {
 	readonly session: string;
@@ -166,6 +185,10 @@ export const frameUrl = (session: string, seq: number): string =>
 /** The poll that carries everything except the picture. */
 export const panelUrl = (session: string): string =>
 	`${PANEL_PATH}?session=${encodeURIComponent(session)}`;
+
+/** The question the chip asks: is there a browser to go back to. */
+export const stateUrl = (session: string): string =>
+	`${STATE_PATH}?session=${encodeURIComponent(session)}`;
 
 /** The write one person's click becomes. */
 export const inputUrl = (session: string): string =>
