@@ -1,6 +1,6 @@
 {
 	"name": "dsh-digest-plugin",
-	"version": "0.1.4",
+	"version": "0.2.0",
 	"type": "module",
 	"description": "A read-only daily work digest for DeepSeek Harness, assembled from Jira, GitLab and Sentry",
 	"license": "MIT",
@@ -53,10 +53,10 @@
 		"@deepseek-ai/dsh-tools": "0.2.1-rc.2"
 	},
 	"devDependencies": {
-		"dsh-integration-host": "^0.1.4",
-		"dsh-integration-ui": "^0.1.4",
-		"dsh-mcp-oauth": "^0.1.4",
-		"dsh-plugin-build": "^0.1.4"
+		"dsh-integration-host": "^0.2.0",
+		"dsh-integration-ui": "^0.2.0",
+		"dsh-mcp-oauth": "^0.2.0",
+		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {
 		"access": "public"

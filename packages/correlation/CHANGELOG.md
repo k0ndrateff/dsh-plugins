@@ -1,5 +1,11 @@
 # dsh-correlation-plugin
 
+## 0.2.0
+
+### Minor Changes
+
+- Fixed many bugs and security issues.
+
 ## 0.1.4
 
 ### Patch Changes

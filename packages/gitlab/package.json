@@ -1,6 +1,6 @@
 {
 	"name": "dsh-gitlab-plugin",
-	"version": "0.1.4",
+	"version": "0.2.0",
 	"type": "module",
 	"description": "Merge requests, review threads and pipelines for DeepSeek Harness, over GitLab's REST API with a personal access token",
 	"license": "MIT",
@@ -56,10 +56,10 @@
 		"@deepseek-ai/dsh-tools": "0.2.1-rc.2"
 	},
 	"devDependencies": {
-		"dsh-integration-host": "^0.1.4",
-		"dsh-integration-ui": "^0.1.4",
-		"dsh-mcp-oauth": "^0.1.4",
-		"dsh-plugin-build": "^0.1.4"
+		"dsh-integration-host": "^0.2.0",
+		"dsh-integration-ui": "^0.2.0",
+		"dsh-mcp-oauth": "^0.2.0",
+		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {
 		"access": "public"

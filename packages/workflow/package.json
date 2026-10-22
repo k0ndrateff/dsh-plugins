@@ -1,6 +1,6 @@
 {
 	"name": "dsh-workflow-plugin",
-	"version": "0.1.5",
+	"version": "0.2.0",
 	"type": "module",
 	"description": "Every plugin of the collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page, project checks and the agent browser",
 	"license": "MIT",
@@ -31,15 +31,15 @@
 		"prepack": "bun run build"
 	},
 	"dependencies": {
-		"dsh-atlassian-plugin": "^0.3.4",
-		"dsh-browser-plugin": "^0.1.3",
-		"dsh-correlation-plugin": "^0.1.4",
-		"dsh-devkit-plugin": "^0.1.4",
-		"dsh-digest-plugin": "^0.1.4",
-		"dsh-figma-plugin": "^0.1.4",
-		"dsh-gitlab-plugin": "^0.1.4",
-		"dsh-integrations-plugin": "^0.1.4",
-		"dsh-sentry-plugin": "^0.1.4"
+		"dsh-atlassian-plugin": "^0.4.0",
+		"dsh-browser-plugin": "^0.2.0",
+		"dsh-correlation-plugin": "^0.2.0",
+		"dsh-devkit-plugin": "^0.2.0",
+		"dsh-digest-plugin": "^0.2.0",
+		"dsh-figma-plugin": "^0.2.0",
+		"dsh-gitlab-plugin": "^0.2.0",
+		"dsh-integrations-plugin": "^0.2.0",
+		"dsh-sentry-plugin": "^0.2.0"
 	},
 	"publishConfig": {
 		"access": "public"

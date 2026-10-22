@@ -1,5 +1,30 @@
 # dsh-workflow-plugin
 
+## 0.2.0
+
+### Minor Changes
+
+- Fixed many bugs and security issues.
+
+### Patch Changes
+
+- 8cd5a95: Fix the P0/P1 findings from the 23.10.2026 audit: the write-route client
+  guard, digest clock/settings storage, the browser settings injection, OAuth
+  token and endpoint checks, empty search results, Atlassian MCP result parsing,
+  GitLab diff/pagination/auth, Figma bridge lifetime, browser isolation and
+  input, and a CI that runs the offline checks.
+- Updated dependencies [8cd5a95]
+- Updated dependencies
+  - dsh-atlassian-plugin@0.4.0
+  - dsh-sentry-plugin@0.2.0
+  - dsh-gitlab-plugin@0.2.0
+  - dsh-figma-plugin@0.2.0
+  - dsh-digest-plugin@0.2.0
+  - dsh-devkit-plugin@0.2.0
+  - dsh-browser-plugin@0.2.0
+  - dsh-correlation-plugin@0.2.0
+  - dsh-integrations-plugin@0.2.0
+
 ## 0.1.5
 
 ### Patch Changes
