@@ -1,5 +1,11 @@
 # dsh-browser-plugin
 
+## 0.1.3
+
+### Patch Changes
+
+- Added interactivity and fixed some bugs.
+
 ## 0.1.2
 
 ### Patch Changes
