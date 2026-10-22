@@ -10,18 +10,20 @@
  *    not pay for them;
  *  - a session is watched only once a tool call has proved there is a browser in
  *    it, so opening a panel never starts one;
- *  - the feed keeps the CLI's own pairs — a command line, then its outcome — and
- *    only the last few, because a feed nobody scrolls is not a log.
+ *  - the feed keeps the CLI's own pairs — a command line, then its outcome —
+ *    plus what the person at the panel did, and only the last few, because a
+ *    feed nobody scrolls is not a log.
  */
 
-import type { PanelActivity, PanelSnapshot } from "../../shared/panel";
+import type {
+	PanelActivity,
+	PanelInput,
+	PanelSnapshot,
+} from "../../shared/panel";
 import { errorText } from "../text";
 import type { WirePeer } from "../wire/peer";
-import {
-	parseStreamMessage,
-	type StreamActivity,
-	type StreamFrame,
-} from "./events";
+import { parseStreamMessage, type StreamFrame } from "./events";
+import { humanLineOf, wireMessagesOf } from "./input";
 
 /** How long the connection is kept after the last poll. */
 const DEFAULT_IDLE_MS = 10_000;
@@ -136,8 +138,37 @@ export class StreamHub {
 				? {}
 				: { error: this.failure }),
 			seq: this.frame?.seq ?? 0,
+			viewport: {
+				width: this.frame?.width ?? 0,
+				height: this.frame?.height ?? 0,
+			},
 			activity: [...this.activity],
 		};
+	}
+
+	/**
+	 * One act of the person at the panel, forwarded to the page.
+	 *
+	 * Sent through the connection the panel already has rather than through a new
+	 * CLI call: an input event is a message on the same socket, and a click that
+	 * waited for a process to start would not feel like a click.
+	 * @param input - what the person did.
+	 * @returns false when there is no connection to carry it.
+	 */
+	sendInput(input: PanelInput): boolean {
+		const peer = this.peer;
+
+		if (peer === undefined) return false;
+
+		for (const message of wireMessagesOf(input))
+			peer.send(JSON.stringify(message));
+
+		const line = humanLineOf(input);
+
+		if (line !== undefined)
+			this.remember({ kind: "human", text: line, at: Date.now() });
+
+		return true;
 	}
 
 	/** The last frame, for a reader that does not have it yet. */
@@ -227,12 +258,16 @@ export class StreamHub {
 	}
 
 	/** One line of the feed, and the window it belongs to. */
-	private remember(activity: StreamActivity): void {
+	private remember(line: {
+		readonly kind: PanelActivity["kind"];
+		readonly text: string;
+		readonly at: number;
+	}): void {
 		const limit = this.deps.activityLimit ?? DEFAULT_ACTIVITY_LIMIT;
 
 		this.activity = [
 			...this.activity,
-			{ kind: activity.kind, text: activity.text, at: activity.at },
+			{ kind: line.kind, text: line.text, at: line.at },
 		].slice(-limit);
 	}
 

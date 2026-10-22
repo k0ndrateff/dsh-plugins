@@ -1,6 +1,6 @@
 /**
- * The panel's three ways in: what to draw, the picture itself, and the one write
- * that closes a browser.
+ * The panel's four ways in: what to draw, the picture itself, one act of the
+ * person watching, and the one write that closes a browser.
  *
  * Ordinary routes on the harness's web server, mounted through
  * `mountIntegrationRoute` — which waits for the web server rather than asking for
@@ -13,6 +13,10 @@
  * JSON that describes it, and `sendBytes` is what this suite already uses for
  * one. The `seq` in the address is a key the *page* uses to make each frame's
  * address new; the route itself answers with whatever frame it has.
+ *
+ * A person's click arrives as a small JSON body and leaves as a message on the
+ * connection this route already holds, except for the three navigations, which
+ * are the CLI's own commands and are run as such.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -21,12 +25,15 @@ import { mountIntegrationRoute } from "dsh-integration-host";
 import {
 	CLOSE_PATH,
 	FRAME_PATH,
+	INPUT_PATH,
 	PANEL_PATH,
+	type PanelInput,
 	ROUTE_PREFIX,
 } from "../../shared/panel";
 import type { AgentBrowserRunner } from "../runner";
 import { isSessionName } from "../session";
 import type { StreamHubs } from "../stream/hubs";
+import { type InputReading, readPanelInput } from "./input";
 
 /** What the panel route needs from the plugin. */
 export interface PanelRouteDeps {
@@ -36,6 +43,12 @@ export interface PanelRouteDeps {
 
 /** How long the close command may take. */
 const CLOSE_TIMEOUT_MS = 15_000;
+
+/** A navigation may be a whole page load, so it is given the tool's own minute. */
+const NAVIGATE_TIMEOUT_MS = 60_000;
+
+/** The largest input body one request may carry; a click is a few dozen bytes. */
+const MAX_BODY_BYTES = 4_096;
 
 /** The headers every answer here carries: nothing about a live view is cacheable. */
 const NO_STORE = "no-store";
@@ -76,6 +89,77 @@ const sessionOf = (url: URL): string | undefined => {
 	const session = url.searchParams.get("session") ?? "";
 
 	return isSessionName(session) ? session : undefined;
+};
+
+/** The whole body of one request, or undefined when it is too long to be one. */
+const bodyOf = async (
+	request: IncomingMessage,
+): Promise<string | undefined> => {
+	const chunks: Buffer[] = [];
+	let size = 0;
+
+	for await (const chunk of request) {
+		const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+
+		size += bytes.byteLength;
+
+		if (size > MAX_BODY_BYTES) return undefined;
+
+		chunks.push(bytes);
+	}
+
+	return Buffer.concat(chunks).toString("utf8");
+};
+
+/** What one body parsed to, when it parses at all. */
+const parsedOf = (text: string): unknown => {
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * The CLI command one input becomes, when it is a command at all.
+ *
+ * Going back and resizing the page are the CLI's own verbs, and the stream's
+ * client side has no message for either: they are the two inputs that leave the
+ * connection alone.
+ * @param input - a navigation or a viewport.
+ */
+const commandOf = (
+	input: Extract<PanelInput, { readonly type: "navigate" | "viewport" }>,
+): readonly string[] =>
+	input.type === "navigate"
+		? [input.to]
+		: ["set", "viewport", String(input.width), String(input.height)];
+
+/**
+ * Read one request's input, or answer the reason it is not one.
+ * @returns the reading, or undefined when the answer has already been sent.
+ */
+const inputOf = async (
+	request: IncomingMessage,
+	response: ServerResponse,
+): Promise<InputReading | undefined> => {
+	const body = await bodyOf(request);
+
+	if (body === undefined) {
+		reply(response, 413, { error: "that input is longer than a click" });
+
+		return undefined;
+	}
+
+	const reading = readPanelInput(parsedOf(body));
+
+	if (!reading.ok) {
+		reply(response, 400, { error: reading.reason });
+
+		return undefined;
+	}
+
+	return reading;
 };
 
 /**
@@ -126,6 +210,50 @@ export const createPanelHandler = (
 			return;
 		}
 
+		if (url.pathname === INPUT_PATH && method === "POST") {
+			const reading = await inputOf(request, response);
+
+			if (reading === undefined || !reading.ok) return;
+
+			const hub = deps.hubs.for(session);
+
+			hub.touch();
+
+			if (
+				reading.input.type === "navigate" ||
+				reading.input.type === "viewport"
+			) {
+				const moved = await deps.runner.run({
+					args: commandOf(reading.input),
+					session,
+					cwd: process.cwd(),
+					signal: AbortSignal.timeout(NAVIGATE_TIMEOUT_MS),
+				});
+
+				// A navigation that ran is proof of a browser, the same as a tool call.
+				if (moved.ok) deps.hubs.markLive(session);
+
+				reply(response, 200, {
+					ok: moved.ok,
+					...(moved.ok ? {} : { error: moved.error }),
+				});
+
+				return;
+			}
+
+			const sent = hub.sendInput(reading.input);
+
+			reply(
+				response,
+				sent ? 200 : 409,
+				sent
+					? { ok: true }
+					: { error: "the live view is not connected right now" },
+			);
+
+			return;
+		}
+
 		if (url.pathname === CLOSE_PATH && method === "POST") {
 			const closed = await deps.runner.run({
 				args: ["close"],
@@ -148,9 +276,9 @@ export const createPanelHandler = (
 };
 
 /**
- * Mount the live view and the close that goes with it.
+ * Mount the live view, the person's input, and the close that goes with them.
  * @param ctx - the plugin's host context.
- * @param deps - the hubs the poll answers from, and the runner the close uses.
+ * @param deps - the hubs the poll answers from, and the runner the commands use.
  */
 export const mountPanel = (ctx: Context, deps: PanelRouteDeps): void => {
 	mountIntegrationRoute(ctx, {

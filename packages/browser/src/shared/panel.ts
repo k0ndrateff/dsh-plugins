@@ -21,8 +21,11 @@ export const PANEL_PATH = `${ROUTE_PREFIX}/panel`;
 /** The last frame as JPEG bytes; `seq` names the one the reader already has. */
 export const FRAME_PATH = `${ROUTE_PREFIX}/frame`;
 
-/** Closing this session's browser, which is the only thing the panel writes. */
+/** Closing this session's browser. */
 export const CLOSE_PATH = `${ROUTE_PREFIX}/close`;
+
+/** Pointing, typing and navigating from the panel into the page. */
+export const INPUT_PATH = `${ROUTE_PREFIX}/input`;
 
 /**
  * The page kind this plugin registers.
@@ -58,11 +61,72 @@ export interface PanelOpenMeta {
 
 /** One line of what the agent's browser has been doing. */
 export interface PanelActivity {
-	/** A command, or the outcome line that belongs under it. */
-	readonly kind: "command" | "result";
+	/**
+	 * A command, the outcome line that belongs under it, or something the person
+	 * at the panel did to the page themselves.
+	 */
+	readonly kind: "command" | "result" | "human";
 	readonly text: string;
-	/** Epoch milliseconds the CLI reported. */
+	/** Epoch milliseconds the CLI reported, or the panel's own clock for a person. */
 	readonly at: number;
+}
+
+/** Which buttons were held while an input event was sent. */
+export interface PanelModifiers {
+	readonly alt: boolean;
+	readonly ctrl: boolean;
+	readonly meta: boolean;
+	readonly shift: boolean;
+}
+
+/**
+ * One thing a person did to the page through the panel.
+ *
+ * Coordinates are the page's own — the panel measures its picture against the
+ * viewport the frame was taken in — so nothing here depends on how wide the
+ * reader's sidebar happens to be. A click is one event rather than a press and a
+ * release, because a person clicking is one act and the host can spell out the
+ * pair the browser wants.
+ */
+export type PanelInput =
+	| {
+			readonly type: "mouse";
+			/** `click` is a whole press and release; `move` is a hover. */
+			readonly event: "click" | "down" | "up" | "move";
+			readonly x: number;
+			readonly y: number;
+			readonly button: "left" | "right" | "middle";
+			readonly modifiers: PanelModifiers;
+	  }
+	| {
+			readonly type: "wheel";
+			readonly x: number;
+			readonly y: number;
+			readonly deltaX: number;
+			readonly deltaY: number;
+	  }
+	| {
+			readonly type: "key";
+			readonly event: "down" | "up";
+			readonly key: string;
+			readonly code: string;
+			readonly modifiers: PanelModifiers;
+	  }
+	| {
+			readonly type: "navigate";
+			readonly to: "back" | "forward" | "reload";
+	  }
+	| {
+			/** The page's own size, changed from the panel that is showing it. */
+			readonly type: "viewport";
+			readonly width: number;
+			readonly height: number;
+	  };
+
+/** The page's own size, which is what a click's coordinates are measured in. */
+export interface PanelViewport {
+	readonly width: number;
+	readonly height: number;
 }
 
 /** Everything one poll of the host answers with. */
@@ -76,6 +140,8 @@ export interface PanelSnapshot {
 	readonly error?: string;
 	/** The frame the picture path would answer with right now; 0 for none. */
 	readonly seq: number;
+	/** The size of the page behind the picture; zero before the first frame. */
+	readonly viewport: PanelViewport;
 	/** The whole window a reader should show, newest last. */
 	readonly activity: readonly PanelActivity[];
 }
@@ -94,3 +160,7 @@ export const frameUrl = (session: string, seq: number): string =>
 /** The poll that carries everything except the picture. */
 export const panelUrl = (session: string): string =>
 	`${PANEL_PATH}?session=${encodeURIComponent(session)}`;
+
+/** The write one person's click becomes. */
+export const inputUrl = (session: string): string =>
+	`${INPUT_PATH}?session=${encodeURIComponent(session)}`;

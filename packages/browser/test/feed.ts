@@ -67,6 +67,27 @@ check(
 	feedLines(pair("click @e2", "done"))[0]?.durationMs === undefined,
 );
 
+section("the person's own acts");
+const mine = feedLines([{ kind: "human", text: "click 412×188", at: 9 }]);
+check("read in the first person", mine[0]?.label === "You clicked");
+check("with where it landed", mine[0]?.detail === "412×188");
+check(
+	"and no duration, because nobody timed it",
+	mine[0]?.durationMs === undefined,
+);
+check(
+	"the agent's next outcome does not fold into it",
+	feedLines([
+		{ kind: "human", text: "click 1×2", at: 1 },
+		{ kind: "result", text: "8ms", at: 2 },
+	])[0]?.durationMs === undefined,
+);
+check(
+	"and a key reads as a key",
+	feedLines([{ kind: "human", text: "key Enter", at: 3 }])[0]?.label ===
+		"You pressed",
+);
+
 section("a whole run");
 const run = feedLines([
 	...pair("snapshot", "8ms", 1),

@@ -7,6 +7,13 @@
  * host: the page's title and address, which frame to draw, what the agent did,
  * and whatever the host refuses.
  *
+ * The picture is also the person's way in. A click on it is measured against the
+ * page's own size and sent as one act, a wheel is collected into one message per
+ * gesture, and the keys go where the page's would — which is what makes a
+ * screenshot something a person can take over rather than only watch. The three
+ * buttons above the picture are the navigations the page cannot perform for
+ * itself from a picture.
+ *
  * Frames are event-driven rather than a stream, so the picture is the newest one
  * the host has and may be older than it looks; the activity beside it is what
  * says whether anything is happening at all. Before the first frame the panel
@@ -17,18 +24,49 @@
 import { Button, StateDot } from "@deepseek-ai/dsh-client-ui-primitives";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
-import type { ReactNode } from "react";
-import { useState } from "react";
-import { frameUrl } from "../../shared/panel";
+import type {
+	KeyboardEvent as ReactKeyboardEvent,
+	MouseEvent as ReactMouseEvent,
+	ReactNode,
+} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { frameUrl, type PanelInput } from "../../shared/panel";
 import { sessionNameOf } from "../../shared/session";
 import * as styles from "../styles/styles.css";
 import { type CloseAnswer, closeBrowser } from "./close";
 import { asBrowserTabParams } from "./definition";
 import { feedLines } from "./feed";
+import {
+	buttonOf,
+	modifiersOf,
+	sendInput,
+	viewportPointOf,
+	WheelCoalescer,
+} from "./input";
 import { type BrowserPanelState, useBrowserPanel } from "./stream";
 
 /** How many of the host's activity items the panel shows. */
 const ACTIVITY_SHOWN = 12;
+
+/** How often a hover over the picture is forwarded, at most. */
+const HOVER_MS = 60;
+
+/**
+ * The page sizes a person can ask for.
+ *
+ * The picture is the whole page scaled into a sidebar, so a narrow layout is
+ * what a phone actually gets: these are the three widths a UI is checked in, and
+ * the picker names them by what they are rather than by their numbers alone.
+ */
+const PAGE_SIZES: readonly {
+	readonly label: string;
+	readonly width: number;
+	readonly height: number;
+}[] = [
+	{ label: "Desktop 1280×720", width: 1_280, height: 720 },
+	{ label: "Laptop 1024×768", width: 1_024, height: 768 },
+	{ label: "Phone 390×844", width: 390, height: 844 },
+];
 
 /** The reason inside an unknown thrown value, as a sentence. */
 const messageOf = (error: unknown): string =>
@@ -51,18 +89,165 @@ const waitingFor = (panel: BrowserPanelState): string => {
 	return "Waiting for the first frame.";
 };
 
-/** One session's viewport: its page, its frame, its activity, and its two actions. */
+/** One session's viewport: its page, its picture, its activity, and its actions. */
 const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 	const panel = useBrowserPanel(session);
+	const refresh = panel.refresh;
 	const [notice, setNotice] = useState<CloseAnswer | undefined>(undefined);
 	const [isClosing, setIsClosing] = useState(false);
+	const [failedSeq, setFailedSeq] = useState<number | null>(null);
+
+	const stage = useRef<HTMLDivElement | null>(null);
+	const picture = useRef<HTMLImageElement | null>(null);
+	const hoveredAt = useRef(0);
 
 	const snapshot = panel.snapshot;
 	const url = snapshot?.url ?? "";
 	const connected = snapshot?.connected === true;
+	const viewport = snapshot?.viewport;
 	const feed = feedLines(snapshot?.activity ?? []).slice(-ACTIVITY_SHOWN);
 	const failure = panel.error ?? snapshot?.error;
-	const [failedSeq, setFailedSeq] = useState<number | null>(null);
+
+	// The picker shows the page's own size: one of the three, or what the agent
+	// left it at, so a person can see that the layout they are looking at is not
+	// the one they picked.
+	const preset = PAGE_SIZES.findIndex(
+		(size) =>
+			size.width === viewport?.width && size.height === viewport?.height,
+	);
+	const sizeKey = preset === -1 ? "custom" : String(preset);
+
+	const act = useCallback(
+		(input: PanelInput): void => {
+			sendInput(session, input)
+				.then((answer) =>
+					setNotice(
+						answer.ok
+							? undefined
+							: {
+									text: answer.text ?? "The host refused that action.",
+									isError: true,
+								},
+					),
+				)
+				.catch((error: unknown) => {
+					setNotice({
+						text: `That did not reach the host: ${messageOf(error)}`,
+						isError: true,
+					});
+				})
+				.finally(refresh);
+		},
+		[session, refresh],
+	);
+
+	// One collector for the whole panel: a gesture's deltas are summed before a
+	// message is sent, so a trackpad's scroll is a couple of requests, not sixty.
+	const wheels = useMemo(() => new WheelCoalescer(act), [act]);
+
+	// The two numbers, not the object: a poll brings a new viewport object every
+	// quarter second, and rebinding the wheel listener that often would cut one
+	// gesture into slices.
+	const pageWidth = viewport?.width ?? 0;
+	const pageHeight = viewport?.height ?? 0;
+
+	const pointOf = useCallback(
+		(event: { readonly clientX: number; readonly clientY: number }) => {
+			const image = picture.current;
+
+			if (image === null) return undefined;
+
+			return viewportPointOf(event, image.getBoundingClientRect(), {
+				width: pageWidth,
+				height: pageHeight,
+			});
+		},
+		[pageWidth, pageHeight],
+	);
+
+	useEffect(() => {
+		const element = stage.current;
+
+		if (element === null) return;
+
+		const onWheel = (event: WheelEvent): void => {
+			const point = pointOf(event);
+
+			if (point === undefined) return;
+
+			// The picture is the page: the wheel belongs to it, not to the panel
+			// that happens to be holding it.
+			event.preventDefault();
+			wheels.add(point, event.deltaX, event.deltaY);
+		};
+
+		element.addEventListener("wheel", onWheel, { passive: false });
+
+		return () => {
+			element.removeEventListener("wheel", onWheel);
+			wheels.flush();
+		};
+	}, [pointOf, wheels]);
+
+	const press = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		// Focus follows the click into the page, so the keys a person types next
+		// land there rather than on the harness around the panel.
+		event.preventDefault();
+		event.currentTarget.focus();
+
+		const point = pointOf(event);
+
+		if (point === undefined) return;
+
+		act({
+			type: "mouse",
+			event: "click",
+			x: point.x,
+			y: point.y,
+			button: buttonOf(event.button),
+			modifiers: modifiersOf(event),
+		});
+	};
+
+	const hover = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		const now = Date.now();
+
+		if (now - hoveredAt.current < HOVER_MS) return;
+
+		hoveredAt.current = now;
+
+		const point = pointOf(event);
+
+		if (point === undefined) return;
+
+		act({
+			type: "mouse",
+			event: "move",
+			x: point.x,
+			y: point.y,
+			button: "left",
+			modifiers: modifiersOf(event),
+		});
+	};
+
+	const key = (
+		event: ReactKeyboardEvent<HTMLDivElement>,
+		isDown: boolean,
+	): void => {
+		event.preventDefault();
+
+		act({
+			type: "key",
+			event: isDown ? "down" : "up",
+			key: event.key,
+			code: event.code,
+			modifiers: modifiersOf(event),
+		});
+
+		// Escape is the way out of the page: the page gets it, and so does the
+		// panel, so a person is never trapped in a focused picture.
+		if (isDown && event.key === "Escape") event.currentTarget.blur();
+	};
 
 	const close = (): void => {
 		setIsClosing(true);
@@ -93,11 +278,48 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 					</span>
 				</div>
 
-				{url === "" ? null : <span className={styles.viewerUrl}>{url}</span>}
+				<div className={styles.viewerNavRow}>
+					<Button
+						size="sm"
+						variant="ghost"
+						title="Back"
+						aria-label="Back"
+						disabled={!connected}
+						onClick={() => act({ type: "navigate", to: "back" })}
+					>
+						←
+					</Button>
+
+					<Button
+						size="sm"
+						variant="ghost"
+						title="Forward"
+						aria-label="Forward"
+						disabled={!connected}
+						onClick={() => act({ type: "navigate", to: "forward" })}
+					>
+						→
+					</Button>
+
+					<Button
+						size="sm"
+						variant="ghost"
+						title="Reload"
+						aria-label="Reload"
+						disabled={!connected}
+						onClick={() => act({ type: "navigate", to: "reload" })}
+					>
+						↻
+					</Button>
+
+					{url === "" ? null : (
+						<span className={styles.viewerAddress}>{url}</span>
+					)}
+				</div>
 			</header>
 
 			<div className={styles.viewerScroll}>
-				<div className={styles.stage}>
+				<div className={styles.stage} ref={stage}>
 					{snapshot === undefined || snapshot.seq === 0 ? (
 						<span className={styles.placeholder}>{waitingFor(panel)}</span>
 					) : failedSeq === snapshot.seq ? (
@@ -105,12 +327,26 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 							The frame the host has could not be shown.
 						</span>
 					) : (
-						<img
-							className={styles.frame}
-							src={frameUrl(session, snapshot.seq)}
-							alt={`The browser's viewport on ${headingOf(panel)}`}
-							onError={() => setFailedSeq(snapshot.seq)}
-						/>
+						<div
+							className={styles.surface}
+							// biome-ignore lint/a11y/noNoninteractiveTabindex: the picture is the page, and focus is how it receives keys
+							tabIndex={0}
+							role="application"
+							aria-label={`The browser's viewport on ${headingOf(panel)}`}
+							onMouseDown={press}
+							onMouseMove={hover}
+							onKeyDown={(event) => key(event, true)}
+							onKeyUp={(event) => key(event, false)}
+						>
+							<img
+								ref={picture}
+								className={styles.frame}
+								src={frameUrl(session, snapshot.seq)}
+								alt={`The browser's viewport on ${headingOf(panel)}`}
+								draggable={false}
+								onError={() => setFailedSeq(snapshot.seq)}
+							/>
+						</div>
 					)}
 				</div>
 
@@ -144,6 +380,38 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 			</div>
 
 			<footer className={styles.footer}>
+				<select
+					className={styles.pageSize}
+					aria-label="Page size"
+					title="The size the page is laid out at"
+					disabled={!connected}
+					value={sizeKey}
+					onChange={(event) => {
+						const size = PAGE_SIZES[Number(event.target.value)];
+
+						if (size !== undefined)
+							act({
+								type: "viewport",
+								width: size.width,
+								height: size.height,
+							});
+					}}
+				>
+					{sizeKey === "custom" ? (
+						<option value="custom" disabled>
+							{viewport === undefined || viewport.width === 0
+								? "Page size"
+								: `Page ${viewport.width}×${viewport.height}`}
+						</option>
+					) : null}
+
+					{PAGE_SIZES.map((size, index) => (
+						<option key={size.label} value={String(index)}>
+							{size.label}
+						</option>
+					))}
+				</select>
+
 				<Button
 					size="sm"
 					disabled={url === ""}

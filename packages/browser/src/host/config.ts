@@ -55,14 +55,18 @@ export const DEFAULT_MAX_OUTPUT_BYTES = 32_768;
 /**
  * The live view's own scale.
  *
- * Measured on a real page: the CLI's default 1280x720 at quality 80 costs about
- * 82 KB a frame, and 640x480 at quality 30 about a tenth of that — for a picture
- * that is drawn a few hundred pixels wide. The screencast encodes these once per
- * attached reader, so the cheaper frame is the honest default.
+ * Measured on a real page at 1280x720: quality 30 capped to 640 wide cost 7.5 KB
+ * a frame and looked it — a picture drawn a few hundred pixels wide on a dense
+ * screen. Full width at quality 60 costs about 31 KB, which is four times the
+ * bytes for a picture that is sharp at the size the panel draws it, and a page
+ * that has not moved costs nothing at all: the screencast only encodes on paint.
+ *
+ * The height cap is a ceiling rather than a shape: a taller viewport is scaled to
+ * fit it, and a narrow one is never enlarged.
  */
-export const DEFAULT_STREAM_QUALITY = 30;
-export const DEFAULT_STREAM_MAX_WIDTH = 640;
-export const DEFAULT_STREAM_MAX_HEIGHT = 480;
+export const DEFAULT_STREAM_QUALITY = 60;
+export const DEFAULT_STREAM_MAX_WIDTH = 1_280;
+export const DEFAULT_STREAM_MAX_HEIGHT = 800;
 
 /** A person watching a page does not need a video rate. */
 export const DEFAULT_STREAM_MAX_FPS = 8;

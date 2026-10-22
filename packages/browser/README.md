@@ -49,13 +49,18 @@ call just used. The tab shows:
 
 - the page's title and address, as the browser reports them;
 - the viewport as it changes, at a size meant for a panel rather than a monitor;
-- what the agent has been doing — each command it ran, and how long it took;
-- **Open in a new tab** and **Close browser**, which closes that session's
-  browser and nothing else.
+- what has happened to the page — each command the agent ran, how long it took,
+  and your own clicks and keys in the same list;
+- **back**, **forward** and **reload**, a **page size** picker (desktop, laptop,
+  phone), **Open in a new tab**, and **Close browser**.
 
-The panel only watches in this version. Taking the browser over by hand — the
-panel's clicks and keys reaching the page — is the next milestone; the design and
-what is measured are in [`docs/browser.md`](../../docs/browser.md).
+The picture is also a way in: clicking it clicks the page, the wheel scrolls it,
+and typing goes to whatever field is focused. While the picture has focus its keys
+belong to the page; `Escape` gives focus back. Nothing is sent while the panel is
+hidden.
+
+The design and what is measured are in
+[`docs/browser.md`](../../docs/browser.md).
 
 ## Configuration
 
@@ -70,9 +75,9 @@ Every field is optional, and a profile patch sets them on the row:
     maxOutputBytes: 32768
     headed: false
     allowedDomains: []
-    streamQuality: 30
-    streamMaxWidth: 640
-    streamMaxHeight: 480
+    streamQuality: 60
+    streamMaxWidth: 1280
+    streamMaxHeight: 800
     streamMaxFps: 8
 ```
 
@@ -84,12 +89,13 @@ Every field is optional, and a profile patch sets them on the row:
 - **`allowedDomains`** — comma-joined domain patterns the CLI itself enforces;
   the browser then also refuses CDP attach, saved profiles and state replay.
 - **`streamQuality`**, **`streamMaxWidth`**, **`streamMaxHeight`** — the live
-  view's own scale. The defaults are about a tenth of the CLI's own, which is
-  what a panel a few hundred pixels wide is worth.
+  view's own scale. The defaults are the page's own size at quality 60, about
+  31 KB a frame: sharp at the width the panel draws it, and paid for only while
+  the page is moving.
 - **`streamMaxFps`** — the most frames per second one open panel asks for.
 
-The stream's shape is fixed when a browser starts, so changing it takes effect
-the next time that session's browser starts.
+The CLI reads these once, when a session's daemon starts, so a change takes
+effect after that session's browser has been closed and opened again.
 
 ## What it does on your machine
 
@@ -105,10 +111,12 @@ the next time that session's browser starts.
   its own profile — so the plugin starts it through the ordinary subprocess seam,
   with an argument list rather than a shell line, and never lets a URL or a
   selector be re-interpreted by a shell.
-- **The panel's socket is admitted the way the harness admits its own streams**,
-  through `connection.admitConnection`, so a peer the harness would refuse is
-  refused here too. Like every other `/dsh-*` route, it is still reachable by any
-  local process: that debt is the harness's, and it is tracked in the roadmap.
+- **The panel reaches its host by an ordinary request.** The Desktop application
+  serves the page from `dsh-app://`, where a `WebSocket` cannot be constructed at
+  all, so the panel polls a route and draws one `<img>` — the same way every other
+  panel in this suite talks to its host. Those routes, like every other `/dsh-*`
+  route, are reachable by any local process: that debt is the harness's, and it
+  is tracked in the roadmap.
 - **Nothing but the answer reaches the model.** Frames and the command feed stay
   in the panel; the model reads text, references and the output it asked for.
 - **Nothing is watched unless it is there.** Opening the panel starts no browser;
@@ -120,8 +128,8 @@ the next time that session's browser starts.
 
 ```
 src/host/     the plugin: config, session naming, the CLI runner, the tools,
-              /browser, the live view's hub and its two sockets
-src/client/   the panel: the tab type, the WebSocket hook, the body and its styles
+              /browser, the panel's routes, the live view's hub and its socket
+src/client/   the panel: the tab type, the poll, the input, the body and its styles
 src/shared/   what both halves agree on: paths, the page kind, the messages
 test/         offline suites on a fake CLI and a scripted screencast, one live dry-run
 ```

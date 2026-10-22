@@ -261,6 +261,35 @@ check(
 	feed.every((item) => !item.text.includes("launch")),
 );
 
+check(
+	"the page's own size is what a click is measured against",
+	running.hub.snapshot().viewport.width === 1280 &&
+		running.hub.snapshot().viewport.height === 720,
+);
+
+const clicked = running.hub.sendInput({
+	type: "mouse",
+	event: "click",
+	x: 10,
+	y: 20,
+	button: "left",
+	modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+});
+check("a person's click goes down the open connection", clicked === true);
+check(
+	"as the press and the release the page expects",
+	running.sent.some((text) => text.includes("mousePressed")) &&
+		running.sent.some((text) => text.includes("mouseReleased")),
+);
+check(
+	"and is the person's own line in the feed",
+	running.hub
+		.snapshot()
+		.activity.some(
+			(item) => item.kind === "human" && item.text === "click 10×20",
+		),
+);
+
 running.drop("the browser went away");
 const lost = running.hub.snapshot();
 check(
@@ -271,6 +300,16 @@ check("with the reason it dropped", lost.error === "the browser went away");
 check(
 	"and the stale picture is gone",
 	running.hub.latestFrame() === undefined && lost.seq === 0,
+);
+check(
+	"a click with nothing to carry it is refused",
+	running.hub.sendInput({
+		type: "wheel",
+		x: 1,
+		y: 2,
+		deltaX: 0,
+		deltaY: 10,
+	}) === false,
 );
 running.hub.stop();
 

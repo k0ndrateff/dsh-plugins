@@ -50,6 +50,17 @@ const LABELS: Readonly<Record<string, string>> = {
 	network: "Checked the network",
 };
 
+/**
+ * What the person at the panel did reads as.
+ *
+ * Their own acts carry their own voice in the same list, so one feed answers
+ * "what happened to this page" without asking who did it.
+ */
+const HUMAN_LABELS: Readonly<Record<string, string>> = {
+	click: "You clicked",
+	key: "You pressed",
+};
+
 /** One item's action name, and what it acted on. */
 const split = (text: string): { action: string; detail: string } => {
 	const space = text.indexOf(" ");
@@ -69,12 +80,13 @@ const durationOf = (text: string): number | undefined => {
 /**
  * Read the feed as lines: commands lead, their outcomes fold into them.
  * @param items - the window the host reported, newest last.
- * @returns one line per action, in the order the agent took them.
+ * @returns one line per action, in the order they were taken.
  */
 export const feedLines = (
 	items: readonly PanelActivity[],
 ): readonly FeedLine[] => {
 	const lines: FeedLine[] = [];
+	let waiting = false;
 
 	for (const item of items) {
 		if (item.kind === "result") {
@@ -82,20 +94,28 @@ export const feedLines = (
 
 			// An outcome with no command of its own belongs to a call that started
 			// before this window did; it is not a line a reader can place.
-			if (previous === undefined || previous.durationMs !== undefined) continue;
+			if (previous === undefined || !waiting) continue;
 
 			lines[lines.length - 1] = {
 				...previous,
 				durationMs: durationOf(item.text),
 			};
+			waiting = false;
 
 			continue;
 		}
 
 		const { action, detail } = split(item.text);
 
+		// A person's own act has no outcome to wait for, and never adopts one: the
+		// agent's next outcome belongs to the agent's next command.
+		waiting = item.kind === "command";
+
 		lines.push({
-			label: LABELS[action] ?? action,
+			label:
+				item.kind === "human"
+					? (HUMAN_LABELS[action] ?? `You ${action}`)
+					: (LABELS[action] ?? action),
 			detail,
 			durationMs: undefined,
 			at: item.at,

@@ -8,22 +8,25 @@
  * An ordinary request is what reaches the harness's web server from that page,
  * which is how every other panel in this suite talks to its host.
  *
- * Half a second is the interval: fast enough that a person watching sees the
- * agent's work as it happens, slow enough that a page which has not moved costs
- * one small answer each time. The picture is a separate request — an `<img>`
- * pointed at the frame route, keyed by the sequence the poll reported — so the
- * bytes never pass through JSON.
+ * A quarter of a second is the interval: fast enough that a page the agent — or
+ * the person — just clicked on is answered before the click feels stale, and
+ * cheap because an unchanged page costs one small answer each time. The picture
+ * is a separate request — an `<img>` pointed at the frame route, keyed by the
+ * sequence the poll reported — so the bytes never pass through JSON. A hidden
+ * panel asks nothing at all, which is the only frame rate that matters when
+ * nobody is looking.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type PanelActivity,
 	type PanelSnapshot,
+	type PanelViewport,
 	panelUrl,
 } from "../../shared/panel";
 
-/** How often one mounted panel asks. */
-export const POLL_MS = 500;
+/** How often one mounted panel asks, while it is being looked at. */
+export const POLL_MS = 250;
 
 /** Everything the panel currently knows about one browser. */
 export interface BrowserPanelState {
@@ -31,6 +34,12 @@ export interface BrowserPanelState {
 	readonly snapshot: PanelSnapshot | undefined;
 	/** Why the host could not be reached, or undefined when it could. */
 	readonly error: string | undefined;
+}
+
+/** The state, plus the one verb a click needs: ask now. */
+export interface BrowserPanelWatch extends BrowserPanelState {
+	/** Ask the host again immediately, instead of waiting for the interval. */
+	refresh(): void;
 }
 
 /** What the panel knows before the first answer. */
@@ -52,11 +61,26 @@ const asActivity = (value: unknown): PanelActivity | undefined => {
 	const text = asString(value.text);
 	const at = asNumber(value.at);
 
-	if ((kind !== "command" && kind !== "result") || text === undefined)
+	if (
+		(kind !== "command" && kind !== "result" && kind !== "human") ||
+		text === undefined
+	)
 		return undefined;
 	if (at === undefined) return undefined;
 
 	return { kind, text, at };
+};
+
+/** The page's own size, which is what a click is measured against. */
+const asViewport = (value: unknown): PanelViewport | undefined => {
+	if (!isRecord(value)) return undefined;
+
+	const width = asNumber(value.width);
+	const height = asNumber(value.height);
+
+	return width === undefined || height === undefined
+		? undefined
+		: { width, height };
 };
 
 /**
@@ -77,6 +101,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 	const title = asString(value.title);
 	const error = asString(value.error);
 	const seq = asNumber(value.seq);
+	const viewport = asViewport(value.viewport);
 
 	if (
 		session === undefined ||
@@ -84,6 +109,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 		url === undefined ||
 		title === undefined ||
 		seq === undefined ||
+		viewport === undefined ||
 		!Array.isArray(value.activity)
 	)
 		return undefined;
@@ -100,6 +126,7 @@ export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
 		url,
 		title,
 		seq,
+		viewport,
 		activity,
 		...(error === undefined || error === "" ? {} : { error }),
 	};
@@ -117,12 +144,13 @@ const messageOf = (error: unknown): string =>
  * what was last known and reports it: a panel that has gone quiet should still
  * show the page it was on, and say why it stopped.
  * @param session - the agent-browser session to watch, or undefined to watch none.
- * @returns the host's last answer, and whether reaching it failed.
+ * @returns the host's last answer, whether reaching it failed, and how to ask sooner.
  */
 export const useBrowserPanel = (
 	session: string | undefined,
-): BrowserPanelState => {
+): BrowserPanelWatch => {
 	const [panel, setPanel] = useState<BrowserPanelState>(EMPTY);
+	const askSoon = useRef<() => void>(() => {});
 
 	useEffect(() => {
 		setPanel(EMPTY);
@@ -130,9 +158,21 @@ export const useBrowserPanel = (
 		if (session === undefined) return;
 
 		let stopped = false;
+		let asking = false;
 		let timer: number | undefined;
 
-		const poll = async (): Promise<void> => {
+		const schedule = (): void => {
+			if (stopped || document.hidden) return;
+
+			timer = window.setTimeout(() => void ask(), POLL_MS);
+		};
+
+		const ask = async (): Promise<void> => {
+			if (asking) return;
+
+			asking = true;
+			timer = undefined;
+
 			try {
 				const response = await fetch(panelUrl(session), {
 					headers: { accept: "application/json" },
@@ -157,18 +197,39 @@ export const useBrowserPanel = (
 				if (!stopped)
 					setPanel((current) => ({ ...current, error: messageOf(error) }));
 			} finally {
-				if (!stopped) timer = window.setTimeout(() => void poll(), POLL_MS);
+				asking = false;
+				schedule();
 			}
 		};
 
-		void poll();
+		const wake = (): void => {
+			if (stopped || document.hidden) return;
+
+			if (timer !== undefined) {
+				window.clearTimeout(timer);
+				timer = undefined;
+			}
+
+			void ask();
+		};
+
+		const onVisibility = (): void => {
+			if (!document.hidden) wake();
+		};
+
+		askSoon.current = wake;
+		document.addEventListener("visibilitychange", onVisibility);
+
+		void ask();
 
 		return () => {
 			stopped = true;
+			askSoon.current = () => {};
+			document.removeEventListener("visibilitychange", onVisibility);
 
 			if (timer !== undefined) window.clearTimeout(timer);
 		};
 	}, [session]);
 
-	return panel;
+	return { ...panel, refresh: useCallback(() => askSoon.current(), []) };
 };

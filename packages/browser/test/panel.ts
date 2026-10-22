@@ -10,6 +10,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { Readable } from "node:stream";
 import { createPanelHandler } from "../src/host/panel/route";
 import type { AgentBrowserRunner } from "../src/host/runner";
 import { StreamHub } from "../src/host/stream/hub";
@@ -55,7 +56,7 @@ const answering = (): { response: ServerResponse; answer: Answer } => {
 	return { response, answer };
 };
 
-/** One call through the handler. */
+/** One call through the handler, with a body when the route takes one. */
 const call = async (
 	handler: (
 		request: IncomingMessage,
@@ -63,10 +64,18 @@ const call = async (
 	) => Promise<void>,
 	url: string,
 	method = "GET",
+	body?: unknown,
 ): Promise<Answer> => {
 	const { response, answer } = answering();
+	const request =
+		body === undefined
+			? ({ url, method } as IncomingMessage)
+			: (Object.assign(Readable.from([Buffer.from(JSON.stringify(body))]), {
+					url,
+					method,
+				}) as unknown as IncomingMessage);
 
-	await handler({ url, method } as IncomingMessage, response);
+	await handler(request, response);
 
 	return answer;
 };
@@ -251,6 +260,95 @@ check(
 check(
 	"an unknown path is not found",
 	(await call(liveHandler, `/dsh-browser/nope?session=${SESSION}`)).status ===
+		404,
+);
+
+section("a person's click");
+const poke = screencast(4242);
+const { runner: poking, commands: poked } = closingRunner(true);
+const pokeHandler = createPanelHandler({ hubs: poke.hubs, runner: poking });
+
+const cursor = { x: 10, y: 20, button: "left" };
+const early = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "mouse", event: "click", ...cursor },
+);
+check(
+	"a click with nothing to carry it is refused",
+	early.status === 409 && String(json(early).error).includes("not connected"),
+);
+
+poke.hubs.markLive(SESSION);
+await call(pokeHandler, `/dsh-browser/panel?session=${SESSION}`);
+await new Promise((resolve) => {
+	setTimeout(resolve, 0);
+});
+await call(pokeHandler, `/dsh-browser/panel?session=${SESSION}`);
+
+const clicked = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "mouse", event: "click", ...cursor },
+);
+check("a click on a live view is taken", clicked.status === 200);
+check("and says so", json(clicked).ok === true);
+check(
+	"and the page is told about it",
+	poke.sent.some((text) => text.includes("mousePressed")),
+);
+check(
+	"with the person's act in the feed",
+	(
+		await call(pokeHandler, `/dsh-browser/panel?session=${SESSION}`)
+	).body.includes('"human"'),
+);
+
+const nonsense = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "mouse", event: "click" },
+);
+check(
+	"a click with no point is refused with a reason",
+	nonsense.status === 400 && String(json(nonsense).error).includes("x and a y"),
+);
+
+const heavy = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "wheel", x: 1, y: 2, deltaY: 1, pad: "x".repeat(4_096) },
+);
+check("a body too big to be a click is refused", heavy.status === 413);
+
+const moved = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "navigate", to: "back" },
+);
+check("going back runs the CLI", poked[0]?.join(" ") === "back");
+check("and is reported as done", json(moved).ok === true);
+
+const sized = await call(
+	pokeHandler,
+	`/dsh-browser/input?session=${SESSION}`,
+	"POST",
+	{ type: "viewport", width: 390, height: 844 },
+);
+check(
+	"a page size runs the CLI's own setter",
+	poked[1]?.join(" ") === "set viewport 390 844",
+);
+check("and is reported as done", json(sized).ok === true);
+
+check(
+	"and an input is never a poll",
+	(await call(pokeHandler, `/dsh-browser/input?session=${SESSION}`)).status ===
 		404,
 );
 

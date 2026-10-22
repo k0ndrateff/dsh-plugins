@@ -74,6 +74,28 @@ export const viewerUrl = style({
 	overflowWrap: "anywhere",
 });
 
+/** The three navigations, and the address they act on. */
+export const viewerNavRow = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "2px",
+	minWidth: 0,
+});
+
+/** The address on one line: the page's name is what matters, its query can wait. */
+export const viewerAddress = style({
+	flex: "1 1 auto",
+	minWidth: 0,
+	marginLeft: "4px",
+	fontFamily: theme.font.code,
+	fontSize: "11px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	overflow: "hidden",
+	textOverflow: "ellipsis",
+	whiteSpace: "nowrap",
+});
+
 export const viewerScroll = style({
 	display: "flex",
 	flex: "1 1 auto",
@@ -107,6 +129,27 @@ export const frame = style({
 	display: "block",
 	width: "100%",
 	height: "auto",
+});
+
+/**
+ * The picture as the page's own surface.
+ *
+ * A person's click, wheel and keys go through it, so it takes focus and says so
+ * with a ring: a picture that swallows typing without showing that it has it is
+ * how a keyboard disappears into nothing.
+ */
+export const surface = style({
+	width: "100%",
+	lineHeight: 0,
+	outline: "none",
+	cursor: "default",
+	userSelect: "none",
+	selectors: {
+		"&:focus-visible": {
+			outline: `2px solid ${theme.color.link}`,
+			outlineOffset: "-2px",
+		},
+	},
 });
 
 /** What the stage says while it has no picture to show. */
@@ -193,6 +236,20 @@ export const footer = style({
 	flexWrap: "wrap",
 	padding: "10px 16px 14px",
 	borderTop: `0.5px solid ${theme.color.borderSubtle}`,
+});
+
+/** The page-size picker: a native select, because the list is a browser's own. */
+export const pageSize = style({
+	height: "28px",
+	maxWidth: "160px",
+	padding: "0 6px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelSecondary,
+	background: theme.color.bgBase,
+	border: `0.5px solid ${theme.color.borderSubtle}`,
+	borderRadius: theme.radius.md,
+	cursor: "pointer",
 });
 
 /** The host's own words about an action, or the reason it was not reached. */
