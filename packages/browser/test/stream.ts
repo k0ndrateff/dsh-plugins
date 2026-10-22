@@ -18,14 +18,7 @@ import {
 import { parseStreamStatus } from "../src/host/stream/facts";
 import { StreamHub } from "../src/host/stream/hub";
 import type { WirePeer } from "../src/host/wire/peer";
-import type { PanelMessage } from "../src/shared/panel";
 import { check, report, section } from "./harness";
-
-/** One message the hub would send a panel. */
-const messageOf = (type: string, text: string): string =>
-	JSON.stringify(
-		type === "frame" ? { type, seq: 1, data: text } : JSON.parse(text),
-	);
 
 const tick = (): Promise<void> =>
 	new Promise((resolve) => {
@@ -156,7 +149,6 @@ section("one hub, one screencast");
 
 /** This session's screencast, as the test decides it. */
 const scenario = (port: number | undefined) => {
-	const seen: PanelMessage[] = [];
 	const sent: string[] = [];
 	let handlers:
 		| { onMessage: (text: string) => void; onClose: (reason: string) => void }
@@ -185,71 +177,70 @@ const scenario = (port: number | undefined) => {
 
 	return {
 		hub,
-		seen,
 		sent,
 		connections: () => connections,
 		closed: () => closed,
-		handlers: () => handlers,
-		frame: (text: string) => handlers?.onMessage(messageOf("frame", text)),
+		frame: (data: string) =>
+			handlers?.onMessage(
+				JSON.stringify({
+					type: "frame",
+					seq: 7,
+					data,
+					metadata: { deviceWidth: 1280, deviceHeight: 720 },
+				}),
+			),
 		feed: (message: unknown) => handlers?.onMessage(JSON.stringify(message)),
+		drop: (reason: string) => handlers?.onClose(reason),
 	};
 };
 
 const quiet = scenario(undefined);
-const stopQuiet = quiet.hub.watch((message) => quiet.seen.push(message));
-check("a panel can watch before any browser exists", quiet.seen.length === 1);
-check("and is told there is nothing yet", quiet.seen[0]?.type === "state");
+quiet.hub.touch();
+const quietAnswer = quiet.hub.snapshot();
 check(
-	"with a reason a person can act on",
-	quiet.seen[0]?.type === "state" &&
-		String(quiet.seen[0].error).includes("no browser"),
+	"a panel may ask before any browser exists",
+	quietAnswer.connected === false,
+);
+check(
+	"and is told there is nothing yet",
+	String(quietAnswer.error).includes("no browser"),
 );
 check("without the CLI being asked", quiet.connections() === 0);
-stopQuiet();
+quiet.hub.stop();
 
 const running = scenario(4242);
-const stopRunning = running.hub.watch((message) => running.seen.push(message));
+running.hub.touch();
 check(
-	"watching alone still does not start a browser",
+	"asking alone still does not start a browser",
 	running.connections() === 0,
 );
 
 running.hub.markLive();
+running.hub.touch();
 await tick();
-check("a tool call is what makes it connect", running.connections() === 1);
+check("a tool call plus a poll is what connects", running.connections() === 1);
 check(
 	"and the screencast is asked for a bounded frame rate",
 	running.sent[0]?.includes('"maxFps"') === true,
 );
-check(
-	"which is state the reader sees",
-	running.seen.some(
-		(message) => message.type === "state" && message.connected === true,
-	),
-);
+check("which the answer says", running.hub.snapshot().connected === true);
 
 running.feed({
 	type: "tabs",
 	tabs: [{ active: true, url: "http://x/", title: "X" }],
 });
-const addressed = running.seen
-	.filter((message) => message.type === "state")
-	.at(-1);
-check(
-	"the address reaches the reader",
-	addressed?.type === "state" && addressed.url === "http://x/",
-);
-check(
-	"with the page's title",
-	addressed?.type === "state" && addressed.title === "X",
-);
+const addressed = running.hub.snapshot();
+check("the address reaches the reader", addressed.url === "http://x/");
+check("with the page's title", addressed.title === "X");
 
 running.frame("jpegbytes");
 check(
-	"a frame reaches the reader",
-	running.seen.some(
-		(message) => message.type === "frame" && message.data === "jpegbytes",
-	),
+	"a frame is kept for the picture route",
+	running.hub.latestFrame()?.data === "jpegbytes",
+);
+check(
+	"and its sequence is what a reader keys on",
+	running.hub.snapshot().seq === 7,
 );
 
 running.feed({
@@ -261,104 +252,61 @@ running.feed({
 });
 running.feed({ type: "result", id: "r1", action: "click", duration_ms: 10 });
 running.feed({ type: "command", id: "r2", action: "launch", params: {} });
-const feed = running.seen
-	.filter((message) => message.type === "activity")
-	.at(-1);
-check(
-	"the feed is a window, not an append",
-	feed?.type === "activity" && feed.items.length === 2,
-);
-check(
-	"the command leads",
-	feed?.type === "activity" && feed.items[0]?.text === "click @e2",
-);
-check(
-	"and its outcome follows",
-	feed?.type === "activity" && feed.items[1]?.text === "10ms",
-);
+const feed = running.hub.snapshot().activity;
+check("the feed is a window, not an append", feed.length === 2);
+check("the command leads", feed[0]?.text === "click @e2");
+check("and its outcome follows", feed[1]?.text === "10ms");
 check(
 	"while the CLI's own attach is left out",
-	feed?.type === "activity" &&
-		feed.items.every((item) => !item.text.includes("launch")),
+	feed.every((item) => !item.text.includes("launch")),
 );
 
-const latecomer: PanelMessage[] = [];
-const stopLate = running.hub.watch((message) => latecomer.push(message));
+running.drop("the browser went away");
+const lost = running.hub.snapshot();
 check(
-	"a reader that arrives late is told the state",
-	latecomer[0]?.type === "state",
+	"a dropped screencast is answered as not connected",
+	lost.connected === false,
 );
-check(
-	"and shown the last frame at once",
-	latecomer.some((message) => message.type === "frame"),
-);
-check(
-	"and the feed so far",
-	latecomer.some((message) => message.type === "activity"),
-);
-stopLate();
-
-running.handlers()?.onClose("the browser went away");
-const lost = running.seen.filter((message) => message.type === "state").at(-1);
-check("a dropped screencast is state the reader sees", lost?.type === "state");
-check("as not connected", lost?.type === "state" && lost.connected === false);
-check(
-	"with the reason it dropped",
-	lost?.type === "state" && lost.error === "the browser went away",
-);
+check("with the reason it dropped", lost.error === "the browser went away");
 check(
 	"and the stale picture is gone",
-	!running.seen
-		.slice(running.seen.indexOf(lost as PanelMessage))
-		.some((message) => message.type === "frame"),
+	running.hub.latestFrame() === undefined && lost.seq === 0,
 );
-stopRunning();
 running.hub.stop();
 
 const closing = scenario(4243);
-const stopClosing = closing.hub.watch((message) => closing.seen.push(message));
 closing.hub.markLive();
+closing.hub.touch();
 await tick();
 closing.hub.markClosed();
-const shutdown = closing.seen
-	.filter((message) => message.type === "state")
-	.at(-1);
+const shutdown = closing.hub.snapshot();
 check(
 	"a browser closed on purpose says so",
-	shutdown?.type === "state" && String(shutdown.error).includes("closed"),
+	String(shutdown.error).includes("closed"),
 );
 check("and is not looked for again", closing.connections() === 1);
-stopClosing();
 closing.hub.stop();
 
 const leaving = scenario(4244);
-const stopLeaving = leaving.hub.watch((message) => leaving.seen.push(message));
 leaving.hub.markLive();
+leaving.hub.touch();
 await tick();
-check("the peer is open while somebody watches", leaving.closed() === false);
-stopLeaving();
+check("the connection is open while somebody asks", leaving.closed() === false);
 await new Promise((resolve) => setTimeout(resolve, 40));
-check(
-	"and is dropped a while after the last reader leaves",
-	leaving.closed() === true,
-);
+check("and is dropped a while after the last poll", leaving.closed() === true);
 leaving.hub.stop();
 
 const unknown = scenario(undefined);
 unknown.hub.markLive();
-const stopUnknown = unknown.hub.watch((message) => unknown.seen.push(message));
+unknown.hub.touch();
 await tick();
 await tick();
-const missing = unknown.seen
-	.filter((message) => message.type === "state")
-	.at(-1);
+const missing = unknown.hub.snapshot();
 check(
 	"a session whose browser is not running is told apart from one never opened",
-	missing?.type === "state" &&
-		String(missing.error).includes("no browser is running"),
+	String(missing.error).includes("no browser is running"),
 );
 check("and no connection was attempted", unknown.connections() === 0);
-stopUnknown();
 unknown.hub.stop();
 
 report();

@@ -1,5 +1,11 @@
 # dsh-browser-plugin
 
+## 0.1.2
+
+### Patch Changes
+
+- Fixed browser panel issues.
+
 ## 0.1.1
 
 ### Patch Changes

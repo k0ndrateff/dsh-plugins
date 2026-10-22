@@ -32,7 +32,6 @@ import { openTool } from "../src/host/tools/open";
 import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
 import { snapshotTool } from "../src/host/tools/snapshot";
-import type { PanelMessage } from "../src/shared/panel";
 import { check, report, section } from "./harness";
 
 /** The page the browser is pointed at: a button, a heading, a log and a throw. */
@@ -190,14 +189,12 @@ const watchOnce = async (session: string): Promise<Watched> => {
 			)?.port,
 		connect: (port, handlers) => connectStream(port, handlers),
 	});
-	const seen: PanelMessage[] = [];
-	const stop = hub.watch((message) => seen.push(message));
-
 	hub.markLive();
 
-	// The connection is opened for us, so the commands wait for it: the feed is
-	// what the CLI reports from the moment a reader is attached, and a command run
-	// before then is a command nobody sees.
+	// One poll is what starts the connection, exactly as a mounted panel's first
+	// poll does.
+	hub.touch();
+
 	const joining = Date.now() + 5_000;
 	while (!hub.live && Date.now() < joining) {
 		await new Promise((resolve) => {
@@ -216,43 +213,39 @@ const watchOnce = async (session: string): Promise<Watched> => {
 		});
 	}
 
-	// Frames arrive with the connection; the feed arrives as the commands above
-	// report themselves, which is a moment later.
+	// Keep asking, the way a mounted panel does, until both the picture and the
+	// feed have arrived.
 	const deadline = Date.now() + 10_000;
-	const ready = (): boolean =>
-		seen.some((message) => message.type === "frame") &&
-		(seen.filter((message) => message.type === "activity").at(-1)?.items
-			.length ?? 0) >= 6;
+	const ready = (): boolean => {
+		const snapshot = hub.snapshot();
+
+		return snapshot.seq > 0 && snapshot.activity.length >= 6;
+	};
 
 	while (Date.now() < deadline) {
 		if (ready()) break;
 
+		hub.touch();
 		await new Promise((resolve) => {
 			setTimeout(resolve, 100);
 		});
 	}
 
-	stop();
-	await new Promise((resolve) => {
-		setTimeout(resolve, 50);
-	});
+	const snapshot = hub.snapshot();
+	const frame = hub.latestFrame();
+
 	hub.stop();
 
-	const state = seen.filter((message) => message.type === "state").at(-1);
-	const frame = seen.filter((message) => message.type === "frame").at(-1);
-	const activity = seen.filter((message) => message.type === "activity").at(-1);
-
 	return {
-		connected: state?.type === "state" && state.connected,
-		frame: frame?.type === "frame" ? frame.data.length : undefined,
+		connected: snapshot.connected,
+		frame: frame === undefined ? undefined : frame.data.length,
 		viewport:
-			frame?.type === "frame"
-				? { width: frame.width, height: frame.height }
-				: undefined,
-		url: state?.type === "state" ? state.url : "",
-		activity: activity?.type === "activity" ? activity.items.length : 0,
-		why:
-			state?.type === "state" ? (state.error ?? "") : "the host said nothing",
+			frame === undefined
+				? undefined
+				: { width: frame.width, height: frame.height },
+		url: snapshot.url,
+		activity: snapshot.activity.length,
+		why: snapshot.error ?? "",
 	};
 };
 

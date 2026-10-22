@@ -141,21 +141,49 @@ export const activityList = style({
 	listStyle: "none",
 });
 
-/**
- * One activity line.
- *
- * A command and its result are the same kind of fact and stay plain text; the
- * tint alone tells the reader which of the two they are looking at.
- */
+/** One activity line: what happened on the left, how long it took on the right. */
 export const activityItem = style({
+	display: "flex",
+	alignItems: "baseline",
+	gap: "6px",
 	fontSize: "12px",
 	lineHeight: "18px",
 	overflowWrap: "anywhere",
-	whiteSpace: "pre-wrap",
-	selectors: {
-		'&[data-kind="command"]': { color: theme.color.labelSecondary },
-		'&[data-kind="result"]': { color: theme.color.labelTertiary },
-	},
+});
+
+/** The verb: what the agent did, in a reader's words. */
+export const activityLabel = style({
+	flex: "1 1 auto",
+	minWidth: 0,
+	color: theme.color.labelSecondary,
+});
+
+/** What it acted on, kept apart from the verb so the sentence stays scannable. */
+export const activityDetail = style({
+	flex: "0 1 auto",
+	minWidth: 0,
+	fontFamily: theme.font.code,
+	fontSize: "11px",
+	color: theme.color.labelPrimary,
+	overflow: "hidden",
+	textOverflow: "ellipsis",
+	whiteSpace: "nowrap",
+});
+
+/** How long it took, once it is known. */
+export const activityDuration = style({
+	flex: "0 0 auto",
+	fontVariantNumeric: "tabular-nums",
+	color: theme.color.labelTertiary,
+});
+
+/** What the stage says when a frame was there but would not load. */
+export const frameMissing = style({
+	padding: "16px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.danger,
+	textAlign: "center",
 });
 
 export const footer = style({

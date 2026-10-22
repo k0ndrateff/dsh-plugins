@@ -1,20 +1,20 @@
 /**
  * One session's live view: the host's side of a panel.
  *
- * Exactly one connection watches a session's screencast, and every open panel is
- * a subscriber to what that connection last saw. Three decisions live here and
- * nowhere else:
+ * Exactly one connection watches a session's screencast, and every poll of the
+ * panel is answered from what that connection last saw. Three decisions live here
+ * and nowhere else:
  *
- *  - the connection exists only while somebody is watching, and ends a while
- *    after the last reader leaves — frames cost the browser real work, and a
- *    closed panel must not pay for them;
+ *  - the connection exists only while somebody is asking, and ends a while after
+ *    the last poll — frames cost the browser real work, and a closed panel must
+ *    not pay for them;
  *  - a session is watched only once a tool call has proved there is a browser in
  *    it, so opening a panel never starts one;
  *  - the feed keeps the CLI's own pairs — a command line, then its outcome — and
  *    only the last few, because a feed nobody scrolls is not a log.
  */
 
-import type { PanelActivity, PanelMessage } from "../../shared/panel";
+import type { PanelActivity, PanelSnapshot } from "../../shared/panel";
 import { errorText } from "../text";
 import type { WirePeer } from "../wire/peer";
 import {
@@ -23,7 +23,7 @@ import {
 	type StreamFrame,
 } from "./events";
 
-/** How long the connection is kept after the last reader leaves. */
+/** How long the connection is kept after the last poll. */
 const DEFAULT_IDLE_MS = 10_000;
 
 /** How many activity lines one reader is shown. */
@@ -63,7 +63,6 @@ export interface StreamHubDeps {
 }
 
 export class StreamHub {
-	private readonly listeners = new Set<(message: PanelMessage) => void>();
 	private peer: WirePeer | undefined;
 	private idle: NodeJS.Timeout | undefined;
 	private retry: NodeJS.Timeout | undefined;
@@ -91,42 +90,11 @@ export class StreamHub {
 		return this.peer !== undefined;
 	}
 
-	/**
-	 * Watch this session's browser.
-	 * @param listener - told everything that changes; what is already known
-	 *   arrives immediately, so an opening panel draws before the next frame.
-	 * @returns the unsubscribe, which starts the idle countdown when it is last.
-	 */
-	watch(listener: (message: PanelMessage) => void): () => void {
-		this.listeners.add(listener);
-
-		// A panel that opens before anything has driven this session is told so in
-		// its very first message, rather than left to read an empty page as a blank.
-		if (!this.watching && this.failure === undefined)
-			this.failure = NO_BROWSER_YET;
-
-		listener(this.stateMessage());
-
-		if (this.frame !== undefined) listener({ type: "frame", ...this.frame });
-		if (this.activity.length > 0)
-			listener({ type: "activity", items: [...this.activity] });
-
-		this.cancelIdle();
-		if (this.watching) void this.open();
-
-		return () => {
-			this.listeners.delete(listener);
-
-			if (this.listeners.size === 0) this.armIdle();
-		};
-	}
-
 	/** A tool call proved this session has a browser. */
 	markLive(): void {
 		this.watching = true;
 		this.attempts = 0;
 		this.failure = undefined;
-		void this.open();
 	}
 
 	/** The browser was closed on purpose, so it is not worth looking for. */
@@ -136,9 +104,49 @@ export class StreamHub {
 		this.drop("this session's browser was closed");
 	}
 
+	/**
+	 * One poll arrived: keep the view alive, and start it when there is one.
+	 *
+	 * Starting here rather than on `markLive` is what keeps a browser the panel
+	 * never asked about from being watched: a tool that ran and no panel to look
+	 * at it costs nothing.
+	 */
+	touch(): void {
+		this.armIdle();
+
+		if (!this.watching) {
+			// A panel that opens before anything has driven this session is told so,
+			// rather than left to read an empty page as a blank.
+			if (this.failure === undefined) this.failure = NO_BROWSER_YET;
+
+			return;
+		}
+
+		void this.open();
+	}
+
+	/** What one poll answers with. */
+	snapshot(): PanelSnapshot {
+		return {
+			session: this.deps.session,
+			connected: this.connected,
+			url: this.url,
+			title: this.title,
+			...(this.failure === undefined || this.connected
+				? {}
+				: { error: this.failure }),
+			seq: this.frame?.seq ?? 0,
+			activity: [...this.activity],
+		};
+	}
+
+	/** The last frame, for a reader that does not have it yet. */
+	latestFrame(): StreamFrame | undefined {
+		return this.frame;
+	}
+
 	/** Stop for good: the plugin is going away. */
 	stop(): void {
-		this.listeners.clear();
 		this.watching = false;
 		this.cancelIdle();
 		this.cancelRetry();
@@ -150,8 +158,9 @@ export class StreamHub {
 		if (
 			this.opening ||
 			this.peer !== undefined ||
-			!this.watching ||
-			this.listeners.size === 0
+			this.retry !== undefined ||
+			this.attempts >= MAX_ATTEMPTS ||
+			!this.watching
 		)
 			return;
 
@@ -160,7 +169,7 @@ export class StreamHub {
 		try {
 			const port = await this.deps.port();
 
-			if (this.listeners.size === 0 || !this.watching) return;
+			if (!this.watching) return;
 
 			if (port === undefined) {
 				this.gave("no browser is running in this session");
@@ -175,7 +184,6 @@ export class StreamHub {
 			this.attempts = 0;
 			this.connected = true;
 			this.failure = undefined;
-			this.emitState();
 			// One bounded frame rate for our reader: the screencast ticks per client.
 			this.peer.send(
 				JSON.stringify({
@@ -190,7 +198,7 @@ export class StreamHub {
 		}
 	}
 
-	/** One message from the screencast, as something worth telling readers. */
+	/** One message from the screencast, as something worth reporting. */
 	private receive(text: string): void {
 		const event = parseStreamMessage(text);
 
@@ -198,20 +206,14 @@ export class StreamHub {
 
 		switch (event.kind) {
 			case "address": {
-				const title = event.title ?? this.title;
-
-				if (event.url === this.url && title === this.title) return;
-
 				this.url = event.url;
-				this.title = title;
-				this.emitState();
+				this.title = event.title ?? this.title;
 
 				return;
 			}
 
 			case "frame": {
 				this.frame = event.frame;
-				this.emit({ type: "frame", ...event.frame });
 
 				return;
 			}
@@ -232,7 +234,6 @@ export class StreamHub {
 			...this.activity,
 			{ kind: activity.kind, text: activity.text, at: activity.at },
 		].slice(-limit);
-		this.emit({ type: "activity", items: [...this.activity] });
 	}
 
 	/** The screencast ended on its own. */
@@ -263,14 +264,12 @@ export class StreamHub {
 		this.frame = undefined;
 		this.activity = [];
 		this.failure = reason;
-		this.emitState();
 	}
 
 	/** Nothing to watch, and why; retried a few times, then left to a tool call. */
 	private gave(reason: string): void {
 		this.connected = false;
 		this.failure = reason;
-		this.emitState();
 		this.attempts += 1;
 
 		if (this.attempts < MAX_ATTEMPTS) this.scheduleRetry();
@@ -278,8 +277,7 @@ export class StreamHub {
 
 	/** One more attempt, further away than the last. */
 	private scheduleRetry(): void {
-		if (this.retry !== undefined || this.listeners.size === 0 || !this.watching)
-			return;
+		if (this.retry !== undefined || !this.watching) return;
 
 		const delay = Math.min(
 			RETRY_BASE_MS * 2 ** (this.attempts - 1),
@@ -293,11 +291,14 @@ export class StreamHub {
 		this.retry.unref();
 	}
 
-	/** Stop watching a while after the last reader left. */
+	/** Stop watching a while after the last poll. */
 	private armIdle(): void {
 		this.cancelIdle();
 		this.idle = setTimeout(() => {
 			this.idle = undefined;
+
+			if (!this.watching) return;
+
 			this.drop("nobody is watching");
 		}, this.deps.idleMs ?? DEFAULT_IDLE_MS);
 		this.idle.unref();
@@ -315,34 +316,5 @@ export class StreamHub {
 
 		clearTimeout(this.retry);
 		this.retry = undefined;
-	}
-
-	/** The state one reader sees, as a message. */
-	private stateMessage(): PanelMessage {
-		return {
-			type: "state",
-			session: this.deps.session,
-			connected: this.connected,
-			url: this.url,
-			title: this.title,
-			...(this.failure === undefined || this.connected
-				? {}
-				: { error: this.failure }),
-		};
-	}
-
-	private emitState(): void {
-		this.emit(this.stateMessage());
-	}
-
-	/** One message to every reader; a reader that throws is not the others' problem. */
-	private emit(message: PanelMessage): void {
-		for (const listener of this.listeners) {
-			try {
-				listener(message);
-			} catch {
-				// A panel that fails to draw must not stop the next one from hearing.
-			}
-		}
 	}
 }

@@ -2,15 +2,24 @@
  * What the two halves of this plugin agree on.
  *
  * They are separate bundles with no shared runtime, so the contract between them
- * is this file and nothing else: the paths the page calls, the page kind it
- * registers, and the messages that ride the socket in between.
+ * is this file and nothing else: the paths the panel calls, the page kind it
+ * registers, and the shape of one poll's answer.
+ *
+ * Every path here is **relative**: the Desktop application serves its page from
+ * its own `dsh-app://` scheme, where a `WebSocket` cannot even be constructed
+ * (the scheme is refused) and only an ordinary request reaches the harness's web
+ * server. Polling and one `<img>` are what work there, and they are what every
+ * other panel in this suite already does.
  */
 
 /** The route prefix this plugin owns on the harness web server. */
 export const ROUTE_PREFIX = "/dsh-browser";
 
-/** The upgrade path the panel's live stream lives on. */
-export const STREAM_PATH = `${ROUTE_PREFIX}/stream`;
+/** Everything a panel needs that is not the picture itself. */
+export const PANEL_PATH = `${ROUTE_PREFIX}/panel`;
+
+/** The last frame as JPEG bytes; `seq` names the one the reader already has. */
+export const FRAME_PATH = `${ROUTE_PREFIX}/frame`;
 
 /** Closing this session's browser, which is the only thing the panel writes. */
 export const CLOSE_PATH = `${ROUTE_PREFIX}/close`;
@@ -26,10 +35,16 @@ export const PANEL_KIND = "dsh-browser";
 /** The panel body's registration id, and the key its title registers under. */
 export const PANEL_ID = "dsh-browser";
 
-/** What the panel was opened on. */
+/**
+ * What the panel was opened on.
+ *
+ * Both fields are optional on purpose: an icon or a restored tab may name
+ * neither, and the panel can derive the browser from its own session — the one
+ * fact a body of a session's pane always has.
+ */
 export interface PanelParams {
 	/** The agent-browser session whose browser is watched. */
-	readonly session: string;
+	readonly session?: string;
 	/** The address the browser was last known to be at, when one was known. */
 	readonly url?: string;
 }
@@ -50,44 +65,32 @@ export interface PanelActivity {
 	readonly at: number;
 }
 
-/** Everything the host may send down one panel's socket. */
-export type PanelMessage =
-	| {
-			readonly type: "state";
-			readonly session: string;
-			/** Whether the host currently holds the browser's own stream. */
-			readonly connected: boolean;
-			readonly url: string;
-			readonly title: string;
-			/** Why there is nothing to watch, when the host knows. */
-			readonly error?: string;
-	  }
-	| {
-			readonly type: "frame";
-			readonly seq: number;
-			/** The viewport's size: what a click would be measured against. */
-			readonly width: number;
-			readonly height: number;
-			/** One JPEG, base64. */
-			readonly data: string;
-	  }
-	| {
-			readonly type: "activity";
-			/** The whole window the panel should show, newest last. */
-			readonly items: readonly PanelActivity[];
-	  };
-
-/** What the panel may send back. */
-export interface PanelRequest {
-	readonly type: "config";
-	/** Frames per second this reader wants at most. */
-	readonly maxFps: number;
+/** Everything one poll of the host answers with. */
+export interface PanelSnapshot {
+	readonly session: string;
+	/** Whether the host currently holds the browser's own stream. */
+	readonly connected: boolean;
+	readonly url: string;
+	readonly title: string;
+	/** Why there is nothing to watch, when the host knows. */
+	readonly error?: string;
+	/** The frame the picture path would answer with right now; 0 for none. */
+	readonly seq: number;
+	/** The whole window a reader should show, newest last. */
+	readonly activity: readonly PanelActivity[];
 }
 
 /**
- * The socket one panel watches a session on.
- * @param origin - the page's own origin, such as `http://127.0.0.1:58052`.
- * @param session - the agent-browser session to watch.
+ * The picture of one frame.
+ *
+ * The sequence is a cache key as much as it is a fact: an address that never
+ * changed would never be fetched again, and the new frame would sit unseen.
+ * @param session - the browser session to watch.
+ * @param seq - the frame to show, as the last poll reported it.
  */
-export const streamUrl = (origin: string, session: string): string =>
-	`${origin.replace(/^http/u, "ws")}${STREAM_PATH}?session=${encodeURIComponent(session)}`;
+export const frameUrl = (session: string, seq: number): string =>
+	`${FRAME_PATH}?session=${encodeURIComponent(session)}&seq=${String(seq)}`;
+
+/** The poll that carries everything except the picture. */
+export const panelUrl = (session: string): string =>
+	`${PANEL_PATH}?session=${encodeURIComponent(session)}`;

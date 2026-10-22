@@ -7,9 +7,10 @@
  * what the line says: the address the call asked for, and the page it landed on.
  *
  * This is also where the panel opens by itself, because a reader watching the
- * agent work wants the viewport in front of them without hunting for it. The
- * chance is spent once per page load: a reload, a later call, or the user having
- * closed the panel must not drag it back open.
+ * agent work wants the viewport in front of them without hunting for it. It opens
+ * on **every** settled call, not once: opening a tab that is already there only
+ * reveals it, and a panel the user closed must be reachable again by the one
+ * action that obviously means "look at this page".
  */
 
 import type { Context } from "@deepseek-ai/cordis";
@@ -37,31 +38,6 @@ interface OpenMeta {
 	/** The page's own title; empty when it has none. */
 	readonly title: string;
 }
-
-/**
- * The one chance a page load gets to move the panel by itself.
- *
- * A module-level flag rather than per-row state: the row is mounted and
- * unmounted with the tool group, while the question — has this page already
- * shown a viewport? — outlives every one of them.
- */
-class OpenOnce {
-	private opened = false;
-
-	/**
-	 * Take the chance, if it is still there.
-	 * @returns whether this is the call that opens the panel.
-	 */
-	take = (): boolean => {
-		if (this.opened) return false;
-
-		this.opened = true;
-
-		return true;
-	};
-}
-
-const panelOpened = new OpenOnce();
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	value !== null && typeof value === "object" && !Array.isArray(value);
@@ -109,7 +85,7 @@ export const BrowserOpenRow = (props: ToolRowProps): ReactNode => {
 	const url = meta?.url;
 
 	useEffect(() => {
-		if (session === undefined || !panelOpened.take()) return;
+		if (session === undefined) return;
 
 		openPanel({ session, url });
 	}, [session, url]);
