@@ -1,0 +1,55 @@
+{
+	"name": "dsh-browser-plugin",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "A browser for DeepSeek Harness: the agent opens, inspects and pokes a real page, one browser per session",
+	"license": "MIT",
+	"main": "lib/index.js",
+	"icon": "./icon.svg",
+	"exports": {
+		".": "./lib/index.js",
+		"./icon": "./icon.svg",
+		"./locale/*.json": "./locale/*.json"
+	},
+	"files": [
+		"lib",
+		"cordis.patch.yml",
+		"icon.svg",
+		"locale/*.json"
+	],
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		}
+	},
+	"engines": {
+		"dsh": ">=0.2.0 <0.3.0"
+	},
+	"scripts": {
+		"build": "node build.mjs",
+		"watch": "node build.mjs --watch",
+		"typecheck": "tsc -p tsconfig.host.json --noEmit",
+		"test": "bun run test/envelope.ts && bun run test/text.ts && bun run test/session.ts && bun run test/status.ts && bun run test/runner.ts && bun run test/tools.ts && bun run test/dry-run.ts",
+		"prepack": "bun run build"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "~4.0.5",
+		"@deepseek-ai/dsh-commands": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-subprocess": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+		"@deepseek-ai/dsh-working-directory": "0.2.1-rc.2"
+	},
+	"devDependencies": {
+		"dsh-plugin-build": "^0.1.4"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "k0ndrateff",
+	"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/browser#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/k0ndrateff/dsh-plugins.git",
+		"directory": "packages/browser"
+	}
+}

@@ -1,0 +1,13 @@
+# dsh-browser-plugin bundle layer.
+#
+# One row, mounted from the bare package name.
+#
+# The browser this row drives is the machine's own `agent-browser` CLI, so the
+# only configuration worth naming here is the executable; everything else falls
+# back to the plugin's defaults. Override or disable it from the profile patch
+# with:
+#   - id: browser
+#     disabled: true
+- insert:
+    - id: browser
+      name: dsh-browser-plugin

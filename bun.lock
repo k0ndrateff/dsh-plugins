@@ -39,7 +39,7 @@
     },
     "packages/atlassian": {
       "name": "dsh-atlassian-plugin",
-      "version": "0.3.2",
+      "version": "0.3.4",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -62,9 +62,23 @@
         "@deepseek-ai/dsh-llm",
       ],
     },
+    "packages/browser": {
+      "name": "dsh-browser-plugin",
+      "version": "0.1.0",
+      "devDependencies": {
+        "dsh-plugin-build": "^0.1.4",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.0.5",
+        "@deepseek-ai/dsh-commands": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-subprocess": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+        "@deepseek-ai/dsh-working-directory": "0.2.1-rc.2",
+      },
+    },
     "packages/correlation": {
       "name": "dsh-correlation-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -80,7 +94,7 @@
     },
     "packages/devkit": {
       "name": "dsh-devkit-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -99,7 +113,7 @@
     },
     "packages/digest": {
       "name": "dsh-digest-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -118,7 +132,7 @@
     },
     "packages/figma": {
       "name": "dsh-figma-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -137,7 +151,7 @@
     },
     "packages/gitlab": {
       "name": "dsh-gitlab-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -158,7 +172,7 @@
     },
     "packages/integration-host": {
       "name": "dsh-integration-host",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "dsh-mcp-oauth": "workspace:*",
       },
@@ -169,7 +183,7 @@
     },
     "packages/integration-ui": {
       "name": "dsh-integration-ui",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
         "dsh-integration-host": "workspace:*",
@@ -190,7 +204,7 @@
     },
     "packages/integrations": {
       "name": "dsh-integrations-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -208,7 +222,7 @@
     },
     "packages/mcp-oauth": {
       "name": "dsh-mcp-oauth",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
       },
@@ -222,7 +236,7 @@
     },
     "packages/plugin-build": {
       "name": "dsh-plugin-build",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@vanilla-extract/esbuild-plugin": "^2.3.22",
         "esbuild": "^0.25.0",
@@ -230,7 +244,7 @@
     },
     "packages/sentry": {
       "name": "dsh-sentry-plugin",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -251,7 +265,7 @@
     },
     "packages/workflow": {
       "name": "dsh-workflow-plugin",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "dsh-atlassian-plugin": "workspace:*",
         "dsh-correlation-plugin": "workspace:*",
@@ -684,6 +698,8 @@
     "deepmerge-ts": ["deepmerge-ts@8.0.2", "", {}, "sha512-uqbvqLUMrc6p0MO+WBRtTxY55hmyh94WRwI5a++PZe54X+bfVh59FSN7uWCBCW1CCVjzjnrwzfI8zidE2obMMw=="],
 
     "dsh-atlassian-plugin": ["dsh-atlassian-plugin@workspace:packages/atlassian"],
+
+    "dsh-browser-plugin": ["dsh-browser-plugin@workspace:packages/browser"],
 
     "dsh-correlation-plugin": ["dsh-correlation-plugin@workspace:packages/correlation"],
 

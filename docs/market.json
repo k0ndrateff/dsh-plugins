@@ -358,6 +358,48 @@
 			]
 		},
 		{
+			"name": "dsh-browser-plugin",
+			"title": "Browser",
+			"description": "A real browser the agent drives and checks its UI work in, one browser per session, on your machine.",
+			"icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJCcm93c2VyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxyZWN0IHg9IjYuNSIgeT0iNy41IiB3aWR0aD0iMjMiIGhlaWdodD0iMjEiIHJ4PSIzLjUiIHN0cm9rZT0idXJsKCNkc2gtYnJvd3Nlci1hKSIgc3Ryb2tlLXdpZHRoPSIzIi8+CiAgPHBhdGggZD0iTTYuNSAxNC41SDI5LjUiIHN0cm9rZT0idXJsKCNkc2gtYnJvd3Nlci1hKSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIxMC42IiBjeT0iMTEiIHI9IjEuMyIgZmlsbD0idXJsKCNkc2gtYnJvd3Nlci1hKSIvPgogIDxwYXRoIGQ9Ik0xMi41IDE5LjIgMjEuOCAyMi45IDE4LjIgMjQuNiAxNi41IDI4LjIgMTIuNSAxOS4yWiIgZmlsbD0idXJsKCNkc2gtYnJvd3Nlci1hKSIvPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJkc2gtYnJvd3Nlci1hIiB4MT0iNiIgeTE9IjYiIHgyPSIzMCIgeTI9IjMwIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM3QUMyRkYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjNEE2NUU4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KPC9zdmc+Cg==",
+			"author": "k0ndrateff",
+			"homepage": "https://github.com/k0ndrateff/dsh-plugins/tree/main/packages/browser#readme",
+			"repository": {
+				"url": "https://github.com/k0ndrateff/dsh-plugins",
+				"directory": "packages/browser"
+			},
+			"metadata": {
+				"category": "developer",
+				"keywords": [
+					"browser",
+					"chrome",
+					"headless",
+					"page",
+					"ui",
+					"screenshot",
+					"playwright",
+					"verify"
+				],
+				"labels": [
+					"no-credential",
+					"writes"
+				],
+				"sortKeys": {}
+			},
+			"versions": [
+				{
+					"version": "0.1.0",
+					"publishTimestamp": 1792666737,
+					"source": {
+						"type": "npm"
+					},
+					"engines": {
+						"dsh": ">=0.2.0 <0.3.0"
+					}
+				}
+			]
+		},
+		{
 			"name": "dsh-workflow-plugin",
 			"title": "All k0ndrateff’s plugins",
 			"description": "Every plugin of the k0ndrateff’s collection in one install: Jira and Confluence, Sentry, GitLab, Figma, the digest, correlation, the Integrations page and project checks.",

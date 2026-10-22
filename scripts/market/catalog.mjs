@@ -107,6 +107,20 @@ export const PLUGINS = {
 		labels: ["read-only"],
 		keywords: ["checks", "lint", "typecheck", "tests", "build", "recipes"],
 	},
+	"dsh-browser-plugin": {
+		category: "developer",
+		labels: ["no-credential", "writes"],
+		keywords: [
+			"browser",
+			"chrome",
+			"headless",
+			"page",
+			"ui",
+			"screenshot",
+			"playwright",
+			"verify",
+		],
+	},
 	"dsh-workflow-plugin": {
 		category: "setup",
 		labels: [],

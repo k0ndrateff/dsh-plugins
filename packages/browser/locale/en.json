@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "Browser",
+		"description": "A real browser the agent drives and checks its UI work in, one browser per session, on your machine."
+	}
+}

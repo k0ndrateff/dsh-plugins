@@ -23,7 +23,7 @@ Add the market index as a source — Settings → Plugins → Discover, with
 https://k0ndrateff.github.io/dsh-plugins/market.json
 ```
 
-`dsh-workflow-plugin` is the shortcut: it depends on the other eight bundles and
+`dsh-workflow-plugin` is the shortcut: it depends on eight bundles and
 mounts a row for each, so one install gives you all of them. Install it
 **instead of** the individual bundles, not beside them — two profile layers
 inserting a row with the same id is a duplicate the loader refuses.
@@ -53,6 +53,7 @@ fetched.
 | `dsh-correlation-plugin` | Error → commit → merge request → ticket, in one card |
 | `dsh-integrations-plugin` | The one Settings page the connection cards appear on |
 | `dsh-devkit-plugin` | The project's own lint, typecheck, test and build recipes |
+| `dsh-browser-plugin` | A real browser the agent drives to check its UI work, one browser per session (tools only so far; the side-panel viewport is next) |
 | `dsh-workflow-plugin` | Every bundle above behind one profile entry |
 | `dsh-mcp-oauth` | OAuth for MCP servers, and the authenticated bridge |
 | `dsh-integration-host` | Host-half shell: endpoint patch, sign-in state, settings route, slash command, the digest and correlation registries |
