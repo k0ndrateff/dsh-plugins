@@ -15,7 +15,7 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubprocessOutcome } from "@deepseek-ai/dsh-subprocess";
-import type { BrowserConfig } from "./config";
+import type { BrowserSettings } from "./config";
 import { parseEnvelope } from "./envelope";
 import { type BrowserStatus, parseDoctor, summarizeDoctor } from "./status";
 import { errorText } from "./text";
@@ -75,6 +75,9 @@ const GRACE_MS = 5_000;
 const SESSION_FLAG = "--session";
 const JSON_FLAG = "--json";
 
+/** The flag that points the browser at a real Chrome profile instead of its own. */
+const PROFILE_FLAG = "--profile";
+
 /** What to do about a CLI that is not on this machine. */
 const missingExecutable = (executable: string): string =>
 	`"${executable}" is not on PATH. Install it with \`npm install -g agent-browser\` and then \`agent-browser install\`, or point the plugin at an existing one with the \`executable\` setting.`;
@@ -114,7 +117,7 @@ export class AgentBrowserRunner {
 	constructor(
 		private readonly deps: {
 			readonly ctx: Context;
-			readonly config: BrowserConfig;
+			readonly config: BrowserSettings;
 		},
 	) {}
 
@@ -139,6 +142,7 @@ export class AgentBrowserRunner {
 				executable.path,
 				SESSION_FLAG,
 				command.session,
+				...this.profile(),
 				...command.args,
 				JSON_FLAG,
 			],
@@ -150,6 +154,18 @@ export class AgentBrowserRunner {
 		);
 
 		return this.read(invoked, started);
+	}
+
+	/**
+	 * The profile flags every call carries, when one was configured.
+	 *
+	 * A global flag rather than a launch-time one: the browser starts inside
+	 * whichever call first needs it, and the CLI reads the profile on every attach.
+	 */
+	private profile(): readonly string[] {
+		const profile = this.deps.config.chromeProfile.trim();
+
+		return profile === "" ? [] : [PROFILE_FLAG, profile];
 	}
 
 	/**

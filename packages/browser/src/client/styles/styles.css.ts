@@ -279,6 +279,22 @@ export const indicatorHost = style({
 	color: theme.color.labelTertiary,
 });
 
+/** One row of the settings page: the switch and what it means. */
+export const configRow = style({
+	display: "flex",
+	flexWrap: "wrap",
+	alignItems: "center",
+	gap: "8px",
+});
+
+/** The sentence under a settings control. */
+export const configHint = style({
+	flex: "1 1 100%",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+});
+
 /** The panel's state when it was opened without a browser to watch. */
 export const empty = style({
 	display: "flex",

@@ -15,7 +15,7 @@ import type {
 	SubprocessOutcome,
 	SubprocessSpawnSpec,
 } from "@deepseek-ai/dsh-subprocess";
-import { type BrowserConfig, resolveConfig } from "../src/host/config";
+import { BrowserSettings } from "../src/host/config";
 import { AgentBrowserRunner, type BrowserCommand } from "../src/host/runner";
 import { check, report, section } from "./harness";
 
@@ -93,13 +93,13 @@ const scriptedSubprocess = (script: Script, found: boolean) => {
 /** A runner over one scripted seam. */
 const runnerFor = (
 	script: Script,
-	config?: Partial<BrowserConfig>,
+	config?: Parameters<typeof BrowserSettings.from>[0],
 	found = true,
 ) => {
 	const fake = scriptedSubprocess(script, found);
 	const runner = new AgentBrowserRunner({
 		ctx: fake.ctx,
-		config: { ...resolveConfig(undefined), ...config },
+		config: BrowserSettings.from(config),
 	});
 
 	return { runner, specs: fake.specs, resolutions: fake.resolutions };
@@ -181,6 +181,21 @@ check(
 	"and adds no window and no domain policy",
 	quiet.specs[0]?.env?.AGENT_BROWSER_HEADED === undefined &&
 		quiet.specs[0]?.env?.AGENT_BROWSER_ALLOWED_DOMAINS === undefined,
+);
+
+const profiled = runnerFor(
+	{ stdout: '{"success":true}' },
+	{ chromeProfile: "Default" },
+);
+await profiled.runner.run(command(["open", "http://x"]));
+check(
+	"a profile to reuse is named on every call",
+	profiled.specs[0]?.argv.includes("--profile") === true &&
+		profiled.specs[0]?.argv.includes("Default") === true,
+);
+check(
+	"and no profile means no flag",
+	quiet.specs[0]?.argv.includes("--profile") === false,
 );
 
 section("a CLI that is not installed");

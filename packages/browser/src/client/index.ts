@@ -25,8 +25,14 @@ import type { Context } from "@deepseek-ai/cordis";
 // Each import below carries a declaration this half needs: the slot registry
 // itself and the right Sidebar's tab-type registry with its parameter map.
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
+import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import { registerBrowserOpenRow } from "./components/tool-row";
+import {
+	BrowserSettingsForm,
+	BrowserSettingsPage,
+	SETTINGS_NAMESPACES,
+} from "./settings/page";
 import { PANEL_ID, panelDefinition } from "./sidebar/definition";
 import { BrowserIndicator, INDICATOR_ID } from "./sidebar/indicator";
 import { installPanelOpener } from "./sidebar/open";
@@ -80,6 +86,45 @@ export const apply = (ctx: Context): void => {
 			BrowserIndicator,
 		),
 	);
+
+	// The settings page needs the harness's settings service, which a build
+	// without Settings does not compose: the page simply does not appear there.
+	ctx.inject(["configForms"], (scoped) => {
+		scoped.effect(
+			() =>
+				scoped.configForms.whileServed([...SETTINGS_NAMESPACES], (served) => {
+					// Which of the two ids the settings document knows this plugin by is
+					// the Loader's answer, not ours: a row inserted by a bundle patch
+					// sits in an include group, and the group is part of the id.
+					const namespace = SETTINGS_NAMESPACES.find((name) =>
+						served.has(name),
+					);
+
+					if (namespace === undefined) return () => {};
+
+					const form = new BrowserSettingsForm(
+						scoped.configForms.get(namespace),
+					);
+					const registration = scoped.slots.inject("settings.plugins.tab", () =>
+						scoped.slots.register(
+							{
+								name: "settings.plugins.tab",
+								id: "browser",
+								order: 20,
+								label: "Browser",
+							},
+							BrowserSettingsPage,
+						),
+					);
+
+					return () => {
+						registration();
+						form.dispose();
+					};
+				}),
+			"browser: settings page",
+		);
+	});
 
 	// The row claims `browser_open` for itself, so its key travels with it.
 	registerBrowserOpenRow(ctx);

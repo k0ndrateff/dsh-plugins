@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { resolveConfig } from "../src/host/config";
+import { BrowserSettings } from "../src/host/config";
 import type {
 	AgentBrowserRunner,
 	BrowserCommand,
@@ -94,7 +94,7 @@ const toolsFor = (script: Script, maxOutputBytes = 400) => {
 	const deps: BrowserToolDeps = {
 		runner,
 		sessions,
-		config: resolveConfig({ maxOutputBytes }),
+		config: BrowserSettings.from({ maxOutputBytes }),
 		hubs,
 	};
 

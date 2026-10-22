@@ -15,7 +15,7 @@ import type {
 	CommandInvocation,
 	CommandResult,
 } from "@deepseek-ai/dsh-commands";
-import type { BrowserConfig } from "./config";
+import type { BrowserSettings } from "./config";
 import type { AgentBrowserRunner } from "./runner";
 import type { BrowserSession, SessionScope } from "./session";
 import type { StreamHubs } from "./stream/hubs";
@@ -30,7 +30,7 @@ type Action = (typeof ACTIONS)[number];
 export interface BrowserCommandDeps {
 	readonly runner: AgentBrowserRunner;
 	readonly sessions: SessionScope;
-	readonly config: BrowserConfig;
+	readonly config: BrowserSettings;
 	readonly hubs: StreamHubs;
 }
 

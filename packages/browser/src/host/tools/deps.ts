@@ -9,7 +9,7 @@
  */
 
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import type { BrowserConfig } from "../config";
+import type { BrowserSettings } from "../config";
 import type { AgentBrowserRunner, BrowserOutcome } from "../runner";
 import type { BrowserSession, SessionScope } from "../session";
 import type { StreamHubs } from "../stream/hubs";
@@ -18,7 +18,7 @@ import type { StreamHubs } from "../stream/hubs";
 export interface BrowserToolDeps {
 	readonly runner: AgentBrowserRunner;
 	readonly sessions: SessionScope;
-	readonly config: BrowserConfig;
+	readonly config: BrowserSettings;
 	readonly hubs: StreamHubs;
 }
 

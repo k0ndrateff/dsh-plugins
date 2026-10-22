@@ -24,7 +24,7 @@ import type {} from "@deepseek-ai/dsh-subprocess";
 import type {} from "@deepseek-ai/dsh-tools";
 import type {} from "@deepseek-ai/dsh-working-directory";
 import { browserCommand } from "./command";
-import { type ConfigInput, resolveConfig } from "./config";
+import { type BrowserConfig, BrowserSettings, Config } from "./config";
 import { mountPanel } from "./panel/route";
 import { AgentBrowserRunner } from "./runner";
 import { SessionScope } from "./session";
@@ -38,6 +38,12 @@ import { withHumanNotice } from "./tools/notice";
 
 export const name = "dsh-browser";
 
+/**
+ * The plugin's configuration, as the Loader validates it and the settings page
+ * derives its form from.
+ */
+export { Config };
+
 /** Services this plugin needs before it can activate. */
 export const inject = ["tools", "commands", "subprocess", "workingDirectory"];
 
@@ -47,12 +53,16 @@ const PROBE_TIMEOUT_MS = 15_000;
 /**
  * @param ctx - host context carrying tools, commands, the subprocess seam and
  *   the session working directory.
- * @param configInput - the executable, the caps, the policy and the live view's
- *   own scale.
+ * @param config - the executable, the caps, the policy and the live view's own
+ *   scale, with every default filled by the schema.
  */
-export function apply(ctx: Context, configInput?: ConfigInput): void {
-	const config = resolveConfig(configInput);
-	const runner = new AgentBrowserRunner({ ctx, config });
+export function apply(ctx: Context, config: BrowserConfig = Config({})): void {
+	// The Loader validates the patch against the schema and fills every default
+	// before it gets here, so these are the values the plugin should be reading —
+	// volatile handles, read at the moment of use, which is what lets the settings
+	// page change one without restarting the plugin.
+	const settings = BrowserSettings.of(config);
+	const runner = new AgentBrowserRunner({ ctx, config: settings });
 	const hubs = new StreamHubs(
 		(session) =>
 			new StreamHub({
@@ -72,10 +82,15 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 						signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
 					}),
 				connect: (port, handlers) => connectStream(port, handlers),
-				maxFps: config.streamMaxFps,
+				maxFps: settings.streamMaxFps,
 			}),
 	);
-	const deps = { runner, sessions: new SessionScope(ctx), config, hubs };
+	const deps = {
+		runner,
+		sessions: new SessionScope(ctx),
+		config: settings,
+		hubs,
+	};
 
 	// Every result carries what the person at the panel did since the last one:
 	// the agent and the human drive the same page, and only one of them knows it.

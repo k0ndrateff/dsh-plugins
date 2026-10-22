@@ -40,7 +40,7 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/envelope.ts && bun run test/feed.ts && bun run test/text.ts && bun run test/session.ts && bun run test/status.ts && bun run test/panel.ts && bun run test/input.ts && bun run test/wire.ts && bun run test/stream.ts && bun run test/runner.ts && bun run test/tools.ts && bun run test/dry-run.ts",
+		"test": "bun run test/config.ts && bun run test/envelope.ts && bun run test/feed.ts && bun run test/text.ts && bun run test/session.ts && bun run test/status.ts && bun run test/panel.ts && bun run test/input.ts && bun run test/wire.ts && bun run test/stream.ts && bun run test/runner.ts && bun run test/tools.ts && bun run test/dry-run.ts",
 		"prepack": "bun run build"
 	},
 	"dependencies": {
@@ -54,6 +54,7 @@
 		"@deepseek-ai/dsh-working-directory": "0.2.1-rc.2"
 	},
 	"devDependencies": {
+		"@deepseek-ai/schemastery": "^3.18.5",
 		"dsh-integration-ui": "^0.1.4",
 		"dsh-plugin-build": "^0.1.4"
 	},

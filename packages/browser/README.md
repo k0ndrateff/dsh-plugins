@@ -42,6 +42,18 @@ The plugin does not ship a browser engine and does not wrap Playwright.
 `/browser status` reports whether the CLI and Chrome are usable, and
 `/browser close` closes this session's browser.
 
+## Settings
+
+Settings → Plugins → **Browser** edits this plugin's configuration and writes it
+into the profile patch: the executable, the command timeout and the answer
+limit, a visible window instead of headless, a real Chrome profile to reuse, the
+CLI's own domain allowlist, and the live view's quality, size and frame rate.
+Nothing is written until Save, and clearing a field returns it to the default.
+
+A browser that is already running keeps the frame shape it started with; the
+rest applies to the next one. Editing the profile also works by hand — the page
+writes the same `config:` block a patch would.
+
 ## The panel
 
 `browser_open` opens a **Browser** tab in the right Sidebar, on the browser that
@@ -79,6 +91,7 @@ Every field is optional, and a profile patch sets them on the row:
     timeoutMs: 60000
     maxOutputBytes: 32768
     headed: false
+    chromeProfile: ""
     allowedDomains: []
     streamQuality: 60
     streamMaxWidth: 1280
@@ -93,6 +106,9 @@ Every field is optional, and a profile patch sets them on the row:
 - **`headed`** — show the browser window instead of running it headless.
 - **`allowedDomains`** — comma-joined domain patterns the CLI itself enforces;
   the browser then also refuses CDP attach, saved profiles and state replay.
+- **`chromeProfile`** — reuse a real Chrome profile, by name or path, so the
+  browser starts signed in. Empty (the default) means the plugin's own throwaway
+  profile.
 - **`streamQuality`**, **`streamMaxWidth`**, **`streamMaxHeight`** — the live
   view's own scale. The defaults are the page's own size at quality 60, about
   31 KB a frame: sharp at the width the panel draws it, and paid for only while

@@ -20,7 +20,7 @@ import type {
 	SubprocessSpawnSpec,
 } from "@deepseek-ai/dsh-subprocess";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { resolveConfig } from "../src/host/config";
+import { BrowserSettings } from "../src/host/config";
 import { AgentBrowserRunner } from "../src/host/runner";
 import { SessionScope } from "../src/host/session";
 import { connectStream } from "../src/host/stream/connect";
@@ -133,7 +133,7 @@ const ctx = {
 	subprocess: realSubprocess(),
 	workingDirectory: { ensure: async () => process.cwd() },
 } as unknown as Context;
-const config = resolveConfig(undefined);
+const config = BrowserSettings.from();
 const runner = new AgentBrowserRunner({ ctx, config });
 const live: string[] = [];
 const hubs = {
