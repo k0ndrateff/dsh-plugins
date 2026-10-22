@@ -27,6 +27,7 @@ import {
 } from "dsh-integration-ui";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { isWebUrl } from "../../shared/link";
 import {
 	asIssuePanel,
 	type CodeLocation,
@@ -314,7 +315,7 @@ const Assignee = ({
 /** Where the error was raised, linked when Sentry named a URL. */
 const Location = ({ code }: { code: CodeLocation }) => (
 	<Section title="Location">
-		{code.url === undefined ? (
+		{!isWebUrl(code.url) ? (
 			<code className={styles.mono}>{locationText(code)}</code>
 		) : (
 			<a
@@ -381,7 +382,7 @@ const IssueView = ({
 				<div className={styles.panelTitleRow}>
 					<span className={styles.panelKey}>{issue.id}</span>
 
-					{issue.url === undefined ? null : (
+					{!isWebUrl(issue.url) ? null : (
 						<a
 							className={styles.link}
 							href={issue.url}

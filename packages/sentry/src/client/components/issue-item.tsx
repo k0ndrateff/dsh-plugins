@@ -8,6 +8,7 @@
 
 import { Facts } from "dsh-integration-ui";
 import type { MouseEvent } from "react";
+import { isWebUrl } from "../../shared/link";
 import type { IssueCard } from "../../shared/meta";
 import { openPanel, wantsBrowser } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
@@ -28,7 +29,7 @@ const IdLink = ({ issue }: Props) => {
 		if (openPanel({ id: issue.id })) event.preventDefault();
 	};
 
-	if (issue.url === undefined)
+	if (!isWebUrl(issue.url))
 		return (
 			<button
 				type="button"

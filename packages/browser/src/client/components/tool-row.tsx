@@ -25,7 +25,7 @@ import {
 	type ToolRowProps,
 } from "dsh-integration-ui";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { BROWSER_OPEN_TOOL } from "../../shared/tools";
 import { openPanel } from "../sidebar/open";
 
@@ -83,9 +83,12 @@ export const BrowserOpenRow = (props: ToolRowProps): ReactNode => {
 		props.phase === "result" ? asOpenMeta(props.block?.meta) : undefined;
 	const session = meta?.session;
 	const url = meta?.url;
+	// A row restored from the session log mounts already settled. Opening the
+	// panel there would start an old conversation's browser view on page load.
+	const mountedAsResult = useRef(props.phase === "result");
 
 	useEffect(() => {
-		if (session === undefined) return;
+		if (session === undefined || mountedAsResult.current) return;
 
 		openPanel({ session, url });
 	}, [session, url]);

@@ -9,6 +9,7 @@
  */
 
 import { createSettingsSection, type FactItem } from "dsh-integration-ui";
+import { isWebUrl } from "../../shared/link";
 import type { SentryStatus } from "../../shared/status";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
@@ -22,7 +23,7 @@ const details = (status: SentryStatus): readonly FactItem[] => [
 				<>
 					{status.organization}
 
-					{status.organizationUrl === null ? null : (
+					{!isWebUrl(status.organizationUrl) ? null : (
 						<>
 							{" · "}
 

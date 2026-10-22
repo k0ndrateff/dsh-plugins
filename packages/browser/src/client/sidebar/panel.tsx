@@ -48,9 +48,6 @@ import { type BrowserPanelState, useBrowserPanel } from "./stream";
 /** How many of the host's activity items the panel shows. */
 const ACTIVITY_SHOWN = 12;
 
-/** How often a hover over the picture is forwarded, at most. */
-const HOVER_MS = 60;
-
 /**
  * The page sizes a person can ask for.
  *
@@ -90,8 +87,14 @@ const waitingFor = (panel: BrowserPanelState): string => {
 };
 
 /** One session's viewport: its page, its picture, its activity, and its actions. */
-const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
-	const panel = useBrowserPanel(session);
+const BrowserView = ({
+	session,
+	visible,
+}: {
+	readonly session: string;
+	readonly visible: boolean;
+}): ReactNode => {
+	const panel = useBrowserPanel(session, visible);
 	const refresh = panel.refresh;
 	const [notice, setNotice] = useState<CloseAnswer | undefined>(undefined);
 	const [isClosing, setIsClosing] = useState(false);
@@ -99,7 +102,9 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 
 	const stage = useRef<HTMLDivElement | null>(null);
 	const picture = useRef<HTMLImageElement | null>(null);
-	const hoveredAt = useRef(0);
+	const downAt = useRef<{ readonly x: number; readonly y: number } | undefined>(
+		undefined,
+	);
 
 	const snapshot = panel.snapshot;
 	const url = snapshot?.url ?? "";
@@ -188,11 +193,25 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 		};
 	}, [pointOf, wheels]);
 
-	const press = (event: ReactMouseEvent<HTMLDivElement>): void => {
-		// Focus follows the click into the page, so the keys a person types next
-		// land there rather than on the harness around the panel.
+	const focus = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		// Focus follows the pointer into the page, so the keys a person types next
+		// land there rather than on the harness around the panel. The click itself
+		// waits for the release, so a drag selects text instead of clicking.
 		event.preventDefault();
 		event.currentTarget.focus();
+		downAt.current = { x: event.clientX, y: event.clientY };
+	};
+
+	const press = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		const down = downAt.current;
+
+		downAt.current = undefined;
+
+		if (
+			down !== undefined &&
+			Math.abs(event.clientX - down.x) + Math.abs(event.clientY - down.y) > 6
+		)
+			return;
 
 		const point = pointOf(event);
 
@@ -208,31 +227,14 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 		});
 	};
 
-	const hover = (event: ReactMouseEvent<HTMLDivElement>): void => {
-		const now = Date.now();
-
-		if (now - hoveredAt.current < HOVER_MS) return;
-
-		hoveredAt.current = now;
-
-		const point = pointOf(event);
-
-		if (point === undefined) return;
-
-		act({
-			type: "mouse",
-			event: "move",
-			x: point.x,
-			y: point.y,
-			button: "left",
-			modifiers: modifiersOf(event),
-		});
-	};
-
 	const key = (
 		event: ReactKeyboardEvent<HTMLDivElement>,
 		isDown: boolean,
 	): void => {
+		// Tab belongs to the harness: a keyboard user must be able to leave the
+		// picture. Every other key goes to the page first.
+		if (event.key === "Tab") return;
+
 		event.preventDefault();
 
 		act({
@@ -332,8 +334,8 @@ const BrowserView = ({ session }: { readonly session: string }): ReactNode => {
 							tabIndex={0}
 							role="application"
 							aria-label={`The browser's viewport on ${headingOf(panel)}`}
-							onMouseDown={press}
-							onMouseMove={hover}
+							onMouseDown={focus}
+							onMouseUp={press}
 							onKeyDown={(event) => key(event, true)}
 							onKeyUp={(event) => key(event, false)}
 						>
@@ -456,7 +458,7 @@ export const BrowserPanel = (
 	// tool call that named the browser exactly.
 	const session = params?.session ?? sessionNameOf(props.sessionId);
 
-	return <BrowserView session={session} />;
+	return <BrowserView session={session} visible={tab.visible} />;
 };
 
 /** The panel's title seat: the address it is on, until it has one. */

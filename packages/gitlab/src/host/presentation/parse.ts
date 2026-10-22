@@ -409,10 +409,28 @@ export function parseMergeRequestDetail(
 function countLines(patch: string): { added: number; removed: number } {
 	let added = 0;
 	let removed = 0;
+	let started = false;
 
 	for (const line of patch.split(/\r?\n/u)) {
-		if (line.startsWith("+") && !line.startsWith("+++")) added += 1;
-		else if (line.startsWith("-") && !line.startsWith("---")) removed += 1;
+		if (line.startsWith("@@")) {
+			started = true;
+
+			continue;
+		}
+
+		// A file header is metadata only before the first hunk. After it, a
+		// removed line `--- old` is content, not the `--- a/file` header.
+		if (
+			!started &&
+			(line.startsWith("--- ") ||
+				line.startsWith("+++ ") ||
+				line.startsWith("diff --git") ||
+				line.startsWith("index "))
+		)
+			continue;
+
+		if (line.startsWith("+")) added += 1;
+		else if (line.startsWith("-")) removed += 1;
 	}
 
 	return { added, removed };
@@ -792,6 +810,12 @@ export function findingOf(
 
 	const position = note.position;
 	const line = position?.newLine ?? position?.oldLine;
+	const lineSide =
+		position?.newLine !== undefined
+			? ("new" as const)
+			: position?.oldLine !== undefined
+				? ("old" as const)
+				: undefined;
 
 	return {
 		kind: "finding",
@@ -804,6 +828,7 @@ export function findingOf(
 			...(note.author === undefined ? {} : { author: note.author.username }),
 			...(position?.file === undefined ? {} : { file: position.file }),
 			...(line === undefined ? {} : { line }),
+			...(lineSide === undefined ? {} : { lineSide }),
 		},
 	};
 }

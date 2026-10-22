@@ -125,9 +125,9 @@ class BrowserCommand {
 			signal,
 		});
 
-		// A closed browser is one the panel should stop looking for, whether or not
-		// the close itself succeeded: there is nothing to watch either way.
-		deps.hubs.markClosed(session.name);
+		// Only a close that happened stops the panel from looking: a failed close
+		// leaves a live browser, and the panel must stay able to reconnect.
+		if (outcome.ok) deps.hubs.markClosed(session.name);
 
 		return outcome.ok
 			? { kind: "success", text: `Closed the browser of ${session.name}.` }

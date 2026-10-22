@@ -107,6 +107,15 @@ export const createPanelBody = <TData, TParams>(
 				const wanted = current.current;
 				if (wanted === undefined) return;
 
+				const stillWanted = (): boolean => {
+					const now = current.current;
+
+					return (
+						now !== undefined &&
+						provider.identity(now) === provider.identity(wanted)
+					);
+				};
+
 				setBusy(true);
 				setFailure(undefined);
 
@@ -118,12 +127,14 @@ export const createPanelBody = <TData, TParams>(
 							throw new Error(
 								"the host answered with a document this version cannot draw",
 							);
-						setLoad({ status: "ready", data, params: wanted });
+						if (stillWanted())
+							setLoad({ status: "ready", data, params: wanted });
 					})
 					.catch((error: unknown) => {
-						setFailure(messageOf(error));
+						if (stillWanted()) setFailure(messageOf(error));
 						// The write may have failed after the host changed nothing; asking
-						// again is what tells the two apart.
+						// again is what tells the two apart. It reads the target that is
+						// current now, not the one the click was made on.
 						void fetchPanel();
 					})
 					.finally(() => {

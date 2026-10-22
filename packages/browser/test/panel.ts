@@ -67,12 +67,20 @@ const call = async (
 	body?: unknown,
 ): Promise<Answer> => {
 	const { response, answer } = answering();
+	const headers = {
+		host: "127.0.0.1:52849",
+		origin: "http://127.0.0.1:52849",
+		"sec-fetch-site": "same-origin",
+		"x-dsh-client": "1",
+		"content-type": "application/json",
+	};
 	const request =
 		body === undefined
-			? ({ url, method } as IncomingMessage)
+			? ({ url, method, headers } as unknown as IncomingMessage)
 			: (Object.assign(Readable.from([Buffer.from(JSON.stringify(body))]), {
 					url,
 					method,
+					headers,
 				}) as unknown as IncomingMessage);
 
 	await handler(request, response);

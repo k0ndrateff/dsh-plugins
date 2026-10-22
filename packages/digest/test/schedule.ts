@@ -18,6 +18,7 @@ import {
 	type ScheduleCreateRequest,
 } from "../src/host/schedule";
 import { defaultDigestSettings } from "../src/host/settings";
+import { canonicalTimeZone, toScheduleTime } from "../src/shared/digest";
 import { check, report, section } from "./harness";
 
 /** One reminder the fake service holds. */
@@ -37,6 +38,13 @@ class FakeSchedule {
 		sessionId: string,
 		request: ScheduleCreateRequest,
 	): Promise<{ id: string }> {
+		const time = request.daily?.time ?? request.weekly?.time;
+
+		// The shipped service validates this exact shape; a fake that accepts
+		// anything is what let a plain HH:MM reach production.
+		if (time !== undefined && !/^\d{2}:\d{2}:\d{2}$/u.test(time))
+			throw new Error(`the service refuses the clock time "${time}"`);
+
 		const id = `task-${this.next}`;
 		this.next += 1;
 		this.held.push({ sessionId, id, request });
@@ -69,6 +77,19 @@ const contextWith = (schedule: FakeSchedule | undefined): Context =>
 		get: (name: string) => (name === "schedule" ? schedule : undefined),
 	}) as unknown as Context;
 
+section("the clock the service stores");
+check(
+	"a card time gains seconds",
+	toScheduleTime("09:00") === "09:00:00",
+	toScheduleTime("09:00"),
+);
+check(
+	"a short zone name resolves to a usable one",
+	typeof canonicalTimeZone("GMT") === "string" &&
+		canonicalTimeZone("GMT") !== "",
+	String(canonicalTimeZone("GMT")),
+);
+
 section("a configuration becomes a recurrence");
 {
 	const settings = defaultDigestSettings();
@@ -83,7 +104,7 @@ section("a configuration becomes a recurrence");
 			}),
 		) ===
 			JSON.stringify({
-				daily: { time: settings.time, time_zone: settings.timeZone },
+				daily: { time: `${settings.time}:00`, time_zone: settings.timeZone },
 			}),
 	);
 
@@ -95,7 +116,7 @@ section("a configuration becomes a recurrence");
 		JSON.stringify(weekdays) ===
 			JSON.stringify({
 				weekly: {
-					time: settings.time,
+					time: `${settings.time}:00`,
 					time_zone: settings.timeZone,
 					weekdays: [1, 3, 5],
 				},
@@ -161,7 +182,7 @@ section("binding to a session");
 		"re-binding replaces rather than duplicates",
 		service.held.length === 1 &&
 			(service.held[0]?.request.daily?.time ??
-				service.held[0]?.request.weekly?.time) === "07:00",
+				service.held[0]?.request.weekly?.time) === "07:00:00",
 		JSON.stringify(
 			service.held.map(
 				(entry) => entry.request.daily?.time ?? entry.request.weekly?.time,
@@ -216,7 +237,7 @@ section("re-timing every bound reminder");
 		"and carries the new rule",
 		service.held.every(
 			(entry) =>
-				entry.request.weekly?.time === "06:30" &&
+				entry.request.weekly?.time === "06:30:00" &&
 				entry.request.weekly?.weekdays.join(",") === "1,2,3,4,5",
 		),
 		JSON.stringify(service.held.map((entry) => entry.request.weekly)),

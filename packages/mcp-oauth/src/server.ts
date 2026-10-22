@@ -187,19 +187,22 @@ export class OAuthServer {
 		"accessToken" | "refreshToken" | "tokenType" | "scope" | "expiresAt"
 	> => {
 		const expiresIn = Number(payload.expires_in);
+		const accessToken = payload.access_token;
+		const refreshToken = payload.refresh_token;
+		const tokenType = payload.token_type;
 
 		return {
 			accessToken:
-				typeof payload.access_token === "string"
-					? payload.access_token
+				typeof accessToken === "string" && accessToken !== ""
+					? accessToken
 					: previous.accessToken,
 			refreshToken:
-				typeof payload.refresh_token === "string"
-					? payload.refresh_token
+				typeof refreshToken === "string" && refreshToken !== ""
+					? refreshToken
 					: previous.refreshToken,
 			tokenType:
-				typeof payload.token_type === "string"
-					? payload.token_type
+				typeof tokenType === "string" && tokenType !== ""
+					? tokenType
 					: previous.tokenType,
 			scope: typeof payload.scope === "string" ? payload.scope : previous.scope,
 			expiresAt:

@@ -637,6 +637,30 @@ check(
 	outcome.summary.includes("План на день"),
 );
 
+const emptyTool = presentTool.create({
+	ctx,
+	bridge: fakeBridge(() => mcp({ issues: [], isLast: true })),
+	state,
+});
+const empty = (await emptyTool.execute(
+	{ jql: "project = DEV AND status = Done" },
+	{
+		callId: "call-empty",
+		signal: new AbortController().signal,
+	} as unknown as ToolRunContext,
+)) as { shown: number; summary: string; presentation: { items: unknown[] } };
+
+check(
+	"an empty JQL is an answer, not a failed call",
+	empty.shown === 0 && empty.summary.includes("No issues or pages matched"),
+	empty.summary,
+);
+check(
+	"and it records no card for the client to draw",
+	empty.presentation.items.length === 0,
+	JSON.stringify(empty.presentation),
+);
+
 // --- The side panel ------------------------------------------------------
 // The panel is the only writer in this plugin, so its half of the test drives
 // both directions: what the host loads for a panel, and what the routes accept.
@@ -657,6 +681,13 @@ function fakeRequest(
 	return {
 		method,
 		url,
+		headers: {
+			host: "127.0.0.1:52849",
+			origin: "http://127.0.0.1:52849",
+			"sec-fetch-site": "same-origin",
+			"x-dsh-client": "1",
+			"content-type": "application/json",
+		},
 		async *[Symbol.asyncIterator]() {
 			for (const chunk of chunks) yield chunk;
 		},
@@ -754,7 +785,16 @@ const panelBridge = fakeBridge((name, args) => {
 		case "getConfluencePage":
 			return mcp({ id: "988676219", title: "Обзор", body: "# Привет" });
 		case "getConfluencePageFooterComments":
-			return mcp({ results: [] });
+			return mcp({
+				results: [
+					{
+						body: "Спасибо, поправили",
+						author: { displayName: "Ada Lovelace" },
+					},
+				],
+			});
+		case "atlassianUserInfo":
+			return mcp({ account_id: "acc-me", name: "Ada Lovelace" });
 		default:
 			return mcp({});
 	}
@@ -822,6 +862,19 @@ check(
 	"a page with no webui link still gets one",
 	page.url === `${site}/wiki/pages/viewpage.action?pageId=988676219`,
 	String(page.url),
+);
+check(
+	"the page shows its footer comments",
+	page.comments[0]?.body === "Спасибо, поправили" &&
+		page.comments[0]?.author === "Ada Lovelace",
+	JSON.stringify(page.comments),
+);
+
+const me = await panel.me();
+check(
+	"the panel reads the account id in the identity endpoint's spelling",
+	me?.accountId === "acc-me" && me.name === "Ada Lovelace",
+	JSON.stringify(me),
 );
 
 // The routes the browser half actually calls.

@@ -83,6 +83,8 @@ export interface CheckResult {
 	readonly exitCode: number | null;
 	readonly summary: CheckSummary;
 	readonly failures: readonly CheckFailure[];
+	/** How many failures the run found, before the card's own cap. */
+	readonly failureTotal?: number;
 	/** The tail of what the command printed, kept for a check nothing parsed. */
 	readonly output?: string;
 }
@@ -251,6 +253,9 @@ function asCheck(value: unknown): CheckResult | undefined {
 		exitCode: value.exitCode === null ? null : exitCode,
 		summary: asSummary(value.summary),
 		failures: failures.slice(0, MAX_CARD_FAILURES),
+		...(asCount(value.failureTotal) > 0
+			? { failureTotal: asCount(value.failureTotal) }
+			: {}),
 		...(typeof value.output === "string" && value.output !== ""
 			? { output: value.output }
 			: {}),

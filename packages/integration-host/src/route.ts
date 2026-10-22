@@ -15,7 +15,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import { errorText } from "dsh-mcp-oauth";
 import type { IntegrationAuthFace } from "./auth";
-import type { IntegrationStatus } from "./status";
+import {
+	CLIENT_REQUEST_HEADER,
+	CLIENT_REQUEST_VALUE,
+	type IntegrationStatus,
+} from "./status";
 
 /** Longest write body any integration's route accepts, in bytes. */
 const MAX_BODY_BYTES = 8 * 1024;
@@ -154,7 +158,7 @@ async function readJson(
 		size += buffer.length;
 
 		if (size > MAX_BODY_BYTES)
-			throw new Error("request body is larger than this route accepts");
+			throw new BadRequest("request body is larger than this route accepts");
 		chunks.push(buffer);
 	}
 
@@ -171,6 +175,77 @@ async function readJson(
 	} catch {
 		return undefined;
 	}
+}
+
+/** Methods that do not change anything and need no client tag. */
+const READ_METHODS = new Set(["GET", "HEAD"]);
+
+/** The URL form of an `Origin` that a browser attaches to a web request. */
+function webOrigin(value: string): URL | undefined {
+	try {
+		const url = new URL(value);
+
+		return url.protocol === "http:" || url.protocol === "https:"
+			? url
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Why one request may not reach an integration's write path.
+ *
+ * A browser page that is not the harness cannot send the client header without
+ * a successful cross-origin preflight, and these routes answer no preflight.
+ * The origin check is the second lock: an ordinary cross-origin fetch carries
+ * its origin, and a same-site page is the only one allowed through. A Page
+ * served from the Desktop's own scheme sends no HTTP origin; the header already
+ * separates it from a web page.
+ * @param request - the incoming request.
+ * @returns the refusal for the user, or undefined when the request may proceed.
+ */
+export function clientRequestRefusal(
+	request: IncomingMessage,
+): string | undefined {
+	const method = request.method ?? "GET";
+
+	if (READ_METHODS.has(method)) return undefined;
+
+	const headers = request.headers ?? {};
+
+	if (headers[CLIENT_REQUEST_HEADER] !== CLIENT_REQUEST_VALUE)
+		return "the request did not come from the harness page";
+
+	const contentType = headers["content-type"];
+
+	if (
+		typeof contentType !== "string" ||
+		!contentType.toLowerCase().startsWith("application/json")
+	)
+		return "an integration write must carry a JSON body";
+
+	const origin = headers.origin;
+	const host = headers.host;
+	const originUrl = typeof origin === "string" ? webOrigin(origin) : undefined;
+
+	if (
+		originUrl !== undefined &&
+		typeof host === "string" &&
+		originUrl.host !== host
+	)
+		return "the request came from another origin";
+
+	const site = headers["sec-fetch-site"];
+
+	if (
+		originUrl !== undefined &&
+		typeof site === "string" &&
+		site.toLowerCase() === "cross-site"
+	)
+		return "cross-site requests are refused";
+
+	return undefined;
 }
 
 /**
@@ -217,6 +292,13 @@ export function createIntegrationRoute<TStatus extends IntegrationStatus>(
 				send(502, { error: errorText(error) });
 			}
 		};
+
+		const refusal = clientRequestRefusal(request);
+
+		if (refusal !== undefined) {
+			send(403, { error: refusal });
+			return;
+		}
 
 		let body: Promise<RouteBody> | undefined;
 

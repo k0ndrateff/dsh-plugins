@@ -126,8 +126,8 @@ class PresentTool {
 			type: panel.node.type,
 			width: panel.node.width,
 			height: panel.node.height,
-			tokenCount: panel.tokens.length,
-			childCount: panel.children.length,
+			tokenCount: panel.tokenTotal,
+			childCount: panel.childTotal,
 			...(mapping === undefined
 				? {}
 				: { component: mapping.component, source: mapping.source }),
@@ -141,15 +141,15 @@ class PresentTool {
 		const node = panel.node;
 		const lines = [
 			`${node.type} "${node.name}" (${node.id}), ${node.width}×${node.height}` +
-				(panel.children.length === 0
+				(panel.childTotal === 0
 					? ""
-					: `, ${panel.children.length} child layer${panel.children.length === 1 ? "" : "s"}`),
+					: `, ${panel.childTotal} child layer${panel.childTotal === 1 ? "" : "s"}`),
 		];
 
 		lines.push(
-			panel.tokens.length === 0
+			panel.tokenTotal === 0
 				? "Variables: none"
-				: `Variables (${panel.tokens.length}): ${this.list(
+				: `Variables (${panel.tokenTotal}): ${this.list(
 						panel.tokens.map((token) => `${token.name} = ${token.value}`),
 					)}`,
 		);
@@ -162,7 +162,7 @@ class PresentTool {
 						.join(", ")}`,
 		);
 
-		if (panel.children.length > 0)
+		if (panel.childTotal > 0)
 			lines.push(
 				`Children: ${this.list(
 					panel.children.map(

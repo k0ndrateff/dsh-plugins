@@ -23,7 +23,7 @@ export interface Metadata {
 }
 
 /** A node id as Figma spells it in a URL, and as the tools accept it. */
-const NODE_ID = /^\d+[:-]\d+$/u;
+const NODE_ID = /^(?:I)?\d+[:-]\d+(?:;\d+[:-]\d+)*$/iu;
 
 /** One element of the metadata XML, as the reader walks it. */
 interface Element {
@@ -289,7 +289,7 @@ export function parseNodeRef(
 	const text = value.trim();
 	if (text === "") return undefined;
 
-	if (NODE_ID.test(text)) return { nodeId: text.replace("-", ":") };
+	if (NODE_ID.test(text)) return { nodeId: text.replace(/-/gu, ":") };
 
 	let url: URL;
 	try {
@@ -309,7 +309,7 @@ export function parseNodeRef(
 		branch === -1 ? segments[1] : (segments[branch + 1] ?? segments[1]);
 
 	return {
-		nodeId: nodeId.replace("-", ":"),
+		nodeId: nodeId.replace(/-/gu, ":"),
 		...(fileKey === undefined || fileKey === "" ? {} : { fileKey }),
 	};
 }

@@ -133,6 +133,49 @@ try {
 		);
 	}
 
+	section("a save after the first read");
+	{
+		const file = join(workdir, "settled.json");
+		const store = new DigestSettingsStore(file);
+
+		await store.ensure();
+		const saved = await store.save({ time: "07:00", limit: 25 });
+
+		check("the save answers what it wrote", saved.time === "07:00");
+		check(
+			"a later ensure answers the saved value, not the first read",
+			(await store.ensure()).time === "07:00" &&
+				(await store.ensure()).limit === 25,
+			`${(await store.ensure()).time}/${(await store.ensure()).limit}`,
+		);
+	}
+
+	section("two saves at once");
+	{
+		const file = join(workdir, "concurrent.json");
+		const store = new DigestSettingsStore(file);
+
+		await Promise.all([
+			store.save({ time: "07:00" }),
+			store.save({ limit: 25 }),
+			store.save({ days: [0, 6] }),
+		]);
+
+		const stored = JSON.parse(await readFile(file, "utf8")) as {
+			time?: string;
+			limit?: number;
+			days?: number[];
+		};
+
+		check(
+			"each edit survives the others",
+			stored.time === "07:00" &&
+				stored.limit === 25 &&
+				stored.days?.join(",") === "0,6",
+			JSON.stringify(stored),
+		);
+	}
+
 	section("a save that arrives before any read");
 	{
 		const file = join(workdir, "raced.json");

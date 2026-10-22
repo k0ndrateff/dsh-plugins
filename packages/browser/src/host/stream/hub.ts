@@ -75,7 +75,7 @@ export interface StreamHubDeps {
 	readonly page?: () => Promise<PanelPage | undefined>;
 	readonly idleMs?: number;
 	readonly activityLimit?: number;
-	readonly maxFps?: number;
+	readonly maxFps?: number | (() => number);
 }
 
 export class StreamHub {
@@ -85,6 +85,8 @@ export class StreamHub {
 	private attempts = 0;
 	private opening = false;
 	private closing = false;
+	/** Bumped whenever the connection is dropped, to invalidate a late connect. */
+	private generation = 0;
 	private watching = false;
 	private connected = false;
 	private url = "";
@@ -194,6 +196,16 @@ export class StreamHub {
 	}
 
 	/**
+	 * Ask the page for its own size again.
+	 *
+	 * A viewport command changes `innerWidth/Height` without changing the frame
+	 * window's metadata, so the frame-driven remeasure never sees it.
+	 */
+	async remeasure(): Promise<void> {
+		await this.measure();
+	}
+
+	/**
 	 * Whether this conversation has a browser, and where it was last seen.
 	 *
 	 * Read by the chip above the chat, which exists to bring a closed panel back:
@@ -229,6 +241,7 @@ export class StreamHub {
 			return;
 
 		this.opening = true;
+		const generation = this.generation;
 
 		try {
 			const port = await this.deps.port();
@@ -241,10 +254,21 @@ export class StreamHub {
 				return;
 			}
 
-			this.peer = await this.deps.connect(port, {
+			const peer = await this.deps.connect(port, {
 				onMessage: (text) => this.receive(text),
 				onClose: (reason) => this.lose(reason),
 			});
+
+			// The panel may have been closed, or the plugin unloaded, while the
+			// socket was being negotiated. The peer that arrived afterwards belongs
+			// to nobody and must not keep the screencast alive.
+			if (!this.watching || this.generation !== generation) {
+				peer.close("the live view closed while connecting");
+
+				return;
+			}
+
+			this.peer = peer;
 			this.attempts = 0;
 			this.connected = true;
 			this.failure = undefined;
@@ -252,7 +276,10 @@ export class StreamHub {
 			this.peer.send(
 				JSON.stringify({
 					type: "config",
-					maxFps: this.deps.maxFps ?? DEFAULT_MAX_FPS,
+					maxFps:
+						typeof this.deps.maxFps === "function"
+							? this.deps.maxFps()
+							: (this.deps.maxFps ?? DEFAULT_MAX_FPS),
 				}),
 			);
 			void this.measure();
@@ -416,6 +443,7 @@ export class StreamHub {
 	private drop(reason: string): void {
 		const peer = this.peer;
 
+		this.generation += 1;
 		this.peer = undefined;
 		this.closing = true;
 

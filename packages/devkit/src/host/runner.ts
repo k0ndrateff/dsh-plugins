@@ -27,6 +27,9 @@ import { errorText, tailLines } from "./text";
 /** How long a recipe may run when its own config names no deadline. */
 export const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 
+/** How much stdout a parser may read; the shell default is a 64 KiB tail. */
+const STDOUT_MAX_BYTES = 4 * 1024 * 1024;
+
 /** Every count one parser reported, added up. */
 function counted(summary: CheckSummary): number {
 	return (
@@ -62,6 +65,7 @@ export class RecipeRunner {
 					command: recipe.run,
 					workdir: options.cwd,
 					timeoutMs,
+					stdoutMaxBytes: STDOUT_MAX_BYTES,
 					...(options.signal === undefined ? {} : { signal: options.signal }),
 				}),
 			);
@@ -100,15 +104,16 @@ export class RecipeRunner {
 			.join("\n");
 		const understood =
 			parsed.failures.length > 0 || counted(parsed.summary) > 0;
+		const truncated = result.stdout.truncated || result.stderr.truncated;
 		const status = this.statusOf(result);
+		const note = truncated
+			? "\n[output was truncated; the parser saw only the captured part]"
+			: status === "timedout"
+				? `\n[no result: the recipe was still running at ${result.timeoutMs}ms]`
+				: "";
 		const output =
-			status === "timedout" || !understood
-				? tailLines(
-						status === "timedout"
-							? `${text}\n[no result: the recipe was still running at ${result.timeoutMs}ms]`
-							: text,
-						OUTPUT_TAIL_LINES,
-					)
+			status === "timedout" || !understood || truncated
+				? tailLines(`${text}${note}`, OUTPUT_TAIL_LINES)
 				: undefined;
 
 		return {
@@ -120,6 +125,7 @@ export class RecipeRunner {
 			exitCode: result.exitCode,
 			summary: parsed.summary,
 			failures: parsed.failures,
+			failureTotal: parsed.failures.length,
 			...(output === undefined || output.trim() === "" ? {} : { output }),
 		};
 	}

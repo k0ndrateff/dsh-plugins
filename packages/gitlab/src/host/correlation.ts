@@ -25,7 +25,9 @@ import type { GitLabApi } from "./api";
 import type { GitLabConfig } from "./config";
 
 /** The tracker key a merge request's title or branch may name, such as `DEV-5977`. */
-const TRACKER_KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/u;
+// A dot after the number is a version, not a ticket: `lodash-4.17.21` must not
+// become `LODASH-4`.
+const TRACKER_KEY = /\b([A-Z][A-Z0-9]+-\d+)(?![.\d])/u;
 
 /** The route that ends a project path in a GitLab web link. */
 const PROJECT_END =
@@ -112,8 +114,9 @@ const taskRefsOf = (title: string | undefined, branch: string | undefined) => {
 	const found = [
 		taskRefOf(title),
 		// A branch spells a key in its own case, with its own separators:
-		// `dev-5977-fix` and `fix_dev_5977` both name `DEV-5977`.
-		taskRefOf(branch?.replace(/[_/.]/gu, "-").toUpperCase()),
+		// `dev-5977-fix` and `fix_dev_5977` both name `DEV-5977`. Dots stay, so a
+		// version such as `lodash-4.17.21` cannot become a ticket key.
+		taskRefOf(branch?.replace(/[_/]/gu, "-").toUpperCase()),
 	].filter((ref) => ref !== undefined);
 
 	return [...new Map(found.map((ref) => [ref.key, ref])).values()];

@@ -248,6 +248,8 @@ const Assignee = ({
 
 		if (trimmed.length < 2) {
 			setPeople([]);
+			setFetching(false);
+
 			return;
 		}
 

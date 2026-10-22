@@ -144,13 +144,19 @@ const messageOf = (error: unknown): string =>
  * what was last known and reports it: a panel that has gone quiet should still
  * show the page it was on, and say why it stopped.
  * @param session - the agent-browser session to watch, or undefined to watch none.
+ * @param visible - whether this panel's tab is the one on screen; a kept-mounted
+ *   tab behind another one must cost no frames.
  * @returns the host's last answer, whether reaching it failed, and how to ask sooner.
  */
 export const useBrowserPanel = (
 	session: string | undefined,
+	visible = true,
 ): BrowserPanelWatch => {
 	const [panel, setPanel] = useState<BrowserPanelState>(EMPTY);
 	const askSoon = useRef<() => void>(() => {});
+	const isVisible = useRef(visible);
+
+	isVisible.current = visible;
 
 	useEffect(() => {
 		setPanel(EMPTY);
@@ -162,7 +168,7 @@ export const useBrowserPanel = (
 		let timer: number | undefined;
 
 		const schedule = (): void => {
-			if (stopped || document.hidden) return;
+			if (stopped || document.hidden || !isVisible.current) return;
 
 			timer = window.setTimeout(() => void ask(), POLL_MS);
 		};
@@ -203,7 +209,7 @@ export const useBrowserPanel = (
 		};
 
 		const wake = (): void => {
-			if (stopped || document.hidden) return;
+			if (stopped || document.hidden || !isVisible.current) return;
 
 			if (timer !== undefined) {
 				window.clearTimeout(timer);
@@ -230,6 +236,10 @@ export const useBrowserPanel = (
 			if (timer !== undefined) window.clearTimeout(timer);
 		};
 	}, [session]);
+
+	useEffect(() => {
+		if (visible) askSoon.current();
+	}, [visible]);
 
 	return { ...panel, refresh: useCallback(() => askSoon.current(), []) };
 };

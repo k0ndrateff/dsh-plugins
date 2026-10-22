@@ -66,6 +66,7 @@ interface Found {
 	readonly total: number | undefined;
 	readonly query: string | undefined;
 	readonly subject: string | undefined;
+	readonly truncated: boolean;
 	readonly failed: readonly string[];
 }
 
@@ -200,6 +201,7 @@ class PresentTool {
 				...(found.total === undefined ? {} : { total: found.total }),
 				...(found.query === undefined ? {} : { query: found.query }),
 				...(found.subject === undefined ? {} : { subject: found.subject }),
+				...(found.truncated ? { truncated: true } : {}),
 				items: found.items,
 			};
 
@@ -254,11 +256,26 @@ class PresentTool {
 
 	/** Resolve every requested source into card rows. */
 	private async resolve(deps: PresentDeps, args: PresentArgs): Promise<Found> {
+		const requested =
+			args.mergeRequests.length > 0 ||
+			args.findings.length > 0 ||
+			args.jobs.length > 0 ||
+			args.scope !== undefined ||
+			args.project !== undefined ||
+			args.group !== undefined ||
+			args.search !== undefined;
+
+		if (!requested)
+			throw new Error(
+				"nothing to show: pass merge request references, a scope, a search, findings, or jobs",
+			);
+
 		const failed: string[] = [];
 		const items: PresentationItem[] = [];
 		let total: number | undefined;
 		let query: string | undefined;
 		let subject: string | undefined;
+		let truncated = false;
 
 		if (args.mergeRequests.length > 0) {
 			for (const reference of args.mergeRequests) {
@@ -312,14 +329,12 @@ class PresentTool {
 			}
 
 			try {
-				const discussions = parseDiscussions(
-					await deps.api.get(
-						`${this.mrPath(ref.project, ref.iid)}/discussions`,
-						{
-							per_page: 100,
-						},
-					),
+				const discussionsPage = await deps.api.getAll(
+					`${this.mrPath(ref.project, ref.iid)}/discussions`,
 				);
+				const discussions = parseDiscussions(discussionsPage.items);
+
+				if (discussionsPage.truncated) truncated = true;
 
 				subject = `${ref.project}!${ref.iid}`;
 				items.push(
@@ -356,12 +371,10 @@ class PresentTool {
 			}
 		}
 
-		if (items.length === 0 && failed.length === 0)
-			throw new Error(
-				"nothing to show: pass merge request references, a scope, a search, findings, or jobs",
-			);
+		// An empty list is an answer: nothing is waiting, or the search matched
+		// nothing. The caller already knows it sent a query.
 
-		return { items, total, query, subject, failed };
+		return { items, total, query, subject, truncated, failed };
 	}
 
 	/** The API path of one merge request. */
@@ -445,9 +458,9 @@ class PresentTool {
 		if (listed === null) return [];
 
 		const jobs = parseJobs(
-			await deps.api.get(
+			await deps.api.getAll(
 				`/projects/${encodeURIComponent(ref.project)}/pipelines/${listed.id}/jobs`,
-				{ scope: "failed", per_page: 100 },
+				{ scope: "failed" },
 			),
 		);
 
@@ -490,6 +503,19 @@ class PresentTool {
 
 	/** The text the model reads: what the card shows, in order. */
 	private describe(presentation: GitLabPresentation): string {
+		if (presentation.items.length === 0) {
+			const lines = ["No merge requests, findings or jobs matched."];
+
+			if (presentation.query !== undefined)
+				lines.push(`Query: ${presentation.query}`);
+			if (presentation.subject !== undefined)
+				lines.push(`Merge request: ${presentation.subject}`);
+			if (presentation.truncated === true)
+				lines.push("GitLab had more rows than this answer read.");
+
+			return lines.join("\n");
+		}
+
 		const heading =
 			presentation.title === undefined
 				? "Shown as a card"

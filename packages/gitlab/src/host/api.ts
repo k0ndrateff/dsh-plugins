@@ -60,12 +60,60 @@ export class GitLabApi {
 		params?: Readonly<Record<string, Param>>,
 	): Promise<Answer<T>> {
 		const response = await this.request("GET", path, params);
-		const total = Number(response.headers.get("x-total"));
+		const raw = response.headers.get("x-total");
+		const total = raw === null || raw.trim() === "" ? undefined : Number(raw);
 
 		return {
 			value: (await response.json()) as T,
-			...(Number.isFinite(total) ? { total } : {}),
+			...(total !== undefined && Number.isFinite(total) ? { total } : {}),
 		};
+	}
+
+	/**
+	 * Read every page of one list endpoint.
+	 *
+	 * GitLab slices discussions, diffs and jobs at 100 per page and reports the
+	 * next page in `x-next-page`. Reading only the first page silently loses
+	 * unresolved threads on a large merge request.
+	 * @param path - the list's API path.
+	 * @param params - the filters, without `page` or `per_page`.
+	 * @param maxPages - the safety cap; ten pages is a thousand rows.
+	 * @returns the rows from every page that answered.
+	 */
+	async getAll(
+		path: string,
+		params?: Readonly<Record<string, Param>>,
+		maxPages = 10,
+	): Promise<{ readonly items: unknown[]; readonly truncated: boolean }> {
+		const items: unknown[] = [];
+		let page = 1;
+		let truncated = false;
+
+		for (let index = 0; index < maxPages; index += 1) {
+			const response = await this.request("GET", path, {
+				...params,
+				page,
+				per_page: 100,
+			});
+			const body: unknown = await response.json();
+
+			if (!Array.isArray(body)) break;
+
+			items.push(...body);
+
+			const next = Number(response.headers.get("x-next-page"));
+
+			if (!Number.isInteger(next) || next <= page) break;
+			if (index === maxPages - 1) {
+				truncated = true;
+
+				break;
+			}
+
+			page = next;
+		}
+
+		return { items, truncated };
 	}
 
 	/**

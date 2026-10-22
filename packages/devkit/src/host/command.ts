@@ -38,15 +38,15 @@ class CheckCommand {
 		deps: CheckCommandDeps,
 	): ((invocation: CommandInvocation) => Promise<CommandResult>) => {
 		return async (invocation) => {
-			const project = new ProjectDirectory(
-				deps.ctx,
-				await deps.ctx.workingDirectory.ensure(
-					invocation.agent,
-					invocation.signal,
-				),
-			);
-
 			try {
+				const project = new ProjectDirectory(
+					deps.ctx,
+					await deps.ctx.workingDirectory.ensure(
+						invocation.agent,
+						invocation.signal,
+					),
+				);
+
 				return this.parseAction(invocation.rawInput) === "init"
 					? await this.init(project)
 					: await this.list(project);

@@ -102,6 +102,38 @@ export const isTimeZone = (value: unknown): value is string => {
 	}
 };
 
+/**
+ * The same zone, spelled the way the reminder service stores it.
+ *
+ * `Intl` accepts a few names the service refuses — `CET`, `GMT`, `EST5EDT` —
+ * and resolves each to the canonical zone it actually means. Normalizing on the
+ * way out keeps the settings card, the command and the reminder on one spelling.
+ * @param value - a zone name the card or a hand-edited file supplied.
+ * @returns the canonical IANA name, or undefined when the zone names nothing.
+ */
+export const canonicalTimeZone = (value: unknown): string | undefined => {
+	if (typeof value !== "string" || value === "") return undefined;
+
+	try {
+		return new Intl.DateTimeFormat("en-US", {
+			timeZone: value,
+		}).resolvedOptions().timeZone;
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * The clock time a reminder is created with.
+ *
+ * The settings card edits `HH:MM`; the schedule service validates `HH:mm:ss`.
+ * The conversion lives here so neither half has to remember the other's format.
+ * @param value - a wall-clock time in the card's `HH:MM` form.
+ * @returns the same time with seconds, or the input when it was not one.
+ */
+export const toScheduleTime = (value: string): string =>
+	isDigestTime(value) ? `${value}:00` : value;
+
 /** One block as the settings card draws it. */
 export interface DigestBlockView {
 	readonly id: string;

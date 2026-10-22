@@ -144,6 +144,8 @@ export interface MergeRequestPanel {
 	readonly mr: MergeRequestDetail;
 	readonly diffs: readonly DiffFile[];
 	readonly discussions: readonly Discussion[];
+	/** Whether GitLab had more diff or discussion pages than the panel read. */
+	readonly truncated?: boolean;
 }
 
 /** The head pipeline and its jobs, read when the Pipeline tab is opened. */
@@ -509,6 +511,7 @@ export function asMergeRequestPanel(
 		mr,
 		diffs,
 		discussions,
+		...(value.truncated === true ? { truncated: true } : {}),
 	};
 }
 

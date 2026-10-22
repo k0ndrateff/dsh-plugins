@@ -14,10 +14,14 @@ export function openBrowser(ctx: Context, url: string): void {
 		process.platform === "darwin"
 			? "open"
 			: process.platform === "win32"
-				? "cmd"
+				? "rundll32"
 				: "xdg-open";
 
-	const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+	// `cmd /c start` treats an unquoted `&` in the authorize URL as a command
+	// separator, and Node's argv quoting does not add quotes without a space.
+	// rundll32 opens the URL without a shell in between.
+	const args =
+		process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
 
 	execFile(command, args, (error) => {
 		if (error !== null)

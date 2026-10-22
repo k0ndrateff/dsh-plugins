@@ -65,6 +65,8 @@ export class McpBridge {
 	private names: string[] = [];
 	private ready = false;
 	private failure: string | undefined;
+	private pending: Promise<boolean> | undefined;
+	private logger: ReturnType<typeof loggerOf> | undefined;
 
 	constructor(private readonly options: McpBridgeOptions) {
 		if (needsOAuth(options.profile) && options.store === undefined)
@@ -100,7 +102,18 @@ export class McpBridge {
 	 * @returns whether the bridge is usable; failures are logged, never thrown.
 	 */
 	async ensure(ctx: Context): Promise<boolean> {
+		this.pending ??= this.connectOnce(ctx).finally(() => {
+			this.pending = undefined;
+		});
+
+		return await this.pending;
+	}
+
+	/** One connection attempt, shared by every caller that arrives meanwhile. */
+	private async connectOnce(ctx: Context): Promise<boolean> {
 		const { profile, store } = this.options;
+
+		this.logger = loggerOf(ctx);
 
 		if (needsOAuth(profile)) {
 			const grant = await store?.read();
@@ -174,10 +187,20 @@ export class McpBridge {
 				`the ${this.options.profile.label} MCP connection is not open`,
 			);
 
-		return await client.callTool(
+		const result = await client.callTool(
 			{ name, arguments: args },
 			{ timeout: TOOL_CALL_TIMEOUT_MS },
 		);
+
+		if (this.options.profile.debug)
+			this.logger?.info(
+				"[%s] %s answered %s",
+				accountLabel(this.options.profile),
+				name,
+				JSON.stringify(result),
+			);
+
+		return result;
 	}
 
 	/** The discovered authorization server, remembered across reconnects. */
@@ -236,46 +259,65 @@ export class McpBridge {
 		const disposers = new Map<string, () => void>();
 		const names: string[] = [];
 
-		for (const tool of listed.tools) {
-			const name = publicToolName(
-				tool.name,
-				this.options.profile.toolNamespace,
-			);
-			const base = createMcpToolDefinition(ctx, {
-				name,
-				rawName: tool.name,
-				description: tool.description ?? `MCP tool ${tool.name}`,
-				inputSchema: (tool.inputSchema ?? {
-					type: "object",
-					properties: {},
-				}) as Record<string, unknown>,
-				...(tool.outputSchema === undefined
-					? {}
-					: { outputSchema: tool.outputSchema }),
-				...(tool.execution?.taskSupport === "required"
-					? { taskRequired: true }
-					: {}),
-				call: async (args, execution) =>
-					await client.callTool(
-						{ name: tool.name, arguments: args },
-						{
-							signal: execution.signal,
-							toolDefinition: tool as Tool,
-							timeout: TOOL_CALL_TIMEOUT_MS,
-						},
-					),
-			});
-
-			disposers.set(
-				name,
-				ctx.tools.register(this.options.decorate?.(base, tool as Tool) ?? base),
-			);
-			names.push(name);
-		}
-
-		for (const dispose of this.disposers.values()) dispose();
+		// A republish happens on every Sync/Re-check while the client stays open.
+		// The old names have to leave the registry before the new generation is
+		// registered, or the duplicate name throws and the healthy bridge is
+		// dropped by the caller's catch.
+		const previous = this.disposers;
 
 		this.disposers = disposers;
+		this.names = [];
+
+		for (const dispose of previous.values()) dispose();
+
+		try {
+			for (const tool of listed.tools) {
+				const name = publicToolName(
+					tool.name,
+					this.options.profile.toolNamespace,
+				);
+				const base = createMcpToolDefinition(ctx, {
+					name,
+					rawName: tool.name,
+					description: tool.description ?? `MCP tool ${tool.name}`,
+					inputSchema: (tool.inputSchema ?? {
+						type: "object",
+						properties: {},
+					}) as Record<string, unknown>,
+					...(tool.outputSchema === undefined
+						? {}
+						: { outputSchema: tool.outputSchema }),
+					...(tool.execution?.taskSupport === "required"
+						? { taskRequired: true }
+						: {}),
+					call: async (args, execution) =>
+						await client.callTool(
+							{ name: tool.name, arguments: args },
+							{
+								signal: execution.signal,
+								toolDefinition: tool as Tool,
+								timeout: TOOL_CALL_TIMEOUT_MS,
+							},
+						),
+				});
+
+				disposers.set(
+					name,
+					ctx.tools.register(
+						this.options.decorate?.(base, tool as Tool) ?? base,
+					),
+				);
+				names.push(name);
+			}
+		} catch (error) {
+			for (const dispose of disposers.values()) dispose();
+
+			this.disposers = new Map();
+			this.names = [];
+
+			throw error;
+		}
+
 		this.names = names;
 
 		return names;

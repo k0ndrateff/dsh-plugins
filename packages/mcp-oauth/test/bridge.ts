@@ -214,6 +214,7 @@ function harness(records: Map<string, unknown>): {
 	published: string[];
 } {
 	const published: string[] = [];
+	const active = new Set<string>();
 
 	return {
 		published,
@@ -221,9 +222,15 @@ function harness(records: Map<string, unknown>): {
 			logger: { info: () => {}, warn: () => {} },
 			tools: {
 				register: (definition: { name: string }) => {
+					if (active.has(definition.name))
+						throw new Error(`tool "${definition.name}" is already registered`);
+
+					active.add(definition.name);
 					published.push(definition.name);
 
-					return () => {};
+					return () => {
+						active.delete(definition.name);
+					};
 				},
 			},
 			credentials: {

@@ -340,6 +340,22 @@ console.log("\n=== the card tool ===");
 		nothing.includes("nothing to show"),
 		nothing,
 	);
+
+	const { bridge: emptyBridge } = fakeBridge(() =>
+		text("No issues found matching your search criteria"),
+	);
+	const empty = (await presentTool
+		.create({ bridge: emptyBridge, state: signedIn() })
+		.execute({ query: "is:unresolved" }, execution())) as {
+		shown: number;
+		summary: string;
+	};
+
+	check(
+		"a search that matched nothing is an answer",
+		empty.shown === 0 && empty.summary.includes("No issues matched"),
+		empty.summary,
+	);
 }
 
 console.log("\n=== the route ===");
@@ -383,6 +399,13 @@ console.log("\n=== the route ===");
 		const request = {
 			method,
 			url: path,
+			headers: {
+				host: "127.0.0.1:52849",
+				origin: "http://127.0.0.1:52849",
+				"sec-fetch-site": "same-origin",
+				"x-dsh-client": "1",
+				"content-type": "application/json",
+			},
 			async *[Symbol.asyncIterator]() {
 				for (const chunk of chunks) yield chunk;
 			},

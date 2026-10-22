@@ -35,6 +35,8 @@ export interface AtlassianPresentation {
 	 * leaves this out rather than repeating the item count.
 	 */
 	readonly total?: number;
+	/** Whether the server held back another page of search results. */
+	readonly truncated?: boolean;
 	/** Issues and pages, in the order the tool put them. */
 	readonly items: readonly PresentationItem[];
 }
@@ -104,6 +106,7 @@ export function asPresentation(
 		value.total > items.length
 			? { total: value.total }
 			: {}),
+		...(value.truncated === true ? { truncated: true } : {}),
 		items,
 	};
 }

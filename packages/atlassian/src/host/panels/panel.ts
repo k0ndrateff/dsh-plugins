@@ -161,7 +161,7 @@ export class PanelApi {
 						: `${this.deps.state.facts?.siteUrl}/wiki/pages/viewpage.action?pageId=${id}`
 					: this.wikiUrl(webui, this.deps.state.facts?.siteUrl),
 			body: extractor.text(record.body),
-			comments: this.commentsOf(asRecord(comments)?.results),
+			comments: this.commentsOf(this.firstRecord(comments)?.results),
 		};
 	};
 
@@ -178,7 +178,7 @@ export class PanelApi {
 		return users
 			.map((user) => ({
 				name: pickString(user, "displayName") ?? "",
-				accountId: pickString(user, "accountId") ?? "",
+				accountId: pickString(user, "accountId", "account_id") ?? "",
 			}))
 			.filter((person) => person.name !== "" && person.accountId !== "")
 			.slice(0, PEOPLE_LIMIT);
@@ -255,7 +255,7 @@ export class PanelApi {
 
 	private personOf = (value: unknown): PanelPerson | undefined => {
 		const record = asRecord(value);
-		const accountId = pickString(record, "accountId");
+		const accountId = pickString(record, "accountId", "account_id");
 		const name = pickString(record, "displayName", "name");
 
 		if (accountId === undefined || name === undefined) return undefined;

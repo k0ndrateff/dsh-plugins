@@ -79,6 +79,8 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		handler: createApiHandler({ auth, panel }),
 	});
 
+	ctx.effect(() => () => bridge.drop(), "figma: MCP bridge");
+
 	// The desktop app may not be running, and that is an ordinary state rather
 	// than a failure: the plugin stays dormant until someone starts it and asks
 	// the settings card to check again.

@@ -11,8 +11,11 @@
  */
 
 import { execFileSync, spawn as spawnProcess } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type {
 	SubprocessHandle,
@@ -33,6 +36,21 @@ import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
 import { snapshotTool } from "../src/host/tools/snapshot";
 import { check, report, section } from "./harness";
+
+if (process.env.DSH_BROWSER_LIVE !== "1") {
+	console.log("skipped: set DSH_BROWSER_LIVE=1 to drive a real Chrome");
+	process.exit(0);
+}
+
+// The CLI defaults its daemon socket to `~/.agent-browser`; a test must not
+// depend on the home directory being writable, and must not collide with a
+// developer's own browser sessions.
+const socketDir = mkdtempSync(join(tmpdir(), "dsh-browser-dry-run-"));
+
+process.env.AGENT_BROWSER_SOCKET_DIR = socketDir;
+process.once("exit", () => {
+	rmSync(socketDir, { recursive: true, force: true });
+});
 
 /** The page the browser is pointed at: a button, a heading, a log and a throw. */
 const FIXTURE = `<!doctype html><html><head><meta charset="utf-8">

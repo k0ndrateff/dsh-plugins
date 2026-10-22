@@ -213,6 +213,28 @@ console.log("\n=== a branch that names a key differently ===");
 			facts[0].references[0].key === "DEV-5977",
 		JSON.stringify(facts[0]?.references),
 	);
+
+	const versioned = gitLabCorrelationSource({
+		api: {
+			get: async () => ({
+				...REQUEST,
+				title: "Bump lodash",
+				source_branch: "dependabot/npm_and_yarn/lodash-4.17.21",
+			}),
+		} as unknown as GitLabApi,
+		config,
+	});
+	const bumped = await versioned.resolve({
+		kind: "change",
+		repository: "acme/storefront",
+		number: "42",
+	});
+
+	check(
+		"a package version in a branch is not a ticket",
+		(bumped[0]?.references ?? []).length === 0,
+		JSON.stringify(bumped[0]?.references),
+	);
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

@@ -310,6 +310,16 @@ check(
 	"a response without a lifetime still expires",
 	oauth.toTokenFields({ access_token: "x" }, {}).expiresAt !== undefined,
 );
+check(
+	"an empty access token does not erase the working one",
+	oauth.toTokenFields({ access_token: "" }, { accessToken: "kept" })
+		.accessToken === "kept",
+);
+check(
+	"an empty refresh token does not erase the working one",
+	oauth.toTokenFields({ refresh_token: "" }, { refreshToken: "kept" })
+		.refreshToken === "kept",
+);
 
 const carried = jsonSafe({ keep: 1, drop: undefined }) as Record<
 	string,

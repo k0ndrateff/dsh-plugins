@@ -104,6 +104,14 @@ const api = {
 
 		return { value: MERGE_REQUESTS, total: 1 };
 	},
+	getAll: async (path: string, params?: Record<string, unknown>) => {
+		calls.push({ path, params });
+
+		return {
+			items: path.endsWith("/discussions") ? DISCUSSIONS : [],
+			truncated: false,
+		};
+	},
 } as unknown as GitLabApi;
 
 const state = {

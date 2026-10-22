@@ -138,12 +138,10 @@ class GitLabDigest {
 		const items: DigestItem[] = [];
 
 		for (const card of mine) {
-			const discussions = parseDiscussions(
-				await this.deps.api.get(
-					`/projects/${encodeURIComponent(card.project)}/merge_requests/${card.iid}/discussions`,
-					{ per_page: 100 },
-				),
+			const page = await this.deps.api.getAll(
+				`/projects/${encodeURIComponent(card.project)}/merge_requests/${card.iid}/discussions`,
 			);
+			const discussions = parseDiscussions(page.items);
 
 			for (const discussion of discussions) {
 				for (const note of discussion.notes) {

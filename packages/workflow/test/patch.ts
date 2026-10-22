@@ -98,6 +98,17 @@ check(
 	names.filter((name) => !bundles.has(name)).join(", "),
 );
 
+const self = String(own.name);
+const unmounted = [...bundles.keys()].filter(
+	(name) => name !== self && !names.includes(name),
+);
+
+check(
+	"and every other bundle in the repository is mounted",
+	unmounted.length === 0,
+	unmounted.join(", "),
+);
+
 console.log("\n=== the dependencies ===");
 check(
 	"every mounted package is a dependency, so installing this installs it",

@@ -13,6 +13,10 @@
  */
 
 import {
+	CLIENT_REQUEST_HEADER,
+	CLIENT_REQUEST_VALUE,
+} from "dsh-integration-host/status";
+import {
 	inputUrl,
 	type PanelInput,
 	type PanelModifiers,
@@ -72,6 +76,7 @@ export const sendInput = async (
 		headers: {
 			"content-type": "application/json",
 			accept: "application/json",
+			[CLIENT_REQUEST_HEADER]: CLIENT_REQUEST_VALUE,
 		},
 		body: JSON.stringify(input),
 	});

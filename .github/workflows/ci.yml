@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Build first: a plugin's typecheck resolves the libraries through the
+      # package exports, and those point at the generated lib/.
+      - run: bun run build
+      - run: bun run typecheck
+      - run: bunx biome check .
+      - name: client bundles require only platform modules
+        run: |
+          found=$(grep -Rho 'require("[^"]*")' packages/*/lib/client.js | sort -u || true)
+          bad=""
+          if [ -n "$found" ]; then
+            bad=$(printf '%s\n' "$found" | grep -vE '^require\("(react|react/jsx-runtime|react-dom|react-dom/client|@deepseek-ai/cordis|@deepseek-ai/dsh-client-ui-primitives|@deepseek-ai/dsh-client-ui-slots|@deepseek-ai/dsh-client-store|@deepseek-ai/dsh-client-ui-dockkit|@tanstack/react-virtual|zod)"\)$' || true)
+          fi
+          if [ -n "$bad" ]; then
+            echo "unexpected client require():"
+            echo "$bad"
+            exit 1
+          fi
+      - run: bun run test
+      - run: bun run market --check

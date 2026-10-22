@@ -7,6 +7,11 @@
  * which this turns back into the message the user sees.
  */
 
+import {
+	CLIENT_REQUEST_HEADER,
+	CLIENT_REQUEST_VALUE,
+} from "dsh-integration-host/status";
+
 type Method = "GET" | "POST";
 
 /** One request into a plugin's host route. */
@@ -48,11 +53,12 @@ export const createHostRequest = (basePath: string): HostRequest => {
 	): Promise<T> => {
 		const response = await fetch(`${basePath}${path}`, {
 			method,
-			headers:
-				body === undefined
-					? { accept: "application/json" }
-					: { accept: "application/json", "content-type": "application/json" },
-			...(body === undefined ? {} : { body: JSON.stringify(body) }),
+			headers: {
+				accept: "application/json",
+				[CLIENT_REQUEST_HEADER]: CLIENT_REQUEST_VALUE,
+				...(method === "POST" ? { "content-type": "application/json" } : {}),
+			},
+			...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
 			...(signal === undefined ? {} : { signal }),
 		});
 

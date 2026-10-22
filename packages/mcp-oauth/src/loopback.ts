@@ -12,6 +12,22 @@ import { createServer, type Server } from "node:http";
 import { PORT_ATTEMPTS } from "./config";
 import { errorText } from "./log";
 
+/** The five characters a callback page interpolates, as HTML entities. */
+const HTML_ENTITIES: Readonly<Record<string, string>> = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	'"': "&quot;",
+	"'": "&#39;",
+};
+
+/** One string as text inside an HTML page. */
+const escapeHtml = (value: string): string =>
+	value.replace(
+		/[&<>"']/gu,
+		(character) => HTML_ENTITIES[character] ?? character,
+	);
+
 export class LoopbackListener {
 	readonly server: Server;
 	readonly port: number;
@@ -151,10 +167,13 @@ export class LoopbackListener {
 	};
 
 	private static callbackPage = (title: string, message: string): string => {
+		const safeTitle = escapeHtml(title);
+		const safeMessage = escapeHtml(message);
+
 		return (
-			`<!doctype html><meta charset="utf-8"><title>${title}</title>` +
+			`<!doctype html><meta charset="utf-8"><title>${safeTitle}</title>` +
 			'<body style="font:16px/1.5 system-ui;margin:4rem auto;max-width:32rem;text-align:center">' +
-			`<h1 style="font-size:1.25rem">${title}</h1><p>${message}</p></body>`
+			`<h1 style="font-size:1.25rem">${safeTitle}</h1><p>${safeMessage}</p></body>`
 		);
 	};
 }

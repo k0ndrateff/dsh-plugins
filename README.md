@@ -23,7 +23,7 @@ Add the market index as a source — Settings → Plugins → Discover, with
 https://k0ndrateff.github.io/dsh-plugins/market.json
 ```
 
-`dsh-workflow-plugin` is the shortcut: it depends on eight bundles and
+`dsh-workflow-plugin` is the shortcut: it depends on nine bundles and
 mounts a row for each, so one install gives you all of them. Install it
 **instead of** the individual bundles, not beside them — two profile layers
 inserting a row with the same id is a duplicate the loader refuses.
@@ -196,9 +196,10 @@ and what was measured on the way — [docs/roadmap.md](docs/roadmap.md).
 
 - **The card and panel copy is English.** It goes through neither the client
   locale service nor the provider's language.
-- **The local `/dsh-*` routes are unauthenticated.** They are loopback-only, but
-  any local process can read or change an integration's settings. They never write
-  to a provider.
+- **The local `/dsh-*` routes trust the machine.** Cross-origin writes are
+  refused by the page header and an origin check, but any local process can forge
+  that header. These routes do write to providers: a Jira transition or assignee,
+  a Sentry status, a GitLab review action, and clicks in the agent's browser.
 - **GitLab's MCP server needs a group switch.** It is off unless an Owner of the
   top-level group turns it on, and its tokens work only at the MCP endpoint; that
   is why this plugin drives REST.

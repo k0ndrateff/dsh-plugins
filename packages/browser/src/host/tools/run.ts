@@ -22,6 +22,32 @@ interface RunArgs {
 	readonly args: readonly string[];
 }
 
+/**
+ * Global flags that would take the command out of this conversation's browser.
+ *
+ * `browser_run` is the long tail of page commands, not a second way to choose a
+ * session or a Chrome profile. Accepting these would break one-browser-per-
+ * conversation and the opt-in rule for a real profile.
+ */
+const GLOBAL_FLAGS: readonly string[] = [
+	"--session",
+	"--session-name",
+	"--profile",
+	"--namespace",
+	"--socket-dir",
+	"--cdp",
+	"--auto-connect",
+	"--provider",
+	"--restore",
+	"--state",
+	"--headers",
+	"--init-script",
+	"--executable-path",
+	"--args",
+	"--headed",
+	"--json",
+];
+
 class RunTool {
 	/** The wire name the agent calls. */
 	readonly TOOL_NAME = BROWSER_RUN_TOOL;
@@ -115,6 +141,22 @@ class RunTool {
 		if (command.length === 0 || command[0]?.trim() === "")
 			throw new Error(
 				'browser_run needs a command, for example ["tab", "list"]',
+			);
+
+		const forbidden = command.find((entry) =>
+			GLOBAL_FLAGS.some(
+				(flag) => entry === flag || entry.startsWith(`${flag}=`),
+			),
+		);
+
+		if (forbidden !== undefined)
+			throw new Error(
+				`browser_run does not accept the global flag ${forbidden}: the browser is pinned to this conversation`,
+			);
+
+		if (command[0] === "close" && command.includes("--all"))
+			throw new Error(
+				"browser_run closes this conversation's browser, not every session's",
 			);
 
 		return { args: command };

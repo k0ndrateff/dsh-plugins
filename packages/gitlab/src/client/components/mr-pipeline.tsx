@@ -39,8 +39,8 @@ const Log = ({ entry }: { entry: JobLogPanel }) => (
 
 		{entry.truncated ? (
 			<span className={styles.caption}>
-				GitLab sent the beginning of a longer log. Open the job in GitLab for
-				the rest.
+				The log is cut to its last 64 KiB. Open the job in GitLab for the
+				beginning.
 			</span>
 		) : null}
 	</Section>

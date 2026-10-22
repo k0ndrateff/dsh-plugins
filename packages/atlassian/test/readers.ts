@@ -43,6 +43,12 @@ check(
 		"```html\n<!-- an example -->\n```",
 );
 
+check(
+	"indentation inside a fence is part of the example",
+	extractor.text("```ts\n    y();\n```") === "```ts\n    y();\n```",
+	String(extractor.text("```ts\n    y();\n```")),
+);
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 
 if (failures > 0) process.exit(1);

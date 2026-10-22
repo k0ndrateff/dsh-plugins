@@ -434,6 +434,22 @@ check(
 		"array of strings",
 	),
 );
+check(
+	"a session override is refused",
+	(
+		await refusalOf(() =>
+			call(escaped.run, {
+				args: ["--session", "someone-else", "open", "http://x/"],
+			}),
+		)
+	).includes("pinned to this conversation"),
+);
+check(
+	"closing every session is refused",
+	(
+		await refusalOf(() => call(escaped.run, { args: ["close", "--all"] }))
+	).includes("not every session"),
+);
 
 section("what the person did while the agent was away");
 const notingHubs = (note: string | undefined) => {

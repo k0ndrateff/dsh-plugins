@@ -360,16 +360,27 @@ const handler = createIntegrationRoute<TestStatus>({
 	],
 });
 
+/** The headers every request from the harness page carries. */
+const PAGE_HEADERS = {
+	host: "127.0.0.1:52849",
+	origin: "http://127.0.0.1:52849",
+	"sec-fetch-site": "same-origin",
+	"x-dsh-client": "1",
+	"content-type": "application/json",
+};
+
 /** One request/response pair, without a socket under it. */
 async function call(
 	method: string,
 	path: string,
 	body?: unknown,
+	headers: Readonly<Record<string, string | undefined>> = {},
 ): Promise<{ status: number; body: unknown }> {
 	const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))];
 	const request = {
 		method,
 		url: path,
+		headers: { ...PAGE_HEADERS, ...headers },
 		async *[Symbol.asyncIterator]() {
 			for (const chunk of chunks) yield chunk;
 		},
@@ -444,6 +455,42 @@ async function call(
 		missing.status === 400 &&
 			String((missing.body as { error?: string }).error).includes("id"),
 		`${missing.status}: ${JSON.stringify(missing.body)}`,
+	);
+
+	const crossOrigin = await call(
+		"POST",
+		"/dsh-example/thing",
+		{ id: "abc" },
+		{
+			origin: "https://evil.example",
+		},
+	);
+
+	check(
+		"a write from another web origin is refused",
+		crossOrigin.status === 403 &&
+			String((crossOrigin.body as { error?: string }).error).includes(
+				"another origin",
+			),
+		`${crossOrigin.status}: ${JSON.stringify(crossOrigin.body)}`,
+	);
+
+	const untagged = await call(
+		"POST",
+		"/dsh-example/thing",
+		{ id: "abc" },
+		{
+			"x-dsh-client": undefined,
+		},
+	);
+
+	check(
+		"a write without the page header is refused",
+		untagged.status === 403 &&
+			String((untagged.body as { error?: string }).error).includes(
+				"harness page",
+			),
+		`${untagged.status}: ${JSON.stringify(untagged.body)}`,
 	);
 
 	const unknown = await call("GET", "/dsh-example/nope");

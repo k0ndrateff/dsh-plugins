@@ -19,7 +19,11 @@
  */
 
 import type { Context } from "@deepseek-ai/cordis";
-import type { DigestSettings } from "../shared/digest";
+import {
+	canonicalTimeZone,
+	type DigestSettings,
+	toScheduleTime,
+} from "../shared/digest";
 
 /** The line every digest reminder's prompt starts with, so it is recognisable. */
 export const PROMPT_MARKER = "[dsh-digest]";
@@ -95,8 +99,8 @@ const isoDay = (day: number): number => (day === 0 ? 7 : day);
  */
 export const timingOf = (settings: DigestSettings): DigestTiming => {
 	const clock: ScheduleClock = {
-		time: settings.time,
-		time_zone: settings.timeZone,
+		time: toScheduleTime(settings.time),
+		time_zone: canonicalTimeZone(settings.timeZone) ?? "UTC",
 	};
 	const everyDay = [0, 1, 2, 3, 4, 5, 6].every((day) =>
 		settings.days.includes(day),
@@ -147,12 +151,17 @@ export class DigestSchedule {
 	 */
 	async bound(): Promise<readonly ScheduleCatalogEntry[]> {
 		try {
-			const entries = (await this.service?.catalog()) ?? [];
-
-			return entries.filter((entry) => isDigestReminder(entry));
+			return await this.entries();
 		} catch {
 			return [];
 		}
+	}
+
+	/** The digest reminders, with a failing catalog reported to the caller. */
+	private async entries(): Promise<readonly ScheduleCatalogEntry[]> {
+		const entries = (await this.service?.catalog()) ?? [];
+
+		return entries.filter((entry) => isDigestReminder(entry));
 	}
 
 	/**
@@ -166,12 +175,29 @@ export class DigestSchedule {
 
 		if (service === undefined) return false;
 
-		await this.unbind(sessionId);
-		await service.create(sessionId, {
+		// A failed catalog must not turn into "this session has no reminder": that
+		// would create a second one and deliver the digest twice.
+		const mine = (await this.entries()).filter(
+			(entry) => entry.sessionId === sessionId,
+		);
+
+		const created = await service.create(sessionId, {
 			prompt: TASK_PROMPT,
 			title: TASK_TITLE,
 			...timingOf(settings),
 		});
+
+		// Create first: a failed create leaves the old reminder in place. If a
+		// delete then fails, the new reminder goes back so the session is not left
+		// with two digests a day.
+		try {
+			for (const entry of mine)
+				await service.delete({ sessionId, id: entry.id });
+		} catch (error) {
+			await service.delete({ sessionId, id: created.id });
+
+			throw error;
+		}
 
 		return true;
 	}
@@ -185,7 +211,7 @@ export class DigestSchedule {
 
 		if (service === undefined) return 0;
 
-		const mine = (await this.bound()).filter(
+		const mine = (await this.entries()).filter(
 			(entry) => entry.sessionId === sessionId,
 		);
 
@@ -211,12 +237,19 @@ export class DigestSchedule {
 		const mine = await this.bound();
 
 		for (const entry of mine) {
-			await service.delete({ sessionId: entry.sessionId, id: entry.id });
-			await service.create(entry.sessionId, {
+			const created = await service.create(entry.sessionId, {
 				prompt: TASK_PROMPT,
 				title: TASK_TITLE,
 				...timingOf(settings),
 			});
+
+			try {
+				await service.delete({ sessionId: entry.sessionId, id: entry.id });
+			} catch (error) {
+				await service.delete({ sessionId: entry.sessionId, id: created.id });
+
+				throw error;
+			}
 		}
 
 		return mine.length;

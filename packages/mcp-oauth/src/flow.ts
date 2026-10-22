@@ -99,6 +99,14 @@ export class AuthorizationFlow {
 				code_verifier: verifier,
 			});
 
+			// A commit is what makes the seam call the attempt authorized. Without
+			// an access token it would store a grant that can never connect.
+			if (
+				typeof payload.access_token !== "string" ||
+				payload.access_token === ""
+			)
+				throw new Error("the token endpoint returned no access token");
+
 			const base = {
 				...(existing ?? { version: 1 as const }),
 				version: 1 as const,
@@ -141,6 +149,7 @@ export class AuthorizationFlow {
 	): Promise<RegisteredClient> {
 		if (
 			existing !== undefined &&
+			existing.issuer === oauth.issuer &&
 			existing.resource === this.profile.endpoint &&
 			existing.redirectUri === redirectUri &&
 			typeof existing.clientId === "string"

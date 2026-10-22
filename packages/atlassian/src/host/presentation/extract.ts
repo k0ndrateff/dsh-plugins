@@ -398,12 +398,24 @@ class Extractor {
 
 	/** Collapse the whitespace a markdown or ADF body is full of. */
 	private tidy = (value: string): string => {
-		return value
+		const fences: string[] = [];
+		const protectedText = value.replace(/(```|~~~)[\s\S]*?\1/gu, (block) => {
+			fences.push(block);
+
+			return `\uE000${fences.length - 1}\uE000`;
+		});
+
+		const tidied = protectedText
 			.replace(/\r\n?/gu, "\n")
 			.replace(/[^\S\n]+/gu, " ")
 			.replace(/\n{3,}/gu, "\n\n")
 			.trim()
 			.slice(0, this.MAX_BODY);
+
+		return tidied.replace(
+			/\uE000(\d+)\uE000/gu,
+			(_placeholder, index: string) => fences[Number(index)] ?? "",
+		);
 	};
 
 	private asRecord = (value: unknown): Record<string, unknown> | undefined => {

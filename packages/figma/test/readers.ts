@@ -45,6 +45,10 @@ check(
 	parseNodeRef("960-6938")?.nodeId === "960:6938",
 );
 check(
+	"an instance child id keeps its segments",
+	parseNodeRef("I123-456;789-12")?.nodeId === "I123:456;789:12",
+);
+check(
 	"a design link is read as its node and file",
 	parseNodeRef(
 		"https://www.figma.com/design/AbC123/Storefront?node-id=12-34&t=x",

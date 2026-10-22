@@ -17,7 +17,11 @@ import {
 	type RouteContext,
 	type RouteHandler,
 } from "dsh-integration-host";
-import type { DigestBlockView, DigestSettingsView } from "../shared/digest";
+import type {
+	DigestBlockView,
+	DigestSettings,
+	DigestSettingsView,
+} from "../shared/digest";
 import type { DigestStatus } from "../shared/status";
 import type { DigestCollector } from "./collect";
 import type { DigestSchedule } from "./schedule";
@@ -69,7 +73,7 @@ const viewOf = async (deps: ApiDeps): Promise<DigestSettingsView> => {
  * Merging keeps that choice for when it comes back.
  */
 const patchOf = (
-	settings: DigestSettingsStore,
+	current: DigestSettings,
 	body: Record<string, unknown> | undefined,
 ): Record<string, unknown> => {
 	const patch =
@@ -83,9 +87,19 @@ const patchOf = (
 
 	return {
 		...patch,
-		blocks: { ...settings.get().blocks, ...blocks },
+		blocks: { ...current.blocks, ...blocks },
 	};
 };
+
+/** Whether saving one edit changes when the digest arrives. */
+const timingChanged = (
+	before: DigestSettings,
+	after: DigestSettings,
+): boolean =>
+	before.time !== after.time ||
+	before.timeZone !== after.timeZone ||
+	before.days.length !== after.days.length ||
+	before.days.some((day) => !after.days.includes(day));
 
 /** The digest's own paths, tried after the four shared ones. */
 const digestRoutes = (deps: ApiDeps): readonly RouteHandler[] => [
@@ -101,11 +115,12 @@ const digestRoutes = (deps: ApiDeps): readonly RouteHandler[] => [
 		if (route.method !== "POST") return false;
 
 		const body = (await route.read()).fields;
+		const before = await deps.settings.ensure();
+		const after = await deps.settings.save(patchOf(before, body));
 
-		await deps.settings.save(patchOf(deps.settings, body));
 		// A change of time has to reach reminders that other sessions created, or
 		// the card would be editing a value only the next `/digest on` reads.
-		await deps.schedule.rebindAll(deps.settings.get());
+		if (timingChanged(before, after)) await deps.schedule.rebindAll(after);
 
 		route.send(200, await viewOf(deps));
 

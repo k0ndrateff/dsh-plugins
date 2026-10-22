@@ -19,7 +19,7 @@ import {
 	type CorrelationSource,
 	type RuntimeState,
 } from "dsh-integration-host";
-import { asRecord, type McpBridge, pickString } from "dsh-mcp-oauth";
+import { asRecord, type McpBridge, mcpJson, pickString } from "dsh-mcp-oauth";
 import { extractor } from "./presentation/extract";
 import type { SiteFacts } from "./store/site";
 
@@ -47,7 +47,14 @@ const factOf = (
 	value: unknown,
 	siteUrl?: string,
 ): CorrelationFact => {
-	const record = asRecord(value) ?? {};
+	const record =
+		mcpJson(value)
+			.map((root) => asRecord(root))
+			.find(
+				(candidate) =>
+					candidate !== undefined &&
+					(candidate.fields !== undefined || candidate.key !== undefined),
+			) ?? {};
 	const fields = asRecord(record.fields) ?? record;
 	const identity = pickString(record, "key") ?? key;
 	const summary = extractor.text(pickString(fields, "summary"));

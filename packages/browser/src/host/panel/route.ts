@@ -21,7 +21,10 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
-import { mountIntegrationRoute } from "dsh-integration-host";
+import {
+	clientRequestRefusal,
+	mountIntegrationRoute,
+} from "dsh-integration-host";
 import {
 	CLOSE_PATH,
 	FRAME_PATH,
@@ -174,6 +177,14 @@ export const createPanelHandler = (
 	return async (request, response) => {
 		const url = new URL(request.url ?? "/", "http://127.0.0.1");
 		const method = request.method ?? "GET";
+		const refusal = clientRequestRefusal(request);
+
+		if (refusal !== undefined) {
+			reply(response, 403, { error: refusal });
+
+			return;
+		}
+
 		const session = sessionOf(url);
 
 		if (session === undefined) {
@@ -245,6 +256,7 @@ export const createPanelHandler = (
 				if (moved.ok) {
 					deps.hubs.markLive(session);
 					deps.hubs.note(session, noteOf(reading.input));
+					await hub.remeasure();
 				}
 
 				reply(response, 200, {
@@ -275,7 +287,7 @@ export const createPanelHandler = (
 				cwd: process.cwd(),
 				signal: AbortSignal.timeout(CLOSE_TIMEOUT_MS),
 			});
-			deps.hubs.markClosed(session);
+			if (closed.ok) deps.hubs.markClosed(session);
 
 			reply(response, 200, {
 				closed: closed.ok,

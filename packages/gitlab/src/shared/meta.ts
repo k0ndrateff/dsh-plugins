@@ -47,6 +47,8 @@ export interface FindingCard {
 	readonly discussionId: string;
 	readonly file?: string;
 	readonly line?: number;
+	/** Whether the line belongs to the old or the new side of the diff. */
+	readonly lineSide?: "old" | "new";
 	readonly author?: string;
 	readonly resolved: boolean;
 	/** The note's own words, bounded to a sentence or two. */
@@ -87,6 +89,8 @@ export interface GitLabPresentation {
 	readonly query?: string;
 	/** The merge request a findings or jobs card belongs to, as `group/project!12`. */
 	readonly subject?: string;
+	/** Whether GitLab had more pages than the tool read. */
+	readonly truncated?: boolean;
 	readonly items: readonly PresentationItem[];
 }
 
@@ -174,6 +178,10 @@ function asFinding(value: unknown): FindingCard | undefined {
 
 	const file = optionalString(value.file);
 	const line = optionalNumber(value.line);
+	const lineSide =
+		value.lineSide === "old" || value.lineSide === "new"
+			? value.lineSide
+			: undefined;
 	const author = optionalString(value.author);
 	const url = optionalString(value.url);
 
@@ -185,6 +193,7 @@ function asFinding(value: unknown): FindingCard | undefined {
 		resolved: value.resolved === true,
 		...(file === undefined ? {} : { file }),
 		...(line === undefined ? {} : { line }),
+		...(lineSide === undefined ? {} : { lineSide }),
 		...(author === undefined ? {} : { author }),
 		...(url === undefined ? {} : { url }),
 	};
@@ -291,5 +300,6 @@ export function asGitLabPresentation(
 		...(query === undefined ? {} : { query }),
 		...(subject === undefined ? {} : { subject }),
 		...(total === undefined || total <= items.length ? {} : { total }),
+		...(value.truncated === true ? { truncated: true } : {}),
 	};
 }

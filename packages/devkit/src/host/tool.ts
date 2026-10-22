@@ -87,6 +87,7 @@ class CheckTool {
 									type: "array",
 									items: { type: "object", additionalProperties: true },
 								},
+								failureTotal: { type: "number" },
 								output: { type: "string" },
 							},
 							required: [
@@ -184,7 +185,8 @@ class CheckTool {
 			);
 		}
 
-		const dropped = check.failures.length - MODEL_FAILURES;
+		const dropped =
+			(check.failureTotal ?? check.failures.length) - MODEL_FAILURES;
 		if (dropped > 0) lines.push(`  … ${dropped} more`);
 
 		if (check.output !== undefined)

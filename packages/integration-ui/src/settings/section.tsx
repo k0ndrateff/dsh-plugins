@@ -142,6 +142,8 @@ const stateText = (
 	credentials: "browser" | "typed" | "none",
 ): string => {
 	if (status.inFlight === true) return "Connecting";
+	if (status.error != null && status.connected !== true)
+		return "Connection failed";
 
 	if (credentials === "none")
 		return status.connected === true ? "Connected" : "Not connected";

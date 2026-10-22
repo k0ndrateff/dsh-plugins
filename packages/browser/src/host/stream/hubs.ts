@@ -14,6 +14,9 @@ import type { StreamHub } from "./hub";
 export class StreamHubs {
 	private readonly hubs = new Map<string, StreamHub>();
 
+	/** A page request may name any well-formed session; keep the map bounded. */
+	private readonly limit = 64;
+
 	/** @param build - how one session's hub is put together. */
 	constructor(private readonly build: (session: string) => StreamHub) {}
 
@@ -22,6 +25,15 @@ export class StreamHubs {
 		const existing = this.hubs.get(session);
 
 		if (existing !== undefined) return existing;
+
+		if (this.hubs.size >= this.limit) {
+			const stale = [...this.hubs.entries()].find(([, hub]) => !hub.watched);
+
+			if (stale !== undefined) {
+				stale[1].stop();
+				this.hubs.delete(stale[0]);
+			}
+		}
 
 		const hub = this.build(session);
 
@@ -62,6 +74,13 @@ export class StreamHubs {
 	/** Remember one act of a person for the agent to be told about. */
 	note(session: string, note: string | undefined): void {
 		if (note !== undefined) this.hubs.get(session)?.note(note);
+	}
+
+	/** The sessions whose browser a tool has actually reached. */
+	liveSessions(): readonly string[] {
+		return [...this.hubs.entries()]
+			.filter(([, hub]) => hub.watched)
+			.map(([session]) => session);
 	}
 
 	/** Stop every hub; the plugin is going away. */

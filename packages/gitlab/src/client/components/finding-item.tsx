@@ -22,7 +22,9 @@ const whereText = (finding: FindingCard): string => {
 	if (finding.file === undefined) return finding.discussionId;
 	if (finding.line === undefined) return finding.file;
 
-	return `${finding.file}:${finding.line}`;
+	const side = finding.lineSide === "old" ? " (removed)" : "";
+
+	return `${finding.file}:${finding.line}${side}`;
 };
 
 /** One review finding, as a card row shows it. */

@@ -26,6 +26,9 @@ export const DEFAULT_HEARTBEAT_MS = 25_000;
 /** The close code for a peer that broke the protocol. */
 const PROTOCOL_ERROR = 1002;
 
+/** The largest message this plugin will assemble, in bytes. */
+const MAX_MESSAGE_BYTES = 8 * 1024 * 1024;
+
 /** The close code for an ordinary goodbye. */
 const NORMAL_CLOSURE = 1000;
 
@@ -116,6 +119,12 @@ export class WirePeer {
 		this.buffer =
 			this.buffer.length === 0 ? chunk : Buffer.concat([this.buffer, chunk]);
 
+		if (this.buffer.length > MAX_MESSAGE_BYTES) {
+			this.fail("a message is larger than this plugin accepts");
+
+			return;
+		}
+
 		let read: WireRead;
 
 		try {
@@ -152,6 +161,12 @@ export class WirePeer {
 					return;
 				}
 
+				if (this.fragmentBytes() + frame.payload.length > MAX_MESSAGE_BYTES) {
+					this.fail("a message is larger than this plugin accepts");
+
+					return;
+				}
+
 				this.fragments.push(frame.payload);
 
 				if (frame.fin) this.assemble();
@@ -176,6 +191,11 @@ export class WirePeer {
 
 				return;
 		}
+	}
+
+	/** The bytes already collected for one fragmented message. */
+	private fragmentBytes(): number {
+		return this.fragments.reduce((total, part) => total + part.length, 0);
 	}
 
 	/** One message, out of however many frames carried it. */

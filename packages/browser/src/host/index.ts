@@ -82,7 +82,7 @@ export function apply(ctx: Context, config: BrowserConfig = Config({})): void {
 						signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
 					}),
 				connect: (port, handlers) => connectStream(port, handlers),
-				maxFps: settings.streamMaxFps,
+				maxFps: () => settings.streamMaxFps,
 			}),
 	);
 	const deps = {
@@ -108,7 +108,24 @@ export function apply(ctx: Context, config: BrowserConfig = Config({})): void {
 
 	mountPanel(ctx, { hubs, runner });
 
-	// Whatever is still watching goes away with the plugin, and with it the
-	// connection to the browser's screencast.
-	ctx.effect(() => () => hubs.stop(), "browser: live views");
+	// Whatever is still watching goes away with the plugin, and so do the
+	// browsers a tool actually opened: a reload must not leave a Chrome behind.
+	ctx.effect(
+		() => () => {
+			const sessions = hubs.liveSessions();
+
+			hubs.stop();
+
+			for (const session of sessions)
+				void runner
+					.run({
+						args: ["close"],
+						session,
+						cwd: process.cwd(),
+						signal: AbortSignal.timeout(15_000),
+					})
+					.catch(() => undefined);
+		},
+		"browser: live views",
+	);
 }

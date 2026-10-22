@@ -110,8 +110,10 @@ const tail = (text: string, lines = 3): string =>
 	text.trim().split("\n").slice(-lines).join("\n");
 
 export class AgentBrowserRunner {
-	/** The executable this process already resolved, if it did. */
-	private resolved: string | undefined;
+	/** The executable this process already resolved, with the name it resolved. */
+	private resolved:
+		| { readonly name: string; readonly path: string }
+		| undefined;
 
 	/** @param deps - host context carrying the subprocess seam, and the config. */
 	constructor(
@@ -207,10 +209,10 @@ export class AgentBrowserRunner {
 		});
 	}
 
-	/** The executable to run, resolved once per process. */
+	/** The executable to run, cached until the configured name changes. */
 	private async executable(signal: AbortSignal): Promise<Executable> {
-		if (this.resolved !== undefined)
-			return { found: true, path: this.resolved };
+		if (this.resolved?.name === this.deps.config.executable)
+			return { found: true, path: this.resolved.path };
 
 		try {
 			const path = await this.deps.ctx.subprocess.resolveExecutable(
@@ -219,7 +221,7 @@ export class AgentBrowserRunner {
 				signal,
 			);
 
-			this.resolved = path;
+			this.resolved = { name: this.deps.config.executable, path };
 
 			return { found: true, path };
 		} catch {

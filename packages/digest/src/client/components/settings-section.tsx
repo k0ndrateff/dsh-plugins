@@ -230,6 +230,7 @@ export const DigestSettingsSection = (): ReactNode => {
 	const busy = pending !== null;
 	const timeOk = isDigestTime(draft.time);
 	const zoneOk = isTimeZone(draft.timeZone);
+	const daysOk = draft.days.length > 0;
 	const changed = {
 		time: draft.time !== stored.time,
 		timeZone: draft.timeZone !== stored.timeZone,
@@ -341,6 +342,12 @@ export const DigestSettingsSection = (): ReactNode => {
 							/>
 						))}
 					</div>
+
+					{daysOk ? null : (
+						<span className={styles.error}>
+							Pick at least one day; an empty week never arrives.
+						</span>
+					)}
 				</Field>
 
 				<div className={styles.block}>
@@ -385,7 +392,7 @@ export const DigestSettingsSection = (): ReactNode => {
 				<div className={styles.footer}>
 					<Button
 						variant="primary"
-						disabled={busy || !dirty || !timeOk || !zoneOk}
+						disabled={busy || !dirty || !timeOk || !zoneOk || !daysOk}
 						onClick={() => void save()}
 					>
 						{pending === "save" ? "Saving…" : "Save"}

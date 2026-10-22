@@ -122,6 +122,10 @@ check(
 	"full names work, and come back in week order",
 	parseDays("monday,sunday")?.join(",") === "0,1",
 );
+check(
+	"spaces work as well as commas",
+	parseDays("mon tue wed")?.join(",") === "1,2,3",
+);
 check("an unknown name is refused", parseDays("mon,funday") === undefined);
 check("an empty list is refused", parseDays(" , ") === undefined);
 check(
@@ -275,8 +279,8 @@ section("binding the digest to a session");
 			service?.held.length === 2 &&
 			service.held.every(
 				(entry) =>
-					entry.request.weekly?.time === "06:30" ||
-					entry.request.daily?.time === "06:30",
+					entry.request.weekly?.time === "06:30:00" ||
+					entry.request.daily?.time === "06:30:00",
 			),
 		JSON.stringify(
 			service?.held.map(

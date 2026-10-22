@@ -61,12 +61,16 @@ export interface NodePanel {
 	readonly tokens: readonly FigmaToken[];
 	/** Whether the node used more variables than the panel lists. */
 	readonly tokensTruncated: boolean;
+	/** How many variables the node uses in total. */
+	readonly tokenTotal: number;
 	/** The Code Connect mappings that name this node. */
 	readonly mappings: readonly FigmaMapping[];
 	/** The node's direct children, for reading its structure. */
 	readonly children: readonly FigmaNode[];
 	/** Whether the node has more children than the panel lists. */
 	readonly childrenTruncated: boolean;
+	/** How many direct children the node has. */
+	readonly childTotal: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -207,8 +211,10 @@ export function asNodePanel(value: unknown): NodePanel | undefined {
 		screenshot: screenshot ?? null,
 		tokens: asTokens(value.tokens),
 		tokensTruncated: value.tokensTruncated === true,
+		tokenTotal: asNumber(value.tokenTotal) ?? asTokens(value.tokens).length,
 		mappings: asMappings(value.mappings),
 		children: asNodes(value.children),
 		childrenTruncated: value.childrenTruncated === true,
+		childTotal: asNumber(value.childTotal) ?? asNodes(value.children).length,
 	};
 }

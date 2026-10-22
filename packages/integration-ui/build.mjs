@@ -6,6 +6,7 @@
  * can never disagree about the code. React and the Web Client's shared modules
  * stay external because the page already has exactly one copy of each.
  */
+import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 await build({
@@ -18,12 +19,12 @@ await build({
 	target: "es2022",
 	jsx: "automatic",
 	jsxDev: false,
+	alias: {
+		"dsh-integration-host/status": fileURLToPath(
+			new URL("../integration-host/src/status.ts", import.meta.url),
+		),
+	},
 	sourcemap: true,
-	external: [
-		"react",
-		"react/jsx-runtime",
-		"@deepseek-ai/*",
-		"dsh-integration-host",
-	],
+	external: ["react", "react/jsx-runtime", "@deepseek-ai/*"],
 	logLevel: "info",
 });

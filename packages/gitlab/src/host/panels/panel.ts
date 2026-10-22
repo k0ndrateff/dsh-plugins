@@ -26,12 +26,6 @@ import {
 	parsePipeline,
 } from "../presentation/parse";
 
-/** How many files one diff read asks for. */
-const MAX_DIFF_FILES = 100;
-
-/** How many threads and jobs one read asks for. */
-const MAX_PAGE = 100;
-
 /** How much of a job's trace is kept, in characters. */
 const MAX_TRACE_CHARS = 64 * 1024;
 
@@ -60,18 +54,26 @@ export class PanelApi {
 		if (mr === undefined)
 			throw new Error(`GitLab returned no merge request for ${project}!${iid}`);
 
-		const diffs = parseDiffFiles(
-			await this.deps.api.get(`${mrPath(project, iid)}/diffs`, {
-				per_page: MAX_DIFF_FILES,
-			}),
+		const diffPage = await this.deps.api.getAll(
+			`${mrPath(project, iid)}/diffs`,
 		);
-		const discussions = parseDiscussions(
-			await this.deps.api.get(`${mrPath(project, iid)}/discussions`, {
-				per_page: MAX_PAGE,
-			}),
+		const discussionPage = await this.deps.api.getAll(
+			`${mrPath(project, iid)}/discussions`,
 		);
+		const diffs = parseDiffFiles({ diffs: diffPage.items });
+		const discussions = parseDiscussions({
+			discussions: discussionPage.items,
+		});
 
-		return { kind: "merge_request", mr, diffs, discussions };
+		return {
+			kind: "merge_request",
+			mr,
+			diffs,
+			discussions,
+			...(diffPage.truncated || discussionPage.truncated
+				? { truncated: true }
+				: {}),
+		};
 	}
 
 	/**
@@ -130,11 +132,10 @@ export class PanelApi {
 		project: string,
 		pipelineId: number,
 	): Promise<PipelineJob[]> {
-		const answer = await this.deps.api.get(
+		const answer = await this.deps.api.getAll(
 			`/projects/${encodeURIComponent(project)}/pipelines/${pipelineId}/jobs`,
-			{ per_page: MAX_PAGE },
 		);
 
-		return [...parseJobs(answer)];
+		return [...parseJobs(answer.items)];
 	}
 }

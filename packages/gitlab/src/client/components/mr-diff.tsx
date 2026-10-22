@@ -15,7 +15,7 @@ import {
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { ReactNode } from "react";
 import type { DiffFile } from "../../shared/panel";
-import { patchToHunk } from "../diff";
+import { patchToHunks } from "../diff";
 import * as styles from "../styles/styles.css";
 import { Section } from "./blocks";
 
@@ -34,7 +34,7 @@ const DIFF_LABELS: DiffBlockLabels = {
 
 /** One changed file: where it changed, by how much, and the change itself. */
 const FileDiff = ({ file }: { file: DiffFile }) => {
-	const hunk = patchToHunk(file);
+	const hunks = patchToHunks(file);
 
 	return (
 		<li className={styles.item}>
@@ -49,12 +49,12 @@ const FileDiff = ({ file }: { file: DiffFile }) => {
 				<span className={styles.removed}>{`−${file.removed}`}</span>
 			</div>
 
-			{hunk === undefined ? (
+			{hunks.length === 0 ? (
 				<span className={styles.caption}>
 					GitLab sent no patch text for this file.
 				</span>
 			) : (
-				<DiffBlock diffs={[hunk]} labels={DIFF_LABELS} />
+				<DiffBlock diffs={hunks} labels={DIFF_LABELS} />
 			)}
 		</li>
 	);

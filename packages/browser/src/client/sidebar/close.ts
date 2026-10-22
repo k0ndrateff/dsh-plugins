@@ -8,6 +8,10 @@
  * success it may claim.
  */
 
+import {
+	CLIENT_REQUEST_HEADER,
+	CLIENT_REQUEST_VALUE,
+} from "dsh-integration-host/status";
 import { CLOSE_PATH } from "../../shared/panel";
 
 /** What the host said about a close, and whether it says the close did not happen. */
@@ -63,14 +67,27 @@ const statusLine = (response: Response): string =>
 export const closeBrowser = async (session: string): Promise<CloseAnswer> => {
 	const response = await fetch(
 		`${CLOSE_PATH}?session=${encodeURIComponent(session)}`,
-		{ method: "POST", headers: { accept: "application/json" } },
+		{
+			method: "POST",
+			headers: {
+				accept: "application/json",
+				"content-type": "application/json",
+				[CLIENT_REQUEST_HEADER]: CLIENT_REQUEST_VALUE,
+			},
+			body: "{}",
+		},
 	);
 
 	const body = (await response.text()).trim();
 	const parsed = parse(body);
+	const closed =
+		isRecord(parsed) && parsed.closed === true
+			? "The browser was closed."
+			: undefined;
 
 	return {
-		text: hostWord(parsed) ?? (body === "" ? statusLine(response) : body),
+		text:
+			hostWord(parsed) ?? closed ?? (body === "" ? statusLine(response) : body),
 		isError: !response.ok || isRefusal(parsed),
 	};
 };

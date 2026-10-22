@@ -8,6 +8,7 @@
 
 import type { CardProvider } from "dsh-integration-ui";
 import type { AtlassianPresentation } from "../../shared/presentation";
+import * as styles from "../styles/styles.css";
 import { IssueItem } from "./issue-item";
 import { PageItem } from "./page-item";
 
@@ -57,4 +58,10 @@ export const atlassianCard: CardProvider<AtlassianPresentation> = {
 				<PageItem key={item.page.id ?? `page-${index}`} page={item.page} />
 			),
 		),
+	footer: (presentation) =>
+		presentation.truncated === true ? (
+			<span className={styles.caption}>
+				The search had more results than this card read.
+			</span>
+		) : null,
 };

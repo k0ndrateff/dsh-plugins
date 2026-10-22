@@ -13,14 +13,15 @@
  * default one.
  */
 
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
+	canonicalTimeZone,
 	DEFAULT_DIGEST_LIMIT,
 	DIGEST_LIMITS,
 	type DigestSettings,
 	isDigestTime,
-	isTimeZone,
 } from "../shared/digest";
 
 /** The document's file name inside the plugin's own directory. */
@@ -33,7 +34,7 @@ const MAX_DAYS = 7;
 export const localTimeZone = (): string => {
 	const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-	return isTimeZone(zone) ? zone : "UTC";
+	return canonicalTimeZone(zone) ?? "UTC";
 };
 
 /** What a user who has never opened the settings gets. */
@@ -89,7 +90,7 @@ export function normalizeDigestSettings(value: unknown): DigestSettings {
 		// An empty week is not a schedule, so it falls back rather than silently
 		// never delivering.
 		days: days.length === 0 ? [...defaults.days] : days,
-		timeZone: isTimeZone(record.timeZone) ? record.timeZone : defaults.timeZone,
+		timeZone: canonicalTimeZone(record.timeZone) ?? defaults.timeZone,
 		blocks,
 		limit: (DIGEST_LIMITS as readonly number[]).includes(limit)
 			? limit
@@ -112,6 +113,8 @@ export function normalizeDigestSettings(value: unknown): DigestSettings {
 export class DigestSettingsStore {
 	private current: DigestSettings;
 	private loading: Promise<DigestSettings> | undefined;
+	/** Saves run one after another, so two edits cannot share a temp file. */
+	private writing: Promise<void> = Promise.resolve();
 
 	constructor(
 		private readonly file: string,
@@ -132,8 +135,9 @@ export class DigestSettingsStore {
 	 */
 	async ensure(): Promise<DigestSettings> {
 		this.loading ??= this.read();
+		await this.loading;
 
-		return await this.loading;
+		return this.current;
 	}
 
 	/** The settings in force, without touching the disk. */
@@ -147,23 +151,36 @@ export class DigestSettingsStore {
 	 * @returns the settings now in force.
 	 */
 	async save(patch: unknown): Promise<DigestSettings> {
-		await this.ensure();
+		const write = this.writing.then(async () => {
+			await this.ensure();
 
-		const next = normalizeDigestSettings({
-			...this.current,
-			...(isRecord(patch) ? patch : {}),
+			const next = normalizeDigestSettings({
+				...this.current,
+				...(isRecord(patch) ? patch : {}),
+			});
+
+			await mkdir(dirname(this.file), { recursive: true });
+
+			const temporary = `${this.file}.${randomUUID()}.tmp`;
+
+			await writeFile(
+				temporary,
+				`${JSON.stringify(next, null, "\t")}\n`,
+				"utf8",
+			);
+			await rename(temporary, this.file);
+
+			this.current = next;
 		});
 
-		await mkdir(dirname(this.file), { recursive: true });
+		this.writing = write.then(
+			() => undefined,
+			() => undefined,
+		);
 
-		const temporary = `${this.file}.tmp`;
+		await write;
 
-		await writeFile(temporary, `${JSON.stringify(next, null, "\t")}\n`, "utf8");
-		await rename(temporary, this.file);
-
-		this.current = next;
-
-		return next;
+		return this.current;
 	}
 
 	/**

@@ -50,8 +50,12 @@ function positionText(discussion: Discussion): string | undefined {
 	if (position?.file === undefined) return undefined;
 
 	const line = position.newLine ?? position.oldLine;
+	const side =
+		position.newLine === undefined && position.oldLine !== undefined
+			? " (removed)"
+			: "";
 
-	return line === undefined ? position.file : `${position.file}:${line}`;
+	return line === undefined ? position.file : `${position.file}:${line}${side}`;
 }
 
 /** One note of a thread. */

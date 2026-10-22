@@ -112,6 +112,7 @@ export const apply = (ctx: Context): void => {
 								id: "browser",
 								order: 20,
 								label: "Browser",
+								inject: () => form.inject(),
 							},
 							BrowserSettingsPage,
 						),

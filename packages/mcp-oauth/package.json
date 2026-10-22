@@ -22,7 +22,8 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run test/unit.ts && bun run test/bridge.ts && bun run test/conformance.ts",
+		"test": "bun run test/unit.ts && bun run test/bridge.ts",
+		"test:live": "bun run test/conformance.ts",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

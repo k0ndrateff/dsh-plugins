@@ -238,6 +238,11 @@ class PresentTool {
 				"no Sentry organization known yet; sign in first, or pass one",
 			);
 
+		const requested = args.query !== undefined || args.issues.length > 0;
+
+		if (!requested)
+			throw new Error("nothing to show: pass a query or issue ids");
+
 		const failed: string[] = [];
 		const issues: IssueCard[] = [];
 		let suspect: SuspectCommit | undefined;
@@ -282,8 +287,12 @@ class PresentTool {
 			}
 		}
 
-		if (issues.length === 0 && failed.length === 0)
-			throw new Error("nothing to show: pass a query or issue ids");
+		// A suspect commit belongs to one issue. Under a list or a search it would
+		// read as the cause of every row.
+		if (args.query !== undefined || args.issues.length !== 1)
+			suspect = undefined;
+
+		// A search that matched nothing is an answer, not a caller's mistake.
 
 		return {
 			issues,
@@ -343,6 +352,17 @@ class PresentTool {
 
 	/** The text the model reads: what the card shows, in order. */
 	private describe(presentation: SentryPresentation): string {
+		if (presentation.issues.length === 0) {
+			const lines = ["No issues matched."];
+
+			if (presentation.query !== undefined)
+				lines.push(`Query: ${presentation.query}`);
+			if (presentation.dashboardUrl !== undefined)
+				lines.push(`All results: ${presentation.dashboardUrl}`);
+
+			return lines.join("\n");
+		}
+
 		const heading =
 			presentation.title === undefined
 				? "Shown as a card"

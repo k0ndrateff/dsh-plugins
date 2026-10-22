@@ -7,6 +7,7 @@
  */
 
 import type { CardProvider } from "dsh-integration-ui";
+import { isWebUrl } from "../../shared/link";
 import type { SentryPresentation } from "../../shared/meta";
 import * as styles from "../styles/styles.css";
 import { IssueItem } from "./issue-item";
@@ -50,7 +51,7 @@ export const sentryCard: CardProvider<SentryPresentation> = {
 					<code className={styles.query}>{presentation.query}</code>
 				)}
 
-				{presentation.dashboardUrl === undefined ? null : (
+				{!isWebUrl(presentation.dashboardUrl) ? null : (
 					<a
 						className={styles.link}
 						href={presentation.dashboardUrl}

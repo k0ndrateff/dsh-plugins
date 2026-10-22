@@ -13,7 +13,12 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
 import type { RuntimeState } from "dsh-integration-host";
-import type { JsonValue, McpBridge } from "dsh-mcp-oauth";
+import {
+	asRecord,
+	type JsonValue,
+	type McpBridge,
+	mcpJson,
+} from "dsh-mcp-oauth";
 import type { AtlassianMeta, IssueCard, PageCard } from "../../shared/meta";
 import type {
 	AtlassianPresentation,
@@ -41,6 +46,8 @@ interface PresentOutcome {
 	readonly total: number | undefined;
 	/** Requests that could not be resolved, by key or id. */
 	readonly failed: readonly string[];
+	/** Whether the server held back another page of search results. */
+	readonly truncated: boolean;
 }
 
 /** What one resolution pass found: card items and the count behind them. */
@@ -48,6 +55,8 @@ interface Found<Item> {
 	readonly items: readonly Item[];
 	/** The server's own match count, when it reported one. */
 	readonly total: number | undefined;
+	/** Whether the server named a next page. */
+	readonly truncated?: boolean;
 }
 
 /** The arguments the model may send, after validation. */
@@ -59,6 +68,18 @@ interface PresentArgs {
 	readonly pages: readonly string[];
 	readonly jql: string | undefined;
 	readonly cql: string | undefined;
+}
+
+/** Whether one search answer names another page. */
+function hasMore(value: unknown): boolean {
+	return mcpJson(value).some((root) => {
+		const record = asRecord(root);
+
+		return (
+			record?.isLast === false ||
+			(typeof record?.nextPageToken === "string" && record.nextPageToken !== "")
+		);
+	});
 }
 
 function stringList(value: unknown): string[] {
@@ -191,6 +212,7 @@ class PresentTool {
 				...(outcome.title === undefined ? {} : { title: outcome.title }),
 				layout: outcome.layout,
 				...(outcome.total === undefined ? {} : { total: outcome.total }),
+				...(outcome.truncated ? { truncated: true } : {}),
 				items: outcome.items,
 			};
 
@@ -242,9 +264,19 @@ class PresentTool {
 				"no Atlassian site known yet; run a Jira or Confluence search first, or sign in again",
 			);
 
+		const requested =
+			args.issues.length > 0 ||
+			args.pages.length > 0 ||
+			args.jql !== undefined ||
+			args.cql !== undefined;
+
+		if (!requested)
+			throw new Error("nothing to show: pass issues, pages, jql, or cql");
+
 		const items: PresentationItem[] = [];
 		const failed: string[] = [];
 		let matched = 0;
+		let truncated = false;
 
 		const push = (candidate: readonly PresentationItem[]): void => {
 			for (const item of candidate) {
@@ -280,6 +312,7 @@ class PresentTool {
 			const found = this.issuesOf(value, deps.state.facts?.siteUrl);
 			push(found.items);
 			matched += found.total ?? found.items.length;
+			if (hasMore(value)) truncated = true;
 		}
 
 		for (const id of args.pages) {
@@ -307,10 +340,11 @@ class PresentTool {
 			const found = this.pagesOf(value, deps.state.facts?.siteUrl);
 			push(found.items);
 			matched += found.total ?? found.items.length;
+			if (hasMore(value)) truncated = true;
 		}
 
-		if (items.length === 0 && failed.length === 0)
-			throw new Error("nothing to show: pass issues, pages, jql, or cql");
+		// An empty answer is a result, not a bad request: the query ran and matched
+		// nothing, which the model must be able to tell from "you sent no query".
 
 		// One sentence per item, written by the conversation's own model. The
 		// card is projected again afterwards, so no raw description survives.
@@ -333,6 +367,7 @@ class PresentTool {
 			items: projected,
 			total: matched > projected.length ? matched : undefined,
 			failed,
+			truncated,
 		};
 	};
 
@@ -477,6 +512,15 @@ class PresentTool {
 
 	/** The text the model reads: what the card shows, in order. */
 	private describe(outcome: PresentOutcome, args: PresentArgs): string {
+		if (outcome.items.length === 0) {
+			const lines = ["No issues or pages matched."];
+
+			if (args.jql !== undefined) lines.push(`JQL: ${args.jql}`);
+			if (args.cql !== undefined) lines.push(`CQL: ${args.cql}`);
+
+			return lines.join("\n");
+		}
+
 		const issues = outcome.items.filter((item) => item.kind === "issue");
 		const pages = outcome.items.filter((item) => item.kind === "page");
 
@@ -523,6 +567,8 @@ class PresentTool {
 
 		if (args.jql !== undefined) lines.push(`JQL: ${args.jql}`);
 		if (args.cql !== undefined) lines.push(`CQL: ${args.cql}`);
+		if (outcome.truncated)
+			lines.push("The search had more results than this card read.");
 
 		return lines.join("\n");
 	}

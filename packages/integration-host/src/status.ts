@@ -8,6 +8,19 @@
  * shared settings card draws only the part declared here.
  */
 
+/**
+ * The header every request from the harness page carries.
+ *
+ * A browser form cannot set a custom header without a CORS preflight, and these
+ * routes never answer one; the header is therefore the boundary between the
+ * page and a cross-origin request, not an authentication token. Local processes
+ * can still forge it — that debt belongs to the harness, not to one plugin.
+ */
+export const CLIENT_REQUEST_HEADER = "x-dsh-client";
+
+/** The one value the client header must carry. */
+export const CLIENT_REQUEST_VALUE = "1";
+
 /** A one-way message to the user, mirroring the authorization seam's notice. */
 export interface StatusNotice {
 	readonly message: string;

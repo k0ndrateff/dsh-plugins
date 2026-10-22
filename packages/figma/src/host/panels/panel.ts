@@ -64,9 +64,11 @@ export class PanelApi {
 			screenshot: this.screenshotUrl(nodeId),
 			tokens: tokens.slice(0, MAX_TOKENS),
 			tokensTruncated: tokens.length > MAX_TOKENS,
+			tokenTotal: tokens.length,
 			mappings,
 			children: metadata.children.slice(0, MAX_CHILDREN),
 			childrenTruncated: metadata.children.length > MAX_CHILDREN,
+			childTotal: metadata.children.length,
 		};
 	}
 

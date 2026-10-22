@@ -75,6 +75,14 @@ function fakeApi(answers: (call: Call) => unknown): {
 
 			return { value: answer, total: 2 };
 		},
+		getAll: async (
+			path: string,
+			params?: Readonly<Record<string, unknown>>,
+		): Promise<{ items: unknown[]; truncated: boolean }> => {
+			const answer = answers(record("GET", path, params));
+
+			return { items: Array.isArray(answer) ? answer : [], truncated: false };
+		},
 		post: async (path: string, body?: unknown): Promise<unknown> =>
 			answers(record("POST", path, undefined, body)),
 		put: async (path: string, body?: unknown): Promise<unknown> =>
@@ -212,9 +220,8 @@ console.log("\n=== the panel ===");
 	);
 	check(
 		"the diff is a second read",
-		calls[1]?.path.endsWith("/diffs") === true &&
-			calls[1]?.params?.per_page === 100,
-		`${calls[1]?.path} ${JSON.stringify(calls[1]?.params)}`,
+		calls[1]?.path.endsWith("/diffs") === true,
+		String(calls[1]?.path),
 	);
 	check(
 		"the discussions are a third read",
@@ -635,6 +642,20 @@ console.log("\n=== the present tool ===");
 		nothing.includes("nothing to show"),
 		nothing,
 	);
+
+	const empty = (await presentTool
+		.create({ api: fakeApi(() => []).api, state: signedIn() })
+		.execute({ search: "nothing matches this" }, execution())) as {
+		shown: number;
+		summary: string;
+	};
+
+	check(
+		"an empty list is an answer, not a failed call",
+		empty.shown === 0 &&
+			empty.summary.includes("No merge requests, findings or jobs matched"),
+		empty.summary,
+	);
 }
 
 console.log("\n=== the review tool ===");
@@ -754,6 +775,13 @@ console.log("\n=== the route ===");
 		const request = {
 			method,
 			url: path,
+			headers: {
+				host: "127.0.0.1:52849",
+				origin: "http://127.0.0.1:52849",
+				"sec-fetch-site": "same-origin",
+				"x-dsh-client": "1",
+				"content-type": "application/json",
+			},
 			async *[Symbol.asyncIterator]() {
 				for (const chunk of chunks) yield chunk;
 			},

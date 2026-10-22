@@ -66,7 +66,7 @@ const sessionOf = (agent: Invocation["agent"]): string | undefined =>
  */
 export const parseDays = (input: string): number[] | undefined => {
 	const names = input
-		.split(",")
+		.split(/[\s,]+/u)
 		.map((name) => name.trim().slice(0, 3).toLowerCase())
 		.filter((name) => name !== "");
 

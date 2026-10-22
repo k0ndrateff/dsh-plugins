@@ -106,7 +106,8 @@ const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 
 					{panel.childrenTruncated ? (
 						<span className={styles.caption}>
-							…and more layers than this panel lists
+							…and {panel.childTotal - panel.children.length} more layers than
+							this panel lists
 						</span>
 					) : null}
 				</section>
@@ -131,7 +132,8 @@ const TokensSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 
 			{panel.tokensTruncated ? (
 				<p className={styles.caption}>
-					…and more variables than this panel lists
+					…and {panel.tokenTotal - panel.tokens.length} more variables than this
+					panel lists
 				</p>
 			) : null}
 		</>

@@ -95,9 +95,10 @@ const Run = ({
 						<Failure failure={failure} openFile={openFile} />
 					</li>
 				))}
-				{run.failures.length > CARD_FAILURES ? (
+				{run.failures.length > CARD_FAILURES ||
+				(run.failureTotal ?? run.failures.length) > CARD_FAILURES ? (
 					<li className={styles.more}>
-						… {run.failures.length - CARD_FAILURES} more
+						… {(run.failureTotal ?? run.failures.length) - CARD_FAILURES} more
 					</li>
 				) : null}
 			</ul>

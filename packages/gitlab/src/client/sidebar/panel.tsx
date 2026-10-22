@@ -108,6 +108,12 @@ const MrView = ({
 				</div>
 
 				<h2 className={styles.panelSummary}>{mr.title}</h2>
+
+				{data.truncated === true ? (
+					<span className={styles.caption}>
+						GitLab had more diff or discussion pages than this panel read.
+					</span>
+				) : null}
 			</header>
 
 			<div className={styles.tabs}>

@@ -50,7 +50,7 @@ const bridge = {
 	callTool: async (name: string, args: Record<string, unknown>) => {
 		calls.push({ name, args });
 
-		return ISSUE;
+		return { content: [{ type: "text", text: JSON.stringify(ISSUE) }] };
 	},
 } as unknown as McpBridge;
 

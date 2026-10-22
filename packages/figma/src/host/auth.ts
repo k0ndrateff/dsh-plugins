@@ -11,7 +11,7 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import type { IntegrationAuthFace, RuntimeState } from "dsh-integration-host";
-import type { McpBridge } from "dsh-mcp-oauth";
+import { loggerOf, type McpBridge } from "dsh-mcp-oauth";
 import type { FigmaStatus } from "../shared/status";
 import type { FigmaConfig } from "./config";
 
@@ -60,10 +60,17 @@ export class FigmaAuth implements IntegrationAuthFace<FigmaStatus> {
 		const { bridge, state } = this.deps;
 		const ready = await bridge.ensure(this.deps.ctx);
 
-		// The reason a connection failed is the server's own words — a desktop app
-		// that is not running, a Dev Mode switch that is off — and it is what the
-		// settings card must show, rather than a bare "not connected".
-		state.error = ready ? undefined : bridge.lastFailure;
+		// The transport's own words are for the log; the card says what the person
+		// can act on, which is almost always "open the app".
+		if (!ready && bridge.lastFailure !== undefined)
+			loggerOf(this.deps.ctx).warn(
+				"[figma] Dev Mode MCP unavailable: %s",
+				bridge.lastFailure,
+			);
+
+		state.error = ready
+			? undefined
+			: `Figma's Dev Mode MCP server did not answer at ${this.deps.config.endpoint}. Start the Figma desktop app and turn on “Enable Dev Mode MCP Server” in its preferences.`;
 
 		if (ready) state.notice = undefined;
 

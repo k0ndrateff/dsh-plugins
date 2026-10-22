@@ -54,8 +54,14 @@ export async function discover(
 	if (metadata === undefined)
 		throw new Error(`no OAuth metadata for ${endpoint} (issuer ${issuer})`);
 
-	const authorizationEndpoint = firstString(metadata.authorization_endpoint);
-	const tokenEndpoint = firstString(metadata.token_endpoint);
+	const authorizationEndpoint = secureEndpoint(
+		firstString(metadata.authorization_endpoint),
+		"the authorization endpoint",
+	);
+	const tokenEndpoint = secureEndpoint(
+		firstString(metadata.token_endpoint),
+		"the token endpoint",
+	);
 
 	if (authorizationEndpoint === undefined || tokenEndpoint === undefined)
 		throw new Error(`incomplete OAuth metadata for ${issuer}`);
@@ -65,11 +71,19 @@ export async function discover(
 		stringList(protectedResource?.scopes_supported) ??
 		stringList(metadata.scopes_supported);
 	const scopes = chooseScopes(profile, advertised);
-	const registrationEndpoint = firstString(metadata.registration_endpoint);
-	const revocationEndpoint = firstString(metadata.revocation_endpoint);
+	const registrationEndpoint = secureEndpoint(
+		firstString(metadata.registration_endpoint),
+		"the registration endpoint",
+	);
+	const revocationEndpoint = secureEndpoint(
+		firstString(metadata.revocation_endpoint),
+		"the revocation endpoint",
+	);
 
 	return new OAuthServer({
-		issuer: firstString(metadata.issuer) ?? issuer,
+		issuer:
+			secureEndpoint(firstString(metadata.issuer) ?? issuer, "the issuer") ??
+			issuer,
 		resource: endpoint,
 		authorizationEndpoint,
 		tokenEndpoint,
@@ -136,6 +150,42 @@ function chooseScopes(
 	return advertised.includes("offline_access")
 		? ["offline_access"]
 		: [...profile.oauth.fallbackScopes];
+}
+
+/**
+ * One endpoint from OAuth metadata, refused unless it can be trusted with a token.
+ *
+ * RFC 8414 and 9728 require TLS. A loopback server is the one exception an MCP
+ * deployment actually uses, and it never leaves the machine. A `javascript:`
+ * authorization endpoint would otherwise reach the settings card's link, and an
+ * `http:` token endpoint would send the refresh token in clear text.
+ * @param value - the endpoint as the server published it, when it published one.
+ * @param what - the field's name, for the refusal.
+ * @throws when the value is not an absolute http(s) URL.
+ */
+function secureEndpoint(
+	value: string | undefined,
+	what: string,
+): string | undefined {
+	if (value === undefined) return undefined;
+
+	let url: URL;
+
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error(`${what} is not a URL`);
+	}
+
+	const loopback =
+		url.hostname === "127.0.0.1" ||
+		url.hostname === "localhost" ||
+		url.hostname === "[::1]";
+
+	if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
+		throw new Error(`${what} must use https`);
+
+	return value;
 }
 
 function stringList(value: unknown): string[] | undefined {

@@ -49,6 +49,7 @@ export type { AccountFacts, FactsReader } from "./facts";
 export { stripHtmlComments } from "./markdown";
 export {
 	BadRequest,
+	clientRequestRefusal,
 	createIntegrationRoute,
 	type MountSpec,
 	mountIntegrationRoute,
@@ -59,4 +60,9 @@ export {
 	type RouteSpec,
 } from "./route";
 export { RuntimeState } from "./state";
-export type { IntegrationStatus, StatusNotice } from "./status";
+export {
+	CLIENT_REQUEST_HEADER,
+	CLIENT_REQUEST_VALUE,
+	type IntegrationStatus,
+	type StatusNotice,
+} from "./status";

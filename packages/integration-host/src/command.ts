@@ -65,10 +65,11 @@ export const createIntegrationCommand = <TStatus extends IntegrationStatus>(
 				void auth.signIn();
 				await auth.settleNotice();
 
-				return {
-					kind: "success",
-					text: auth.loginMessage(await auth.getStatus()),
-				};
+				const status = await auth.getStatus();
+
+				return status.error === null
+					? { kind: "success", text: auth.loginMessage(status) }
+					: { kind: "error", text: status.error };
 			}
 
 			if (action === "logout") {
@@ -96,10 +97,18 @@ export const createIntegrationCommand = <TStatus extends IntegrationStatus>(
 
 			const status = await auth.getStatus();
 
+			if (status.error !== null) return { kind: "error", text: status.error };
+
 			if (!status.signedIn)
 				return {
 					kind: "success",
 					text: `Not signed in to ${spec.label}. Run /${spec.name} login.`,
+				};
+
+			if (!status.connected)
+				return {
+					kind: "success",
+					text: `${spec.label} is signed in but not connected. Run /${spec.name} sync.`,
 				};
 
 			const until =

@@ -100,9 +100,17 @@ export class GitLabAuth implements GitLabAuthFace {
 	 * @returns whether GitLab accepted the token.
 	 */
 	async connect(): Promise<boolean> {
-		const { state, api, ctx } = this.deps;
+		const { state, api, ctx, token } = this.deps;
 
 		state.error = undefined;
+
+		// A fresh install has no token, and that is a normal state rather than a
+		// failure: the card should ask for one, not paint a red error.
+		if ((await token.read()) === undefined) {
+			state.facts = undefined;
+
+			return false;
+		}
 
 		try {
 			const account = await readAccount(api);
