@@ -2,7 +2,7 @@
 	"name": "dsh-integration-ui",
 	"version": "0.2.0",
 	"type": "module",
-	"description": "The browser-half shell the integrations of k0ndrateff/dsh-plugins share \u2014 a library, not a plugin",
+	"description": "The browser-half shell the integrations of k0ndrateff/dsh-plugins share — a library, not a plugin",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",
@@ -22,7 +22,7 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run test/card.ts",
+		"test": "bun test",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

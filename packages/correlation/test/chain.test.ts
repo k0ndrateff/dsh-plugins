@@ -9,6 +9,7 @@
  *   bun run test/chain.ts
  */
 
+import { expect, test } from "bun:test";
 import type {
 	CorrelationFact,
 	CorrelationKind,
@@ -16,18 +17,10 @@ import type {
 import { anchorFor } from "../src/host/anchor";
 import { buildChain, type ChainResolver, refKey } from "../src/host/chain";
 
-let failures = 0;
-let checks = 0;
-
-function check(label: string, ok: boolean, detail = ""): void {
-	checks += 1;
-
-	if (!ok) failures += 1;
-
-	console.log(
-		`  ${ok ? "ok  " : "FAIL"} ${label}${detail === "" ? "" : ` — ${detail}`}`,
-	);
-}
+/** A labelled assertion; the test name says the scenario. */
+const check = (label: string, ok: boolean, detail = ""): void => {
+	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
+};
 
 /** What one fake provider offers. */
 interface FakeProvider {
@@ -67,66 +60,68 @@ const ATLASSIAN: FakeProvider = {
 	resolves: ["task"],
 };
 
-console.log("\n=== what the user typed ===");
+test("what the user typed", () => {
+	check(
+		"a short id is an issue as it stands",
+		JSON.stringify(anchorFor("error", " CHECKOUT-13P ")) ===
+			JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
+	);
+	check(
+		"a pasted link is trimmed to the id at its end",
+		JSON.stringify(
+			anchorFor("error", "https://acme.sentry.io/issues/CHECKOUT-13P/"),
+		) === JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
+	);
+	check(
+		"a commit is read as its sha, and a link keeps the link",
+		JSON.stringify(
+			anchorFor(
+				"commit",
+				"https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
+			),
+		) ===
+			JSON.stringify({
+				kind: "commit",
+				sha: "7c50a1e5",
+				url: "https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
+			}),
+	);
+	check(
+		"a change request is the project path and its number",
+		JSON.stringify(anchorFor("change", "acme/storefront!42")) ===
+			JSON.stringify({
+				kind: "change",
+				repository: "acme/storefront",
+				number: "42",
+			}),
+	);
+	check(
+		"a tracker key is case-folded",
+		JSON.stringify(anchorFor("task", "dev-5977")) ===
+			JSON.stringify({ kind: "task", key: "DEV-5977" }),
+	);
 
-check(
-	"a short id is an issue as it stands",
-	JSON.stringify(anchorFor("error", " CHECKOUT-13P ")) ===
-		JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
-);
-check(
-	"a pasted link is trimmed to the id at its end",
-	JSON.stringify(
-		anchorFor("error", "https://acme.sentry.io/issues/CHECKOUT-13P/"),
-	) === JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
-);
-check(
-	"a commit is read as its sha, and a link keeps the link",
-	JSON.stringify(
-		anchorFor("commit", "https://gitlab.com/acme/storefront/-/commit/7C50A1E5"),
-	) ===
-		JSON.stringify({
-			kind: "commit",
-			sha: "7c50a1e5",
-			url: "https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
-		}),
-);
-check(
-	"a change request is the project path and its number",
-	JSON.stringify(anchorFor("change", "acme/storefront!42")) ===
-		JSON.stringify({
-			kind: "change",
-			repository: "acme/storefront",
-			number: "42",
-		}),
-);
-check(
-	"a tracker key is case-folded",
-	JSON.stringify(anchorFor("task", "dev-5977")) ===
-		JSON.stringify({ kind: "task", key: "DEV-5977" }),
-);
+	for (const [kind, text] of [
+		["commit", "main"],
+		["change", "42"],
+		["task", "the exchange fix"],
+		["error", "  "],
+	] as const) {
+		const message = (() => {
+			try {
+				anchorFor(kind, text);
 
-for (const [kind, text] of [
-	["commit", "main"],
-	["change", "42"],
-	["task", "the exchange fix"],
-	["error", "  "],
-] as const) {
-	const message = (() => {
-		try {
-			anchorFor(kind, text);
+				return "";
+			} catch (error) {
+				return (error as Error).message;
+			}
+		})();
 
-			return "";
-		} catch (error) {
-			return (error as Error).message;
-		}
-	})();
+		check(`"${text}" is refused as a ${kind}`, message !== "", message);
+	}
+});
 
-	check(`"${text}" is refused as a ${kind}`, message !== "", message);
-}
-
-console.log("\n=== walking a chain ===");
-{
+test("walking a chain", async () => {
 	const sources = fake([SENTRY, GITLAB, ATLASSIAN], {
 		"error:CHECKOUT-13P": [
 			{
@@ -220,10 +215,9 @@ console.log("\n=== walking a chain ===");
 		"the ticket found through the commit is not asked for twice",
 		report.hops.filter((hop) => hop.id === "jira:DEV-5977").length === 1,
 	);
-}
+});
 
-console.log("\n=== where a chain stops ===");
-{
+test("where a chain stops", async () => {
 	const unowned = await buildChain(
 		fake([SENTRY], {
 			"error:CHECKOUT-13P": [
@@ -385,10 +379,4 @@ console.log("\n=== where a chain stops ===");
 		unknown.includes("Datadog") && unknown.includes("Sentry"),
 		unknown,
 	);
-}
-
-console.log(`\n${checks - failures}/${checks} checks passed`);
-
-if (failures > 0) process.exit(1);
-
-process.exit(0);
+});

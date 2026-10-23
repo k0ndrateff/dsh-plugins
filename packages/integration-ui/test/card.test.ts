@@ -9,6 +9,7 @@
  *   bun run test/card.ts
  */
 
+import { expect, test } from "bun:test";
 import type {
 	ConversationMatch,
 	ConversationNodeContext,
@@ -29,18 +30,10 @@ declare module "@deepseek-ai/dsh-client-ui-conversation/client" {
 	}
 }
 
-let failures = 0;
-let checks = 0;
-
-function check(label: string, ok: boolean, detail = ""): void {
-	checks += 1;
-
-	if (!ok) failures += 1;
-
-	console.log(
-		`  ${ok ? "ok  " : "FAIL"} ${label}${detail === "" ? "" : ` — ${detail}`}`,
-	);
-}
+/** A labelled assertion; the test name says the scenario. */
+const check = (label: string, ok: boolean, detail = ""): void => {
+	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
+};
 
 /** One card payload, as the test tool publishes it. */
 interface TestCard {
@@ -154,8 +147,7 @@ const updated = (
 
 const CARD: TestCard = { callId: "c1", title: "Found", items: ["a", "b"] };
 
-console.log("\n=== one settled call ===");
-{
+test("one settled call", () => {
 	const state = updated(
 		updated(started(7), callEvent(7, "c1", "test_present", 3)),
 		resultEvent(7, "c1", CARD, 4),
@@ -216,10 +208,9 @@ console.log("\n=== one settled call ===");
 		type.select(closed) === null,
 		JSON.stringify(type.select(closed)),
 	);
-}
+});
 
-console.log("\n=== what does not become a card ===");
-{
+test("what does not become a card", () => {
 	const other = updated(
 		updated(started(7), callEvent(7, "c2", "another_tool", 3)),
 		resultEvent(7, "c2", CARD, 4),
@@ -260,10 +251,9 @@ console.log("\n=== what does not become a card ===");
 		unknownCall.presentations.length === 0,
 		String(unknownCall.presentations.length),
 	);
-}
+});
 
-console.log("\n=== two cards in one turn ===");
-{
+test("two cards in one turn", () => {
 	let state = started(7);
 
 	state = updated(state, callEvent(7, "c1", "test_present", 3));
@@ -293,10 +283,9 @@ console.log("\n=== two cards in one turn ===");
 		published?.presentations.length === 2,
 		String(published?.presentations.length),
 	);
-}
+});
 
-console.log("\n=== a card that reports a state, not a thing ===");
-{
+test("a card that reports a state, not a thing", () => {
 	const latest = createPresentationType<TestCard, "test-presented">({
 		turnDataKey: "test-presented",
 		toolName: "test_present",
@@ -330,10 +319,9 @@ console.log("\n=== a card that reports a state, not a thing ===");
 			state.presentations[0]?.seq === 7,
 		JSON.stringify(state.presentations.map((item) => item.card.callId)),
 	);
-}
+});
 
-console.log("\n=== the card's own drawing rules ===");
-{
+test("the card's own drawing rules", () => {
 	const presented: PresentedCard<TestCard> = { card: CARD, seq: 4 };
 
 	check(
@@ -343,8 +331,4 @@ console.log("\n=== the card's own drawing rules ===");
 			card.length(presented.card) === 2,
 		`${String(card.title(presented.card))} / ${card.count(presented.card)}`,
 	);
-}
-
-console.log(`\n${checks - failures}/${checks} checks passed`);
-
-if (failures > 0) throw new Error(`${failures} checks failed`);
+});

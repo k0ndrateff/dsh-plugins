@@ -53,10 +53,12 @@ describe("what the source offers", () => {
 	});
 });
 
-describe("one ticket as a hop", async () => {
-	let fact: CorrelationFact | null = null;
+describe("one ticket as a hop", () => {
+	let fact: CorrelationFact | undefined;
 
 	beforeEach(async () => {
+		bridge.callTool.mockClear();
+
 		const facts = await source.resolve({ kind: "task", key: "DEV-5977" });
 		fact = facts[0];
 	});

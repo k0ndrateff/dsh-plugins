@@ -6,26 +6,12 @@
  * plugin the user installed and cannot use; a row for a package that is not a
  * dependency installs nothing at all. Neither shows up in a build, because there
  * is nothing here to build.
- *
- *   bun run test/patch.ts
  */
 
+import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { glob } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-
-let failures = 0;
-let checks = 0;
-
-function check(label: string, ok: boolean, detail = ""): void {
-	checks += 1;
-
-	if (!ok) failures += 1;
-
-	console.log(
-		`  ${ok ? "ok  " : "FAIL"} ${label}${detail === "" ? "" : ` — ${detail}`}`,
-	);
-}
 
 /** This package's own root. */
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -75,61 +61,49 @@ const ids = rows
 const dependencies = Object.keys(
 	(own.dependencies as Record<string, string> | undefined) ?? {},
 );
-
-console.log("\n=== the patch ===");
-check(
-	"one layer, one insert list",
-	entries.length === 1 && rows.length > 0,
-	`${String(entries.length)} entries, ${String(rows.length)} rows`,
-);
-check(
-	"every row names a package and an id",
-	rows.length === names.length && rows.length === ids.length,
-	JSON.stringify(rows),
-);
-check(
-	"no two rows share an id",
-	new Set(ids).size === ids.length,
-	ids.join(", "),
-);
-check(
-	"every row mounts a package that is a bundle",
-	names.every((name) => bundles.has(name)),
-	names.filter((name) => !bundles.has(name)).join(", "),
-);
-
 const self = String(own.name);
-const unmounted = [...bundles.keys()].filter(
-	(name) => name !== self && !names.includes(name),
-);
 
-check(
-	"and every other bundle in the repository is mounted",
-	unmounted.length === 0,
-	unmounted.join(", "),
-);
+describe("the patch", () => {
+	test("has one layer and one insert list", () => {
+		expect(entries).toHaveLength(1);
+		expect(rows.length).toBeGreaterThan(0);
+	});
 
-console.log("\n=== the dependencies ===");
-check(
-	"every mounted package is a dependency, so installing this installs it",
-	names.every((name) => dependencies.includes(name)),
-	names.filter((name) => !dependencies.includes(name)).join(", "),
-);
-check(
-	"and every dependency is mounted, so none is installed for nothing",
-	dependencies.length > 0 &&
-		dependencies.every((name) => names.includes(name)) &&
-		dependencies.every((name) => bundles.has(name)),
-	dependencies.filter((name) => !names.includes(name)).join(", "),
-);
-check(
-	"this bundle mounts the rest, not itself",
-	!names.includes(String(own.name)) && !dependencies.includes(String(own.name)),
-	String(own.name),
-);
+	test("every row names a package and an id", () => {
+		expect(names).toHaveLength(rows.length);
+		expect(ids).toHaveLength(rows.length);
+	});
 
-console.log(`\n${checks - failures}/${checks} checks passed`);
+	test("no two rows share an id", () => {
+		expect(new Set(ids).size).toBe(ids.length);
+	});
 
-if (failures > 0) process.exit(1);
+	test("every row mounts a package that is a bundle", () => {
+		expect(names.filter((name) => !bundles.has(name))).toEqual([]);
+	});
 
-process.exit(0);
+	test("every other bundle in the repository is mounted", () => {
+		const unmounted = [...bundles.keys()].filter(
+			(name) => name !== self && !names.includes(name),
+		);
+
+		expect(unmounted).toEqual([]);
+	});
+});
+
+describe("the dependencies", () => {
+	test("every mounted package is a dependency, so installing this installs it", () => {
+		expect(names.filter((name) => !dependencies.includes(name))).toEqual([]);
+	});
+
+	test("every dependency is mounted, so none is installed for nothing", () => {
+		expect(dependencies.length).toBeGreaterThan(0);
+		expect(dependencies.filter((name) => !names.includes(name))).toEqual([]);
+		expect(dependencies.filter((name) => !bundles.has(name))).toEqual([]);
+	});
+
+	test("mounts the rest, not itself", () => {
+		expect(names).not.toContain(self);
+		expect(dependencies).not.toContain(self);
+	});
+});

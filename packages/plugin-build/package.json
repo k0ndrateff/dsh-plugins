@@ -2,7 +2,7 @@
 	"name": "dsh-plugin-build",
 	"version": "0.2.0",
 	"type": "module",
-	"description": "The build every plugin of k0ndrateff/dsh-plugins runs \u2014 a library, not a plugin",
+	"description": "The build every plugin of k0ndrateff/dsh-plugins runs — a library, not a plugin",
 	"license": "MIT",
 	"main": "src/build.mjs",
 	"exports": {
@@ -15,7 +15,7 @@
 	"scripts": {
 		"build": "node --check src/build.mjs",
 		"typecheck": "node --check src/build.mjs",
-		"test": "bun run test/unit.ts",
+		"test": "bun test",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

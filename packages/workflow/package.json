@@ -25,9 +25,9 @@
 		"dsh": ">=0.2.0 <0.3.0"
 	},
 	"scripts": {
-		"build": "bun run test/patch.ts",
-		"typecheck": "bun run test/patch.ts",
-		"test": "bun run test/patch.ts",
+		"build": "bun test test/patch.test.ts",
+		"typecheck": "bun test test/patch.test.ts",
+		"test": "bun test",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

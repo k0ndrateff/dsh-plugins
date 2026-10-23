@@ -9,6 +9,7 @@
  *   bun run test/tool.ts
  */
 
+import { expect, test } from "bun:test";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type {
 	CorrelationFact,
@@ -19,18 +20,10 @@ import type { ChainResolver } from "../src/host/chain";
 import { correlateTool } from "../src/host/tool";
 import { asChainReport } from "../src/shared/meta";
 
-let failures = 0;
-let checks = 0;
-
-function check(label: string, ok: boolean, detail = ""): void {
-	checks += 1;
-
-	if (!ok) failures += 1;
-
-	console.log(
-		`  ${ok ? "ok  " : "FAIL"} ${label}${detail === "" ? "" : ` — ${detail}`}`,
-	);
-}
+/** A labelled assertion; the test name says the scenario. */
+const check = (label: string, ok: boolean, detail = ""): void => {
+	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
+};
 
 /** The chain the fake integrations answer with. */
 const ANSWERS: Readonly<Record<string, readonly CorrelationFact[]>> = {
@@ -140,11 +133,9 @@ const SOURCES = fakeSources([
 	{ provider: "Atlassian", entry: "task", resolves: ["task"] },
 ]);
 
-console.log("\n=== the tool ===");
-{
+test("the tool", async () => {
 	const definition = correlateTool({ sources: SOURCES });
 
-	check("the tool is named for what it does", definition.name === "correlate");
 	check(
 		"and asks for the integration and the object, nothing else",
 		JSON.stringify(Object.keys(definition.parameters.properties ?? {})) ===
@@ -230,10 +221,9 @@ console.log("\n=== the tool ===");
 		refused.includes("group/project!12"),
 		refused,
 	);
-}
+});
 
-console.log("\n=== reading the record back ===");
-{
+test("reading the record back", () => {
 	const good = asChainReport({
 		callId: "call-1",
 		title: "CHECKOUT-13P · AxiosError",
@@ -285,10 +275,4 @@ console.log("\n=== reading the record back ===");
 			partial.breaks[0]?.label === "commit",
 		JSON.stringify(partial),
 	);
-}
-
-console.log(`\n${checks - failures}/${checks} checks passed`);
-
-if (failures > 0) process.exit(1);
-
-process.exit(0);
+});
