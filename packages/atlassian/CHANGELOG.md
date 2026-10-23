@@ -1,5 +1,11 @@
 # dsh-atlassian-plugin
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated docs and icon.
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
 	"name": "dsh-atlassian-plugin",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"type": "module",
 	"description": "Jira and Confluence for DeepSeek Harness: the tools of Atlassian's remote MCP server, a result card, and the issue panel",
 	"license": "MIT",
@@ -41,7 +41,7 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/readers.ts && bun run test/digest.ts && bun run test/correlation.ts && bun run test/dry-run.ts",
+		"test": "bun run test/readers.ts && bun run test/digest.test.ts && bun run test/correlation.test.ts && bun run test/dry-run.ts",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

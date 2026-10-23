@@ -1,5 +1,7 @@
 # dsh-atlassian-plugin
 
+![Promo decorative illustration](./promo.png)
+
 Jira and Confluence inside DeepSeek Harness, over Atlassian's remote MCP server,
 signed in through a browser.
 
