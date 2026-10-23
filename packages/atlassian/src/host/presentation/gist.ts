@@ -72,7 +72,7 @@ const SYSTEM_PROMPT = [
  * @param exec - the running tool call.
  * @returns the route, or undefined when neither source names a complete one.
  */
-export function modelRoute(exec: ToolExecution): GistRoute | undefined {
+export const modelRoute = (exec: ToolExecution): GistRoute | undefined => {
 	const config = exec.agent?.session.requestHeader()?.config;
 	const provider = config?.provider ?? exec.agent?.options.provider;
 	const model = config?.model ?? exec.agent?.options.model;
@@ -81,7 +81,7 @@ export function modelRoute(exec: ToolExecution): GistRoute | undefined {
 	if (provider === "" || model === "") return undefined;
 
 	return { provider, model };
-}
+};
 
 /**
  * Read the numbered sentences back out of one answer.
@@ -93,10 +93,10 @@ export function modelRoute(exec: ToolExecution): GistRoute | undefined {
  * @param count - how many items were sent.
  * @returns one entry per item, in order; entries the model skipped are undefined.
  */
-export function parseGists(
+export const parseGists = (
 	text: string,
 	count: number,
-): (string | undefined)[] {
+): (string | undefined)[] => {
 	const gists: (string | undefined)[] = new Array(count).fill(undefined);
 
 	for (const line of text.split("\n")) {
@@ -121,7 +121,7 @@ export function parseGists(
 	}
 
 	return gists;
-}
+};
 
 /**
  * Write one sentence about each item that has long text.
@@ -130,11 +130,11 @@ export function parseGists(
  * @param options - the turn's route and the running call's signal.
  * @returns the sentences, or undefined when the pass did not produce any.
  */
-export async function summarizeGists(
+export const summarizeGists = async (
 	ctx: Context,
 	targets: readonly GistTarget[],
 	options: GistOptions,
-): Promise<readonly Gist[] | undefined> {
+): Promise<readonly Gist[] | undefined> => {
 	if (targets.length === 0) return undefined;
 
 	const route = options.route;
@@ -183,10 +183,10 @@ export async function summarizeGists(
 	});
 
 	return gists.length === 0 ? undefined : gists;
-}
+};
 
 /** The numbered items, bounded so one card cannot become a book. */
-function buildPrompt(targets: readonly GistTarget[]): string {
+const buildPrompt = (targets: readonly GistTarget[]): string => {
 	const parts: string[] = [];
 	let used = 0;
 
@@ -204,4 +204,4 @@ function buildPrompt(targets: readonly GistTarget[]): string {
 	});
 
 	return parts.join("\n\n");
-}
+};

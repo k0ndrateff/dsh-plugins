@@ -99,35 +99,35 @@ const HOMOGLYPHS: Readonly<Record<string, string>> = {
  * @param type - the type name as the site spells it.
  * @returns a palette; `neutral` for a type this version does not know.
  */
-export function issueTypeTone(type: string | undefined): CardTone {
+export const issueTypeTone = (type: string | undefined): CardTone => {
 	return lookup(TYPE_TONES, type);
-}
+};
 
 /**
  * The palette for one priority.
  * @param priority - the priority name or scheme value ("P2", "High", "Р4").
  * @returns a palette; `neutral` when the value is missing or unknown.
  */
-export function priorityTone(priority: string | undefined): CardTone {
+export const priorityTone = (priority: string | undefined): CardTone => {
 	return lookup(PRIORITY_TONES, priority);
-}
+};
 
 /** Leading and trailing space, and case, are not part of a name. */
-function lookup(
+const lookup = (
 	table: Readonly<Record<string, CardTone>>,
 	value: string | undefined,
-): CardTone {
+): CardTone => {
 	const name = (value ?? "").trim().toLowerCase();
 
 	if (name === "") return "neutral";
 
 	return table[name] ?? table[fold(name)] ?? "neutral";
-}
+};
 
 /** Read a name as if its lookalike letters were Latin. */
-function fold(name: string): string {
+const fold = (name: string): string => {
 	return name.replace(
 		/[авекмнорстух]/gu,
 		(letter) => HOMOGLYPHS[letter] ?? letter,
 	);
-}
+};

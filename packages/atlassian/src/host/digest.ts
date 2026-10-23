@@ -91,7 +91,7 @@ export const atlassianDigestSource = (deps: DigestDeps): DigestSource => ({
 	): Promise<readonly DigestItem[]> => {
 		const jql = JQL[blockId];
 
-		if (jql === undefined) throw new Error(`no Jira block named "${blockId}"`);
+		if (!jql) throw new Error(`no Jira block named "${blockId}"`);
 
 		const cloudId = deps.state.facts?.cloudId;
 

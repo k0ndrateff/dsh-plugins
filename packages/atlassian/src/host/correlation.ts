@@ -55,9 +55,11 @@ const factOf = (
 					candidate !== undefined &&
 					(candidate.fields !== undefined || candidate.key !== undefined),
 			) ?? {};
+
 	const fields = asRecord(record.fields) ?? record;
 	const identity = pickString(record, "key") ?? key;
 	const summary = extractor.text(pickString(fields, "summary"));
+
 	const parts = [
 		nameOf(fields.status),
 		nameOf(fields.issuetype),

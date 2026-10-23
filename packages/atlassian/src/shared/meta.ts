@@ -71,7 +71,7 @@ export type AtlassianMeta = {
 };
 
 /** Narrow an unknown `meta` value from the wire to this contract. */
-export function asAtlassianMeta(value: unknown): AtlassianMeta | undefined {
+export const asAtlassianMeta = (value: unknown): AtlassianMeta | undefined => {
 	if (value === null || typeof value !== "object") return undefined;
 
 	const candidate = value as Partial<AtlassianMeta>;
@@ -99,4 +99,4 @@ export function asAtlassianMeta(value: unknown): AtlassianMeta | undefined {
 			: [],
 		text: typeof candidate.text === "string" ? candidate.text : "",
 	};
-}
+};

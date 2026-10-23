@@ -71,7 +71,7 @@ interface PresentArgs {
 }
 
 /** Whether one search answer names another page. */
-function hasMore(value: unknown): boolean {
+const hasMore = (value: unknown): boolean => {
 	return mcpJson(value).some((root) => {
 		const record = asRecord(root);
 
@@ -80,18 +80,19 @@ function hasMore(value: unknown): boolean {
 			(typeof record?.nextPageToken === "string" && record.nextPageToken !== "")
 		);
 	});
-}
+};
 
-function stringList(value: unknown): string[] {
+const stringList = (value: unknown): string[] => {
 	if (!Array.isArray(value)) return [];
+
 	return value.filter(
 		(item): item is string => typeof item === "string" && item !== "",
 	);
-}
+};
 
-function optionalString(value: unknown): string | undefined {
+const optionalString = (value: unknown): string | undefined => {
 	return typeof value === "string" && value !== "" ? value : undefined;
-}
+};
 
 class PresentTool {
 	/** The wire name the agent calls. */
@@ -116,11 +117,10 @@ class PresentTool {
 
 	/**
 	 * Build the tool definition for one plugin instance.
-	 * @param ctx - host context; the model service is read from it for summaries.
-	 * @param state - runtime state holding the MCP connection and cloud id.
 	 */
 	create = (deps: PresentDeps): ToolDefinition => ({
 		name: this.TOOL_NAME,
+
 		description:
 			"Show Jira issues and/or Confluence pages to the user as a card under your answer. " +
 			"Use this whenever the user asks to see work — a daily plan, a shortlist, a single issue, " +
@@ -129,6 +129,7 @@ class PresentTool {
 			"assignee, priority, type and estimate, plus one sentence summarizing its description, " +
 			"so the user can act without opening the issue. Call it once per card, then write your " +
 			"answer; do not repeat the card's contents as a list in the text.",
+
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -173,6 +174,7 @@ class PresentTool {
 				},
 			},
 		},
+
 		output: {
 			schema: {
 				type: "object",
@@ -197,6 +199,7 @@ class PresentTool {
 			presentationMeta: (_args, value) =>
 				(value as { presentation: JsonValue }).presentation,
 		},
+
 		execute: async (rawArgs, exec) => {
 			const args = this.parseArgs(rawArgs);
 			const outcome = await this.resolve(deps, args, exec);
@@ -226,7 +229,7 @@ class PresentTool {
 	});
 
 	/** Validate the model's arguments; unknown keys are ignored. */
-	private parseArgs(rawArgs: unknown): PresentArgs {
+	private parseArgs = (rawArgs: unknown): PresentArgs => {
 		const args =
 			rawArgs !== null && typeof rawArgs === "object"
 				? (rawArgs as Record<string, unknown>)
@@ -249,7 +252,7 @@ class PresentTool {
 			jql: optionalString(args.jql),
 			cql: optionalString(args.cql),
 		};
-	}
+	};
 
 	/** Resolve every requested source into card items. */
 	private resolve = async (

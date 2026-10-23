@@ -31,6 +31,7 @@ import {
 	loggerOf,
 	McpBridge,
 } from "dsh-mcp-oauth";
+import pkg from "../../package.json";
 import type { AtlassianStatus } from "../shared/status";
 import { atlassianAuthSpec } from "./auth";
 import {
@@ -57,7 +58,7 @@ export const inject = ["tools", "credentials", "commands", "authorization"];
 const OAUTH_METHOD = "oauth";
 
 /** How Atlassian's server sees this client; it gates payload detail on the name. */
-const CLIENT_INFO = { name: "dsh-atlassian", version: "0.3.0" };
+const CLIENT_INFO = { name: "dsh-atlassian", version: pkg.version };
 
 /**
  * @param ctx - host context carrying tools, credentials, commands, and authorization.
@@ -66,11 +67,13 @@ const CLIENT_INFO = { name: "dsh-atlassian", version: "0.3.0" };
 export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const config = resolveConfig(configInput);
 	const profile = atlassianProfile(config);
+
 	const state = new RuntimeState<SiteFacts>();
 	const logger = loggerOf(ctx);
 
 	const store = new GrantStore(ctx, credentialKeyOf(profile));
 	const flow = new AuthorizationFlow(profile, store);
+
 	const bridge = new McpBridge({
 		profile,
 		store,
@@ -90,10 +93,12 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 			},
 		}),
 	});
+
 	const auth: IntegrationAuthFace<AtlassianStatus> = new IntegrationAuth<
 		AtlassianStatus,
 		SiteFacts
 	>({ ctx, config, state, store, flow, bridge, spec: atlassianAuthSpec });
+
 	const panel = new PanelApi({ bridge, state });
 
 	// The digest plugin, when it is installed, composes this plugin's Jira blocks

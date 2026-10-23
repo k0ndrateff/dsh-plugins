@@ -51,16 +51,16 @@ const MARKDOWN_LABELS: MarkdownLabels = {
 };
 
 /** One date as the reader's own locale writes it. */
-function whenText(value: string): string {
+const whenText = (value: string): string => {
 	const time = Date.parse(value);
 
 	return Number.isNaN(time)
 		? value
-		: new Date(time).toLocaleString(undefined, {
+		: new Date(time).toLocaleString("en", {
 				dateStyle: "medium",
 				timeStyle: "short",
 			});
-}
+};
 
 /** One titled block. */
 const Section = ({
@@ -195,12 +195,12 @@ const remembered: PanelPerson[] = [];
 const REMEMBERED_LIMIT = 4;
 
 /** Remember one person, most recent first. */
-function remember(person: PanelPerson): void {
+const remember = (person: PanelPerson): void => {
 	if (remembered.some((known) => known.accountId === person.accountId)) return;
 
 	remembered.unshift(person);
 	remembered.length = Math.min(remembered.length, REMEMBERED_LIMIT);
-}
+};
 
 /**
  * Hand the issue to somebody else.
