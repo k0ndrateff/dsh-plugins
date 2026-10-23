@@ -14,6 +14,17 @@
  */
 
 import type { DigestBlockEntry, DigestItem } from "dsh-integration-host/digest";
+import {
+	fallback,
+	isRecord,
+	list,
+	nonEmptyString,
+	object,
+	optional,
+	type Reader,
+	required,
+	string,
+} from "dsh-integration-host/shape";
 
 export type { DigestBlockEntry, DigestItem };
 
@@ -166,9 +177,37 @@ export const DAY_LABELS = [
 	"Sat",
 ] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** One row of a block. */
+const item = object<DigestItem>({
+	id: required(string),
+	title: required(string),
+	url: optional(nonEmptyString),
+	meta: optional(nonEmptyString),
+});
+
+/** One block of the digest. */
+const section = object<DigestSection>({
+	block: required(string),
+	title: required(string),
+	provider: fallback(string, ""),
+	items: required(list(item)),
+	unavailable: optional(nonEmptyString),
+});
+
+/** A section without its own items list is not a section. */
+const readSection: Reader<DigestSection> = (value) =>
+	isRecord(value) && Array.isArray(value.items) ? section(value) : undefined;
+
+/** A title always exists; the default is the card's own heading. */
+const title: Reader<string> = (value) =>
+	nonEmptyString(value) ?? "Daily digest";
+
+const report = object<DigestReport>({
+	callId: required(nonEmptyString),
+	title: required(title),
+	generatedAt: required(string),
+	sections: required(list(readSection)),
+});
 
 /**
  * Narrow one opaque record payload.
@@ -179,57 +218,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   result as the source of truth for the model.
  */
 export function asDigestReport(value: unknown): DigestReport | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.callId !== "string" || value.callId === "") return undefined;
-	if (typeof value.generatedAt !== "string") return undefined;
-	if (!Array.isArray(value.sections)) return undefined;
+	if (!isRecord(value) || !Array.isArray(value.sections)) return undefined;
 
-	const sections: DigestSection[] = [];
-
-	for (const candidate of value.sections) {
-		if (!isRecord(candidate)) continue;
-		if (typeof candidate.block !== "string") continue;
-		if (typeof candidate.title !== "string") continue;
-		if (!Array.isArray(candidate.items)) continue;
-
-		const items: DigestItem[] = [];
-
-		for (const row of candidate.items) {
-			if (!isRecord(row)) continue;
-			if (typeof row.id !== "string" || typeof row.title !== "string") continue;
-
-			items.push({
-				id: row.id,
-				title: row.title,
-				...(typeof row.url === "string" && row.url !== ""
-					? { url: row.url }
-					: {}),
-				...(typeof row.meta === "string" && row.meta !== ""
-					? { meta: row.meta }
-					: {}),
-			});
-		}
-
-		sections.push({
-			block: candidate.block,
-			title: candidate.title,
-			provider:
-				typeof candidate.provider === "string" ? candidate.provider : "",
-			items,
-			...(typeof candidate.unavailable === "string" &&
-			candidate.unavailable !== ""
-				? { unavailable: candidate.unavailable }
-				: {}),
-		});
-	}
-
-	return {
-		callId: value.callId,
-		title:
-			typeof value.title === "string" && value.title !== ""
-				? value.title
-				: "Daily digest",
-		generatedAt: value.generatedAt,
-		sections,
-	};
+	return report(value);
 }

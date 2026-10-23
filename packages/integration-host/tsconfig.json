@@ -1,7 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"types": ["node"],
+		"types": ["node", "bun"],
 		"paths": {
 			"dsh-mcp-oauth": ["../mcp-oauth/src/index.ts"],
 			"dsh-mcp-oauth/tool-name": ["../mcp-oauth/src/tool-name.ts"]

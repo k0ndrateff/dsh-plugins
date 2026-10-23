@@ -13,6 +13,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
 import type { RuntimeState } from "dsh-integration-host";
+import { nonEmptyString } from "dsh-integration-host/shape";
 import {
 	asRecord,
 	type JsonValue,
@@ -88,10 +89,6 @@ const stringList = (value: unknown): string[] => {
 	return value.filter(
 		(item): item is string => typeof item === "string" && item !== "",
 	);
-};
-
-const optionalString = (value: unknown): string | undefined => {
-	return typeof value === "string" && value !== "" ? value : undefined;
 };
 
 class PresentTool {
@@ -235,10 +232,10 @@ class PresentTool {
 				? (rawArgs as Record<string, unknown>)
 				: {};
 
-		const layout = optionalString(args.layout);
+		const layout = nonEmptyString(args.layout);
 
 		return {
-			title: optionalString(args.title),
+			title: nonEmptyString(args.title),
 			layout:
 				layout === "auto" ||
 				layout === "single" ||
@@ -246,11 +243,11 @@ class PresentTool {
 				layout === "list"
 					? layout
 					: undefined,
-			cloudId: optionalString(args.cloudId),
+			cloudId: nonEmptyString(args.cloudId),
 			issues: stringList(args.issues),
 			pages: stringList(args.pages),
-			jql: optionalString(args.jql),
-			cql: optionalString(args.cql),
+			jql: nonEmptyString(args.jql),
+			cql: nonEmptyString(args.cql),
 		};
 	};
 

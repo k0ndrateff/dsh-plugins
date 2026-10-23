@@ -97,5 +97,4 @@ export const isList = (value: unknown): value is readonly unknown[] =>
  * A snapshot's `refs` is exactly that — `{e1: {name, role}}` — and an array guard
  * would quietly treat every page as having no references at all.
  */
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-	value !== null && typeof value === "object" && !Array.isArray(value);
+export { isRecord } from "dsh-integration-host/shape";

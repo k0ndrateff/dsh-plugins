@@ -12,6 +12,7 @@
  * few thousandths of a second rather than dropped.
  */
 
+import { isRecord } from "dsh-integration-host/shape";
 import {
 	CLIENT_REQUEST_HEADER,
 	CLIENT_REQUEST_VALUE,
@@ -30,9 +31,6 @@ export interface InputAnswer {
 	/** Whether the host refused, or answered with a failure status. */
 	readonly ok: boolean;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	value !== null && typeof value === "object" && !Array.isArray(value);
 
 const parse = (text: string): unknown => {
 	try {

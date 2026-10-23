@@ -9,6 +9,22 @@
  * while a plugin is being developed.
  */
 
+import {
+	fallback,
+	isTrue,
+	list,
+	literal,
+	nonEmptyString,
+	notFalse,
+	number,
+	object,
+	optional,
+	type Reader,
+	required,
+	string,
+	trueOnly,
+} from "dsh-integration-host/shape";
+
 /** The sections of the merge request panel, as its tabs name them. */
 export const PANEL_TABS = [
 	"overview",
@@ -231,355 +247,171 @@ export function isReviewAction(value: unknown): value is ReviewAction {
 	);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** One person on a merge request. */
+const person = object<PanelPerson>({
+	username: required(nonEmptyString),
+	name: optional(nonEmptyString),
+	bot: optional(trueOnly),
+});
 
-function asString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
+/** Where a note was written; a record with none of the three is no position. */
+const position = object<NotePosition>({
+	file: optional(nonEmptyString),
+	oldLine: optional(number),
+	newLine: optional(number),
+});
 
-function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
+const readPosition: Reader<NotePosition> = (value) => {
+	const parsed = position(value);
+
+	return parsed !== undefined && Object.keys(parsed).length > 0
+		? parsed
 		: undefined;
-}
+};
 
-function asPerson(value: unknown): PanelPerson | undefined {
-	if (!isRecord(value)) return undefined;
+/** One note of a discussion. */
+const note = object<DiscussionNote>({
+	id: optional(nonEmptyString),
+	author: optional(person),
+	body: required(nonEmptyString),
+	createdAt: optional(nonEmptyString),
+	system: required(isTrue),
+	internal: required(isTrue),
+	position: optional(readPosition),
+});
 
-	const username = asString(value.username);
-	if (username === undefined) return undefined;
+/** One discussion thread. */
+const discussion = object<Discussion>({
+	id: required(nonEmptyString),
+	resolved: required(isTrue),
+	resolvable: required(notFalse),
+	notes: required(list(note)),
+});
 
-	const name = asString(value.name);
+/** One file of a diff. */
+const diffFile = object<DiffFile>({
+	path: required(nonEmptyString),
+	oldPath: optional(nonEmptyString),
+	newFile: required(isTrue),
+	deletedFile: required(isTrue),
+	renamedFile: required(isTrue),
+	added: fallback(number, 0),
+	removed: fallback(number, 0),
+	patch: optional(nonEmptyString),
+});
 
-	return {
-		username,
-		...(name === undefined ? {} : { name }),
-		...(value.bot === true ? { bot: true } : {}),
-	};
-}
+/** One CI job. */
+const job = object<PipelineJob>({
+	id: required(number),
+	name: required(nonEmptyString),
+	stage: optional(nonEmptyString),
+	status: required(nonEmptyString),
+	failureReason: optional(nonEmptyString),
+	url: optional(nonEmptyString),
+	allowFailure: required(isTrue),
+});
 
-function asPeople(value: unknown): PanelPerson[] {
-	if (!Array.isArray(value)) return [];
+/** The head pipeline, or null when the document names none. */
+const pipeline = object<PipelineSummary>({
+	id: required(number),
+	status: required(nonEmptyString),
+	url: optional(nonEmptyString),
+	source: optional(nonEmptyString),
+	ref: optional(nonEmptyString),
+	jobs: required(list(job)),
+});
 
-	const people: PanelPerson[] = [];
-	for (const candidate of value) {
-		const person = asPerson(candidate);
-		if (person !== undefined) people.push(person);
-	}
+const readPipeline: Reader<PipelineSummary | null> = (value) =>
+	pipeline(value) ?? null;
 
-	return people;
-}
+const mergeRequest = object<MergeRequestDetail>({
+	project: required(nonEmptyString),
+	iid: required(number),
+	title: required(nonEmptyString),
+	url: optional(nonEmptyString),
+	state: optional(nonEmptyString),
+	draft: required(isTrue),
+	author: optional(person),
+	assignees: required(list(person)),
+	reviewers: required(list(person)),
+	labels: required(list(string)),
+	sourceBranch: optional(nonEmptyString),
+	targetBranch: optional(nonEmptyString),
+	createdAt: optional(nonEmptyString),
+	updatedAt: optional(nonEmptyString),
+	mergeStatus: optional(nonEmptyString),
+	hasConflicts: required(isTrue),
+	userNotesCount: optional(number),
+	diffHeadSha: optional(nonEmptyString),
+	description: optional(nonEmptyString),
+});
 
-function asPosition(value: unknown): NotePosition | undefined {
-	if (!isRecord(value)) return undefined;
+/** One section name, as a tab passes it. */
+const tab: Reader<PanelTab> = (value) =>
+	isPanelTab(value) ? value : undefined;
 
-	const file = asString(value.file);
-	const oldLine = asNumber(value.oldLine);
-	const newLine = asNumber(value.newLine);
-
-	if (file === undefined && oldLine === undefined && newLine === undefined)
-		return undefined;
-
-	return {
-		...(file === undefined ? {} : { file }),
-		...(oldLine === undefined ? {} : { oldLine }),
-		...(newLine === undefined ? {} : { newLine }),
-	};
-}
-
-function asNote(value: unknown): DiscussionNote | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const body = asString(value.body);
-	if (body === undefined) return undefined;
-
-	const id = asString(value.id);
-	const author = asPerson(value.author);
-	const createdAt = asString(value.createdAt);
-	const position = asPosition(value.position);
-
-	return {
-		body,
-		system: value.system === true,
-		internal: value.internal === true,
-		...(id === undefined ? {} : { id }),
-		...(author === undefined ? {} : { author }),
-		...(createdAt === undefined ? {} : { createdAt }),
-		...(position === undefined ? {} : { position }),
-	};
-}
-
-function asDiscussion(value: unknown): Discussion | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const id = asString(value.id);
-	if (id === undefined) return undefined;
-
-	const notes: DiscussionNote[] = [];
-	if (Array.isArray(value.notes)) {
-		for (const candidate of value.notes) {
-			const note = asNote(candidate);
-			if (note !== undefined) notes.push(note);
-		}
-	}
-
-	return {
-		id,
-		resolved: value.resolved === true,
-		resolvable: value.resolvable !== false,
-		notes,
-	};
-}
-
-function asDiffFile(value: unknown): DiffFile | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const path = asString(value.path);
-	if (path === undefined) return undefined;
-
-	const oldPath = asString(value.oldPath);
-	const patch = asString(value.patch);
-
-	return {
-		path,
-		newFile: value.newFile === true,
-		deletedFile: value.deletedFile === true,
-		renamedFile: value.renamedFile === true,
-		added: asNumber(value.added) ?? 0,
-		removed: asNumber(value.removed) ?? 0,
-		...(oldPath === undefined ? {} : { oldPath }),
-		...(patch === undefined ? {} : { patch }),
-	};
-}
-
-function asJob(value: unknown): PipelineJob | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const id = asNumber(value.id);
-	const name = asString(value.name);
-	const status = asString(value.status);
-
-	if (id === undefined || name === undefined || status === undefined)
-		return undefined;
-
-	const stage = asString(value.stage);
-	const failureReason = asString(value.failureReason);
-	const url = asString(value.url);
-
-	return {
-		id,
-		name,
-		status,
-		allowFailure: value.allowFailure === true,
-		...(stage === undefined ? {} : { stage }),
-		...(failureReason === undefined ? {} : { failureReason }),
-		...(url === undefined ? {} : { url }),
-	};
-}
-
-function asPipeline(value: unknown): PipelineSummary | null {
-	if (!isRecord(value)) return null;
-
-	const id = asNumber(value.id);
-	const status = asString(value.status);
-
-	if (id === undefined || status === undefined) return null;
-
-	const jobs: PipelineJob[] = [];
-	if (Array.isArray(value.jobs)) {
-		for (const candidate of value.jobs) {
-			const job = asJob(candidate);
-			if (job !== undefined) jobs.push(job);
-		}
-	}
-
-	const url = asString(value.url);
-	const source = asString(value.source);
-	const ref = asString(value.ref);
-
-	return {
-		id,
-		status,
-		jobs,
-		...(url === undefined ? {} : { url }),
-		...(source === undefined ? {} : { source }),
-		...(ref === undefined ? {} : { ref }),
-	};
-}
-
-function asMergeRequestDetail(value: unknown): MergeRequestDetail | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const project = asString(value.project);
-	const iid = asNumber(value.iid);
-	const title = asString(value.title);
-
-	if (project === undefined || iid === undefined || title === undefined)
-		return undefined;
-
-	const url = asString(value.url);
-	const state = asString(value.state);
-	const author = asPerson(value.author);
-	const sourceBranch = asString(value.sourceBranch);
-	const targetBranch = asString(value.targetBranch);
-	const createdAt = asString(value.createdAt);
-	const updatedAt = asString(value.updatedAt);
-	const mergeStatus = asString(value.mergeStatus);
-	const userNotesCount = asNumber(value.userNotesCount);
-	const diffHeadSha = asString(value.diffHeadSha);
-	const description = asString(value.description);
-	const labels = Array.isArray(value.labels)
-		? value.labels.filter((item): item is string => typeof item === "string")
-		: [];
-
-	return {
-		project,
-		iid,
-		title,
-		draft: value.draft === true,
-		hasConflicts: value.hasConflicts === true,
-		assignees: asPeople(value.assignees),
-		reviewers: asPeople(value.reviewers),
-		labels,
-		...(url === undefined ? {} : { url }),
-		...(state === undefined ? {} : { state }),
-		...(author === undefined ? {} : { author }),
-		...(sourceBranch === undefined ? {} : { sourceBranch }),
-		...(targetBranch === undefined ? {} : { targetBranch }),
-		...(createdAt === undefined ? {} : { createdAt }),
-		...(updatedAt === undefined ? {} : { updatedAt }),
-		...(mergeStatus === undefined ? {} : { mergeStatus }),
-		...(userNotesCount === undefined ? {} : { userNotesCount }),
-		...(diffHeadSha === undefined ? {} : { diffHeadSha }),
-		...(description === undefined ? {} : { description }),
-	};
-}
+/** One review action, as a draft passes it. */
+const action: Reader<ReviewAction> = (value) =>
+	isReviewAction(value) ? value : undefined;
 
 /**
  * Narrow one tab's navigation parameters.
  * @param value - the opaque parameters a tab was opened with.
  * @returns the target, or undefined when this tab was opened without one.
  */
-export function asPanelTarget(value: unknown): PanelTarget | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const project = asString(value.project);
-	const iid = asNumber(value.iid);
-
-	if (project === undefined || iid === undefined) return undefined;
-
-	return {
-		project,
-		iid,
-		...(isPanelTab(value.tab) ? { tab: value.tab } : {}),
-	};
-}
+export const asPanelTarget = object<PanelTarget>({
+	project: required(nonEmptyString),
+	iid: required(number),
+	tab: optional(tab),
+});
 
 /**
  * Narrow one response body to a merge request document.
  * @param value - the parsed JSON the host answered with.
  * @returns the document, or undefined when it is not one this version can draw.
  */
-export function asMergeRequestPanel(
-	value: unknown,
-): MergeRequestPanel | undefined {
-	if (!isRecord(value) || value.kind !== "merge_request") return undefined;
-
-	const mr = asMergeRequestDetail(value.mr);
-	if (mr === undefined) return undefined;
-
-	const diffs: DiffFile[] = [];
-	if (Array.isArray(value.diffs)) {
-		for (const candidate of value.diffs) {
-			const file = asDiffFile(candidate);
-			if (file !== undefined) diffs.push(file);
-		}
-	}
-
-	const discussions: Discussion[] = [];
-	if (Array.isArray(value.discussions)) {
-		for (const candidate of value.discussions) {
-			const discussion = asDiscussion(candidate);
-			if (discussion !== undefined) discussions.push(discussion);
-		}
-	}
-
-	return {
-		kind: "merge_request",
-		mr,
-		diffs,
-		discussions,
-		...(value.truncated === true ? { truncated: true } : {}),
-	};
-}
+export const asMergeRequestPanel = object<MergeRequestPanel>({
+	kind: required(literal("merge_request")),
+	mr: required(mergeRequest),
+	diffs: required(list(diffFile)),
+	discussions: required(list(discussion)),
+	truncated: optional(trueOnly),
+});
 
 /**
  * Narrow one response body to a pipeline document.
  * @param value - the parsed JSON the host answered with.
  * @returns the document, or undefined when it is not one this version can draw.
  */
-export function asPipelinePanel(value: unknown): PipelinePanel | undefined {
-	if (!isRecord(value) || value.kind !== "pipeline") return undefined;
-
-	const project = asString(value.project);
-	const iid = asNumber(value.iid);
-
-	if (project === undefined || iid === undefined) return undefined;
-
-	return {
-		kind: "pipeline",
-		project,
-		iid,
-		pipeline: asPipeline(value.pipeline),
-	};
-}
+export const asPipelinePanel = object<PipelinePanel>({
+	kind: required(literal("pipeline")),
+	project: required(nonEmptyString),
+	iid: required(number),
+	pipeline: required(readPipeline),
+});
 
 /**
  * Narrow one response body to a job log document.
  * @param value - the parsed JSON the host answered with.
  * @returns the document, or undefined when it is not one this version can draw.
  */
-export function asJobLogPanel(value: unknown): JobLogPanel | undefined {
-	if (!isRecord(value) || value.kind !== "job_log") return undefined;
-
-	const project = asString(value.project);
-	const job = asJob(value.job);
-
-	if (project === undefined || job === undefined) return undefined;
-
-	return {
-		kind: "job_log",
-		project,
-		job,
-		log: typeof value.log === "string" ? value.log : "",
-		truncated: value.truncated === true,
-	};
-}
+export const asJobLogPanel = object<JobLogPanel>({
+	kind: required(literal("job_log")),
+	project: required(nonEmptyString),
+	job: required(job),
+	log: fallback(string, ""),
+	truncated: required(isTrue),
+});
 
 /**
  * Narrow one response body to a review draft.
  * @param value - the parsed JSON the host answered with.
  * @returns the draft, or undefined when it is not one this version can show.
  */
-export function asReviewDraft(value: unknown): ReviewDraft | undefined {
-	if (!isRecord(value)) return undefined;
-	if (!isReviewAction(value.action)) return undefined;
-
-	const summary = asString(value.summary);
-	const subject = asString(value.subject);
-
-	if (summary === undefined || subject === undefined) return undefined;
-
-	const body = asString(value.body);
-	const discussionId = asString(value.discussionId);
-
-	return {
-		action: value.action,
-		summary,
-		subject,
-		...(body === undefined ? {} : { body }),
-		...(discussionId === undefined ? {} : { discussionId }),
-	};
-}
+export const asReviewDraft = object<ReviewDraft>({
+	action: required(action),
+	summary: required(nonEmptyString),
+	subject: required(nonEmptyString),
+	body: optional(nonEmptyString),
+	discussionId: optional(nonEmptyString),
+});

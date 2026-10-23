@@ -1,5 +1,15 @@
 # dsh-correlation-plugin
 
+## 0.2.1
+
+### Patch Changes
+
+- Add `dsh-integration-host/shape`, a small declarative reader for the JSON the
+  two halves exchange, and use it for every card and panel validator instead of
+  per-package `asString`/`isRecord` helpers. Optional fields stay absent, lists
+  drop malformed items, and Jira-style booleans and defaults keep their old
+  meaning.
+
 ## 0.2.0
 
 ### Minor Changes

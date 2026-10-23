@@ -12,6 +12,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import { nonEmptyString } from "dsh-integration-host/shape";
 import { isReviewAction, type ReviewRequest } from "../../shared/panel";
 import { parseReference } from "../presentation/parse";
 import type { ReviewService } from "../review";
@@ -28,10 +29,6 @@ interface ReviewArgs {
 	readonly body: string | undefined;
 	readonly discussionId: string | undefined;
 	readonly confirm: boolean;
-}
-
-function optionalString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 class ReviewTool {
@@ -180,10 +177,10 @@ class ReviewTool {
 				: {};
 
 		return {
-			reference: optionalString(args.mergeRequest) ?? "",
-			action: optionalString(args.action) ?? "",
-			body: optionalString(args.body),
-			discussionId: optionalString(args.discussionId),
+			reference: nonEmptyString(args.mergeRequest) ?? "",
+			action: nonEmptyString(args.action) ?? "",
+			body: nonEmptyString(args.body),
+			discussionId: nonEmptyString(args.discussionId),
 			confirm: args.confirm === true,
 		};
 	}

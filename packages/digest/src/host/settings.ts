@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { isRecord } from "dsh-integration-host/shape";
 import {
 	canonicalTimeZone,
 	DEFAULT_DIGEST_LIMIT,
@@ -45,10 +46,6 @@ export const defaultDigestSettings = (): DigestSettings => ({
 	blocks: {},
 	limit: DEFAULT_DIGEST_LIMIT,
 });
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 /**
  * Turn whatever was stored into settings this plugin can use.

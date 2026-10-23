@@ -10,6 +10,7 @@
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import type { RuntimeState } from "dsh-integration-host";
+import { nonEmptyString } from "dsh-integration-host/shape";
 import type { JsonValue } from "dsh-mcp-oauth";
 import type {
 	FindingCard,
@@ -68,10 +69,6 @@ interface Found {
 	readonly subject: string | undefined;
 	readonly truncated: boolean;
 	readonly failed: readonly string[];
-}
-
-function optionalString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function stringList(value: unknown): string[] {
@@ -227,11 +224,11 @@ class PresentTool {
 				? (rawArgs as Record<string, unknown>)
 				: {};
 
-		const layout = optionalString(args.layout);
+		const layout = nonEmptyString(args.layout);
 		const limit = Number(args.limit);
 
 		return {
-			title: optionalString(args.title),
+			title: nonEmptyString(args.title),
 			layout:
 				layout === "auto" ||
 				layout === "single" ||
@@ -242,11 +239,11 @@ class PresentTool {
 			mergeRequests: stringList(args.mergeRequests),
 			findings: stringList(args.findings),
 			jobs: stringList(args.jobs),
-			scope: optionalString(args.scope),
-			project: optionalString(args.project),
-			group: optionalString(args.group),
-			state: optionalString(args.state),
-			search: optionalString(args.search),
+			scope: nonEmptyString(args.scope),
+			project: nonEmptyString(args.project),
+			group: nonEmptyString(args.group),
+			state: nonEmptyString(args.state),
+			search: nonEmptyString(args.search),
 			limit:
 				Number.isInteger(limit) && limit > 0
 					? Math.min(limit, MAX_ITEMS)

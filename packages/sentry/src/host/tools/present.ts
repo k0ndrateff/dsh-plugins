@@ -12,6 +12,7 @@
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import type { RuntimeState } from "dsh-integration-host";
+import { nonEmptyString } from "dsh-integration-host/shape";
 import { type JsonValue, type McpBridge, mcpText } from "dsh-mcp-oauth";
 import type {
 	IssueCard,
@@ -59,10 +60,6 @@ interface Found {
 	readonly dashboardUrl: string | undefined;
 	readonly suspect: SuspectCommit | undefined;
 	readonly failed: readonly string[];
-}
-
-function optionalString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function stringList(value: unknown): string[] {
@@ -204,11 +201,11 @@ class PresentTool {
 				? (rawArgs as Record<string, unknown>)
 				: {};
 
-		const layout = optionalString(args.layout);
+		const layout = nonEmptyString(args.layout);
 		const limit = Number(args.limit);
 
 		return {
-			title: optionalString(args.title),
+			title: nonEmptyString(args.title),
 			layout:
 				layout === "auto" ||
 				layout === "single" ||
@@ -216,12 +213,12 @@ class PresentTool {
 				layout === "list"
 					? layout
 					: undefined,
-			query: optionalString(args.query),
+			query: nonEmptyString(args.query),
 			issues: stringList(args.issues),
-			organization: optionalString(args.organization),
-			project: optionalString(args.project),
-			period: optionalString(args.period),
-			sort: optionalString(args.sort),
+			organization: nonEmptyString(args.organization),
+			project: nonEmptyString(args.project),
+			period: nonEmptyString(args.period),
+			sort: nonEmptyString(args.sort),
 			limit:
 				Number.isInteger(limit) && limit > 0
 					? Math.min(limit, MAX_ISSUES)

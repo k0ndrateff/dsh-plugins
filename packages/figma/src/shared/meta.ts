@@ -8,6 +8,16 @@
  * half validates before rendering.
  */
 
+import {
+	literal,
+	nonEmptyString,
+	number,
+	object,
+	oneOf,
+	optional,
+	required,
+} from "dsh-integration-host/shape";
+
 /** How much room one card gives each item. */
 export type PresentationLayout = "single" | "compact" | "list";
 
@@ -41,75 +51,33 @@ export interface FigmaPresentation {
 	readonly node: FigmaNodeCard;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** The layout words this version can draw. */
+const layout = oneOf<PresentationLayout>(
+	literal("single"),
+	literal("compact"),
+	literal("list"),
+);
 
-function asString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
-}
-
-function asNodeCard(value: unknown): FigmaNodeCard | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const id = asString(value.id);
-	const name = asString(value.name);
-	const type = asString(value.type);
-	const width = asNumber(value.width);
-	const height = asNumber(value.height);
-	const tokenCount = asNumber(value.tokenCount);
-	const childCount = asNumber(value.childCount);
-
-	if (
-		id === undefined ||
-		name === undefined ||
-		type === undefined ||
-		width === undefined ||
-		height === undefined ||
-		tokenCount === undefined ||
-		childCount === undefined
-	)
-		return undefined;
-
-	const component = asString(value.component);
-	const source = asString(value.source);
-
-	return {
-		id,
-		name,
-		type,
-		width,
-		height,
-		tokenCount,
-		childCount,
-		...(component === undefined ? {} : { component }),
-		...(source === undefined ? {} : { source }),
-	};
-}
+/** One node as the card draws it. */
+const nodeCard = object<FigmaNodeCard>({
+	id: required(nonEmptyString),
+	name: required(nonEmptyString),
+	type: required(nonEmptyString),
+	width: required(number),
+	height: required(number),
+	tokenCount: required(number),
+	childCount: required(number),
+	component: optional(nonEmptyString),
+	source: optional(nonEmptyString),
+});
 
 /**
  * Narrow one card out of a tool result's persisted metadata.
  * @param value - the opaque `presentationMeta` of a settled call.
  * @returns the card, or undefined when this version cannot draw it.
  */
-export function asFigmaPresentation(
-	value: unknown,
-): FigmaPresentation | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const callId = asString(value.callId);
-	const node = asNodeCard(value.node);
-	const layout = value.layout;
-
-	if (callId === undefined || node === undefined) return undefined;
-	if (layout !== "single" && layout !== "compact" && layout !== "list")
-		return undefined;
-
-	return { callId, layout, node };
-}
+export const asFigmaPresentation = object<FigmaPresentation>({
+	callId: required(nonEmptyString),
+	layout: required(layout),
+	node: required(nodeCard),
+});

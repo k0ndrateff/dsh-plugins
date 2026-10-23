@@ -1,6 +1,6 @@
 {
 	"name": "dsh-correlation-plugin",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"type": "module",
 	"description": "Cross-provider correlation for DeepSeek Harness: an error, the commit behind it, the merge request it belongs to, and the ticket it names",
 	"license": "MIT",
@@ -50,8 +50,8 @@
 		"@deepseek-ai/dsh-tools": "0.2.1-rc.2"
 	},
 	"devDependencies": {
-		"dsh-integration-host": "^0.2.0",
-		"dsh-integration-ui": "^0.2.0",
+		"dsh-integration-host": "^0.3.0",
+		"dsh-integration-ui": "^0.2.1",
 		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {

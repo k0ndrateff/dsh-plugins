@@ -8,7 +8,8 @@
 				"../integration-host/src/correlation.ts"
 			],
 			"dsh-integration-host/digest": ["../integration-host/src/digest.ts"],
-			"dsh-integration-host/status": ["../integration-host/src/status.ts"]
+			"dsh-integration-host/status": ["../integration-host/src/status.ts"],
+			"dsh-integration-host/shape": ["../integration-host/src/shape.ts"]
 		}
 	},
 	"include": ["src/host/**/*.ts", "src/shared/**/*.ts", "test/**/*.ts"]

@@ -8,6 +8,19 @@
  * URL the page fetches from the same route.
  */
 
+import {
+	isRecord,
+	isTrue,
+	list,
+	literal,
+	nonEmptyString,
+	number,
+	object,
+	optional,
+	type Reader,
+	required,
+} from "dsh-integration-host/shape";
+
 /** Which of the panel's three sections it opens on. */
 export type PanelSection = "frame" | "tokens" | "code";
 
@@ -73,98 +86,58 @@ export interface NodePanel {
 	readonly childTotal: number;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function asString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
+/** The three sections this version can draw. */
+const section: Reader<PanelSection> = (value) =>
+	value === "frame" || value === "tokens" || value === "code"
 		? value
 		: undefined;
-}
 
-function asNode(value: unknown): FigmaNode | undefined {
-	if (!isRecord(value)) return undefined;
+/** One node, as the metadata describes it. */
+const node = object<FigmaNode>({
+	id: required(nonEmptyString),
+	name: required(nonEmptyString),
+	type: required(nonEmptyString),
+	width: required(number),
+	height: required(number),
+	x: optional(number),
+	y: optional(number),
+});
 
-	const id = asString(value.id);
-	const name = asString(value.name);
-	const type = asString(value.type);
-	const width = asNumber(value.width);
-	const height = asNumber(value.height);
+/** One variable the node uses. */
+const token = object<FigmaToken>({
+	name: required(nonEmptyString),
+	value: required(nonEmptyString),
+});
 
-	if (
-		id === undefined ||
-		name === undefined ||
-		type === undefined ||
-		width === undefined ||
-		height === undefined
-	)
-		return undefined;
+/** One Code Connect mapping. */
+const mapping = object<FigmaMapping>({
+	nodeId: required(nonEmptyString),
+	component: required(nonEmptyString),
+	source: required(nonEmptyString),
+});
 
-	const x = asNumber(value.x);
-	const y = asNumber(value.y);
+/** The screenshot is always a value: null when there is no picture. */
+const screenshot: Reader<string | null> = (value) =>
+	nonEmptyString(value) ?? null;
 
-	return {
-		id,
-		name,
-		type,
-		width,
-		height,
-		...(x === undefined ? {} : { x }),
-		...(y === undefined ? {} : { y }),
-	};
-}
+/** The panel document before its two counts are filled from the lists. */
+type NodePanelWire = Omit<NodePanel, "tokenTotal" | "childTotal"> & {
+	readonly tokenTotal?: number;
+	readonly childTotal?: number;
+};
 
-function asNodes(value: unknown): FigmaNode[] {
-	if (!Array.isArray(value)) return [];
-
-	const nodes: FigmaNode[] = [];
-	for (const candidate of value) {
-		const node = asNode(candidate);
-		if (node !== undefined) nodes.push(node);
-	}
-
-	return nodes;
-}
-
-function asTokens(value: unknown): FigmaToken[] {
-	if (!Array.isArray(value)) return [];
-
-	const tokens: FigmaToken[] = [];
-	for (const candidate of value) {
-		if (!isRecord(candidate)) continue;
-
-		const name = asString(candidate.name);
-		const tokenValue = asString(candidate.value);
-
-		if (name !== undefined && tokenValue !== undefined)
-			tokens.push({ name, value: tokenValue });
-	}
-
-	return tokens;
-}
-
-function asMappings(value: unknown): FigmaMapping[] {
-	if (!Array.isArray(value)) return [];
-
-	const mappings: FigmaMapping[] = [];
-	for (const candidate of value) {
-		if (!isRecord(candidate)) continue;
-
-		const nodeId = asString(candidate.nodeId);
-		const component = asString(candidate.component);
-		const source = asString(candidate.source);
-
-		if (nodeId !== undefined && component !== undefined && source !== undefined)
-			mappings.push({ nodeId, component, source });
-	}
-
-	return mappings;
-}
+const nodePanel = object<NodePanelWire>({
+	kind: required(literal("node")),
+	node: required(node),
+	screenshot: required(screenshot),
+	tokens: required(list(token)),
+	tokensTruncated: required(isTrue),
+	tokenTotal: optional(number),
+	mappings: required(list(mapping)),
+	children: required(list(node)),
+	childrenTruncated: required(isTrue),
+	childTotal: optional(number),
+});
 
 /**
  * Narrow one tab's navigation parameters.
@@ -173,23 +146,16 @@ function asMappings(value: unknown): FigmaMapping[] {
  */
 export function asPanelTarget(value: unknown): PanelTarget | undefined {
 	if (!isRecord(value)) return undefined;
-
-	const node = asString(value.node);
-	const section = value.section;
-
-	if (
-		section !== undefined &&
-		section !== "frame" &&
-		section !== "tokens" &&
-		section !== "code"
-	)
+	if (value.section !== undefined && section(value.section) === undefined)
 		return undefined;
 
-	return {
-		...(node === undefined ? {} : { node }),
-		...(section === undefined ? {} : { section }),
-	};
+	return target(value);
 }
+
+const target = object<PanelTarget>({
+	node: optional(nonEmptyString),
+	section: optional(section),
+});
 
 /**
  * Narrow the document the host answered with.
@@ -197,24 +163,13 @@ export function asPanelTarget(value: unknown): PanelTarget | undefined {
  * @returns the document, or undefined when this version cannot draw it.
  */
 export function asNodePanel(value: unknown): NodePanel | undefined {
-	if (!isRecord(value)) return undefined;
-	if (value.kind !== "node") return undefined;
+	const parsed = nodePanel(value);
 
-	const node = asNode(value.node);
-	if (node === undefined) return undefined;
-
-	const screenshot = asString(value.screenshot);
+	if (parsed === undefined) return undefined;
 
 	return {
-		kind: "node",
-		node,
-		screenshot: screenshot ?? null,
-		tokens: asTokens(value.tokens),
-		tokensTruncated: value.tokensTruncated === true,
-		tokenTotal: asNumber(value.tokenTotal) ?? asTokens(value.tokens).length,
-		mappings: asMappings(value.mappings),
-		children: asNodes(value.children),
-		childrenTruncated: value.childrenTruncated === true,
-		childTotal: asNumber(value.childTotal) ?? asNodes(value.children).length,
+		...parsed,
+		tokenTotal: parsed.tokenTotal ?? parsed.tokens.length,
+		childTotal: parsed.childTotal ?? parsed.children.length,
 	};
 }

@@ -1,5 +1,12 @@
 # dsh-integration-ui
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies
+  - dsh-integration-host@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

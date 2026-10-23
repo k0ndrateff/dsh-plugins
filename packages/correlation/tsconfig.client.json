@@ -10,6 +10,7 @@
 			],
 			"dsh-integration-host/digest": ["../integration-host/src/digest.ts"],
 			"dsh-integration-host/status": ["../integration-host/src/status.ts"],
+			"dsh-integration-host/shape": ["../integration-host/src/shape.ts"],
 			"dsh-integration-ui": ["../integration-ui/src/index.ts"],
 			"dsh-integration-ui/styles": ["../integration-ui/src/styles/index.ts"]
 		}

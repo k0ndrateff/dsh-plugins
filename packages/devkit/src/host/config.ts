@@ -8,6 +8,7 @@
  * edit takes effect on the next check without a restart.
  */
 
+import { isRecord } from "dsh-integration-host/shape";
 import { isParserName, PARSER_NAMES, type ParserName } from "../shared/checks";
 import type { ProjectDirectory } from "./files";
 import { errorText } from "./text";
@@ -137,8 +138,4 @@ export class RecipeBook {
 
 		return [recipe];
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
 }

@@ -83,6 +83,7 @@ export const WORKSPACE_LIBRARY_SPECIFIERS = [
 	"dsh-integration-host/correlation",
 	"dsh-integration-host/digest",
 	"dsh-integration-host/status",
+	"dsh-integration-host/shape",
 	"dsh-integration-ui",
 	"dsh-integration-ui/styles",
 ];
@@ -95,6 +96,7 @@ const WORKSPACE_LIBRARY_SOURCES = {
 	"dsh-integration-host/correlation": "../integration-host/src/correlation.ts",
 	"dsh-integration-host/digest": "../integration-host/src/digest.ts",
 	"dsh-integration-host/status": "../integration-host/src/status.ts",
+	"dsh-integration-host/shape": "../integration-host/src/shape.ts",
 	"dsh-integration-ui": "../integration-ui/src/index.ts",
 	"dsh-integration-ui/styles": "../integration-ui/src/styles/index.ts",
 };

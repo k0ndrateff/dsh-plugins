@@ -1,8 +1,8 @@
 {
 	"name": "dsh-integration-host",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
-	"description": "The host-half shell the integrations of k0ndrateff/dsh-plugins share \u2014 a library, not a plugin",
+	"description": "The host-half shell the integrations of k0ndrateff/dsh-plugins share — a library, not a plugin",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",
@@ -22,6 +22,10 @@
 		"./status": {
 			"types": "./lib/status.d.ts",
 			"default": "./lib/status.js"
+		},
+		"./shape": {
+			"types": "./lib/shape.d.ts",
+			"default": "./lib/shape.js"
 		}
 	},
 	"files": [
@@ -30,7 +34,7 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run test/unit.ts",
+		"test": "bun test test/shape.test.ts && bun run test/unit.ts",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

@@ -16,6 +16,7 @@
  * document, so the document starts at the first brace.
  */
 
+import { isRecord } from "dsh-integration-host/shape";
 import {
 	type CheckFailure,
 	type CheckSummary,
@@ -50,10 +51,6 @@ interface BiomeDiagnostic {
 interface BiomeDocument {
 	readonly summary?: unknown;
 	readonly diagnostics?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /** The path one JSON diagnostic names, in either shape the reporter uses. */

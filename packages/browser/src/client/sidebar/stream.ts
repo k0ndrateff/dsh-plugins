@@ -17,6 +17,18 @@
  * nobody is looking.
  */
 
+import {
+	boolean,
+	isRecord,
+	list,
+	literal,
+	number,
+	object,
+	oneOf,
+	optional,
+	required,
+	string,
+} from "dsh-integration-host/shape";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type PanelActivity,
@@ -45,43 +57,37 @@ export interface BrowserPanelWatch extends BrowserPanelState {
 /** What the panel knows before the first answer. */
 const EMPTY: BrowserPanelState = { snapshot: undefined, error: undefined };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	value !== null && typeof value === "object" && !Array.isArray(value);
+/** One line of the activity log. */
+const activity = object<PanelActivity>({
+	kind: required(
+		oneOf<PanelActivity["kind"]>(
+			literal("command"),
+			literal("result"),
+			literal("human"),
+		),
+	),
+	text: required(string),
+	at: required(number),
+});
 
-const asString = (value: unknown): string | undefined =>
-	typeof value === "string" ? value : undefined;
+/** The page's own size. */
+const page = object<PanelPage>({
+	width: required(number),
+	height: required(number),
+});
 
-const asNumber = (value: unknown): number | undefined =>
-	typeof value === "number" && Number.isFinite(value) ? value : undefined;
-
-const asActivity = (value: unknown): PanelActivity | undefined => {
-	if (!isRecord(value)) return undefined;
-
-	const kind = value.kind;
-	const text = asString(value.text);
-	const at = asNumber(value.at);
-
-	if (
-		(kind !== "command" && kind !== "result" && kind !== "human") ||
-		text === undefined
-	)
-		return undefined;
-	if (at === undefined) return undefined;
-
-	return { kind, text, at };
-};
-
-/** The page's own size, which is what a click is measured against. */
-const asPage = (value: unknown): PanelPage | undefined => {
-	if (!isRecord(value)) return undefined;
-
-	const width = asNumber(value.width);
-	const height = asNumber(value.height);
-
-	return width === undefined || height === undefined
-		? undefined
-		: { width, height };
-};
+const snapshot = object<PanelSnapshot>({
+	session: required(string),
+	connected: required(boolean),
+	url: required(string),
+	title: required(string),
+	seq: required(number),
+	page: required(page),
+	activity: required(list(activity)),
+	error: optional((value) =>
+		typeof value === "string" && value !== "" ? value : undefined,
+	),
+});
 
 /**
  * Narrow one poll's answer.
@@ -92,45 +98,11 @@ const asPage = (value: unknown): PanelPage | undefined => {
  * @param value - the parsed body.
  * @returns the snapshot, or undefined when it is not one this half reads.
  */
-export const asPanelSnapshot = (value: unknown): PanelSnapshot | undefined => {
-	if (!isRecord(value)) return undefined;
+export function asPanelSnapshot(value: unknown): PanelSnapshot | undefined {
+	if (!isRecord(value) || !Array.isArray(value.activity)) return undefined;
 
-	const session = asString(value.session);
-	const connected = value.connected;
-	const url = asString(value.url);
-	const title = asString(value.title);
-	const error = asString(value.error);
-	const seq = asNumber(value.seq);
-	const page = asPage(value.page);
-
-	if (
-		session === undefined ||
-		typeof connected !== "boolean" ||
-		url === undefined ||
-		title === undefined ||
-		seq === undefined ||
-		page === undefined ||
-		!Array.isArray(value.activity)
-	)
-		return undefined;
-
-	const activity: PanelActivity[] = [];
-	for (const candidate of value.activity) {
-		const item = asActivity(candidate);
-		if (item !== undefined) activity.push(item);
-	}
-
-	return {
-		session,
-		connected,
-		url,
-		title,
-		seq,
-		page,
-		activity,
-		...(error === undefined || error === "" ? {} : { error }),
-	};
-};
+	return snapshot(value);
+}
 
 /** Why a thrown value reads as, as one sentence. */
 const messageOf = (error: unknown): string =>

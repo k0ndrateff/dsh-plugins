@@ -7,6 +7,20 @@
  * these types and the browser half validates before rendering.
  */
 
+import {
+	fallback,
+	isTrue,
+	list,
+	literal,
+	nonEmptyString,
+	object,
+	oneOf,
+	optional,
+	type Reader,
+	required,
+	string,
+} from "dsh-integration-host/shape";
+
 /** How a recipe's output is read. The project names one per recipe. */
 export type ParserName =
 	| "tsc"
@@ -173,94 +187,74 @@ export function checkLabel(check: CheckResult): string {
 	return check.exitCode === null ? "failed" : `exit ${check.exitCode}`;
 }
 
-/** Whether a value is a JSON object, which is all the wire promises. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function asCount(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0
+/** A count as the card accepts it: a finite positive integer, or zero. */
+const count: Reader<number> = (value) =>
+	typeof value === "number" && Number.isFinite(value) && value > 0
 		? Math.floor(value)
 		: 0;
-}
 
-function asSummary(value: unknown): CheckSummary {
-	if (!isRecord(value)) return EMPTY_SUMMARY;
+/** A count that is present only when it is positive. */
+const positive: Reader<number> = (value) => {
+	const parsed = count(value);
 
-	return {
-		errors: asCount(value.errors),
-		warnings: asCount(value.warnings),
-		testsPassed: asCount(value.testsPassed),
-		testsFailed: asCount(value.testsFailed),
-		testsSkipped: asCount(value.testsSkipped),
-	};
-}
+	return parsed === 0 ? undefined : parsed;
+};
 
-function asFailure(value: unknown): CheckFailure | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.message !== "string" || value.message === "")
-		return undefined;
+/** Exit code: null stays null, everything else is a count. */
+const exitCode: Reader<number | null> = (value) =>
+	value === null ? null : count(value);
 
-	const line = asCount(value.line);
-	const column = asCount(value.column);
+const status = oneOf<CheckStatus>(
+	literal("failed"),
+	literal("errored"),
+	literal("timedout"),
+	literal("passed"),
+);
 
-	return {
-		...(typeof value.file === "string" && value.file !== ""
-			? { file: value.file }
-			: {}),
-		...(line === 0 ? {} : { line }),
-		...(column === 0 ? {} : { column }),
-		message: value.message,
-		...(typeof value.rule === "string" && value.rule !== ""
-			? { rule: value.rule }
-			: {}),
-		severity: value.severity === "warning" ? "warning" : "error",
-	};
-}
+const severity: Reader<"error" | "warning"> = (value) =>
+	value === "warning" ? "warning" : "error";
 
-function asStatus(value: unknown): CheckStatus {
-	return value === "failed" ||
-		value === "errored" ||
-		value === "timedout" ||
-		value === "passed"
-		? value
-		: "errored";
-}
+const parser: Reader<ParserName> = (value) =>
+	typeof value === "string" && isParserName(value) ? value : undefined;
 
-function asCheck(value: unknown): CheckResult | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.name !== "string" || value.name === "") return undefined;
+const summary = object<CheckSummary>({
+	errors: fallback(count, 0),
+	warnings: fallback(count, 0),
+	testsPassed: fallback(count, 0),
+	testsFailed: fallback(count, 0),
+	testsSkipped: fallback(count, 0),
+});
 
-	const failures: CheckFailure[] = [];
-	if (Array.isArray(value.failures))
-		for (const candidate of value.failures) {
-			const failure = asFailure(candidate);
-			if (failure !== undefined) failures.push(failure);
-		}
+const failure = object<CheckFailure>({
+	file: optional(nonEmptyString),
+	line: optional(positive),
+	column: optional(positive),
+	message: required(nonEmptyString),
+	rule: optional(nonEmptyString),
+	severity: required(severity),
+});
 
-	const parser =
-		typeof value.parser === "string" && isParserName(value.parser)
-			? value.parser
-			: "generic";
-	const exitCode = asCount(value.exitCode);
+const check = object<CheckResult>({
+	name: required(nonEmptyString),
+	command: fallback(string, ""),
+	parser: fallback(parser, "generic"),
+	status: fallback(status, "errored"),
+	durationMs: fallback(count, 0),
+	exitCode: required(exitCode),
+	summary: fallback(summary, EMPTY_SUMMARY),
+	failures: required(list(failure)),
+	failureTotal: optional(positive),
+	output: optional(nonEmptyString),
+});
 
-	return {
-		name: value.name,
-		command: typeof value.command === "string" ? value.command : "",
-		parser,
-		status: asStatus(value.status),
-		durationMs: asCount(value.durationMs),
-		exitCode: value.exitCode === null ? null : exitCode,
-		summary: asSummary(value.summary),
-		failures: failures.slice(0, MAX_CARD_FAILURES),
-		...(asCount(value.failureTotal) > 0
-			? { failureTotal: asCount(value.failureTotal) }
-			: {}),
-		...(typeof value.output === "string" && value.output !== ""
-			? { output: value.output }
-			: {}),
-	};
-}
+/** One check, with the card's failure cap applied after parsing. */
+const readCheck: Reader<CheckResult> = (value) => {
+	const parsed = check(value);
+
+	return parsed === undefined
+		? undefined
+		: { ...parsed, failures: parsed.failures.slice(0, MAX_CARD_FAILURES) };
+};
 
 /**
  * Validate one opaque payload.
@@ -271,17 +265,11 @@ function asCheck(value: unknown): CheckResult | undefined {
  *   stays the source of truth for the model.
  */
 export function asChecksCard(value: unknown): ChecksCard | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.callId !== "string" || value.callId === "") return undefined;
-	if (!Array.isArray(value.checks)) return undefined;
+	const parsed = object<ChecksCard>({
+		callId: required(nonEmptyString),
+		ok: required(isTrue),
+		checks: required(list(readCheck)),
+	})(value);
 
-	const checks: CheckResult[] = [];
-	for (const candidate of value.checks) {
-		const check = asCheck(candidate);
-		if (check !== undefined) checks.push(check);
-	}
-
-	if (checks.length === 0) return undefined;
-
-	return { callId: value.callId, ok: value.ok === true, checks };
+	return parsed !== undefined && parsed.checks.length > 0 ? parsed : undefined;
 }

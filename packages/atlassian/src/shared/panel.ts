@@ -8,6 +8,19 @@
  * can be a version apart while a plugin is being developed.
  */
 
+import {
+	isTrue,
+	list,
+	literal,
+	nonEmptyString,
+	notFalse,
+	object,
+	oneOf,
+	optional,
+	required,
+	string,
+} from "dsh-integration-host/shape";
+
 /** What a panel is opened on. */
 export type PanelTarget =
 	| { readonly kind: "issue"; readonly key: string }
@@ -85,184 +98,83 @@ export type PagePanel = {
 /** One panel's document. */
 export type PanelData = IssuePanel | PagePanel;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** One comment, as Jira or Confluence returned it. */
+const comment = object<PanelComment>({
+	body: required(nonEmptyString),
+	author: optional(nonEmptyString),
+	created: optional(nonEmptyString),
+});
 
-function asString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
+/** One workflow transition, with its two booleans read the way Jira sends them. */
+const transition = object<PanelTransition>({
+	id: required(nonEmptyString),
+	name: required(nonEmptyString),
+	to: optional(nonEmptyString),
+	available: required(notFalse),
+	needsFields: required(isTrue),
+});
 
-function asComments(value: unknown): PanelComment[] {
-	if (!Array.isArray(value)) return [];
+/** A person on an issue. */
+const person = object<PanelPerson>({
+	name: required(nonEmptyString),
+	accountId: required(nonEmptyString),
+});
 
-	const comments: PanelComment[] = [];
-	for (const candidate of value) {
-		if (!isRecord(candidate)) continue;
+/** One Jira issue, as the panel draws it. */
+const issuePanel = object<IssuePanel>({
+	kind: required(literal("issue")),
+	key: required(nonEmptyString),
+	summary: optional(nonEmptyString),
+	type: optional(nonEmptyString),
+	status: optional(nonEmptyString),
+	priority: optional(nonEmptyString),
+	assignee: optional(person),
+	reporter: optional(nonEmptyString),
+	estimate: optional(nonEmptyString),
+	due: optional(nonEmptyString),
+	labels: required(list(string)),
+	created: optional(nonEmptyString),
+	updated: optional(nonEmptyString),
+	description: optional(nonEmptyString),
+	url: optional(nonEmptyString),
+	comments: required(list(comment)),
+	transitions: required(list(transition)),
+});
 
-		const body = asString(candidate.body);
-		if (body === undefined) continue;
+/** One Confluence page, as the panel draws it. */
+const pagePanel = object<PagePanel>({
+	kind: required(literal("page")),
+	id: required(nonEmptyString),
+	title: required(nonEmptyString),
+	space: optional(nonEmptyString),
+	url: optional(nonEmptyString),
+	body: optional(nonEmptyString),
+	comments: required(list(comment)),
+});
 
-		comments.push({
-			body,
-			...(asString(candidate.author) === undefined
-				? {}
-				: { author: asString(candidate.author) }),
-			...(asString(candidate.created) === undefined
-				? {}
-				: { created: asString(candidate.created) }),
-		});
-	}
-
-	return comments;
-}
-
-function asTransitions(value: unknown): PanelTransition[] {
-	if (!Array.isArray(value)) return [];
-
-	const transitions: PanelTransition[] = [];
-	for (const candidate of value) {
-		if (!isRecord(candidate)) continue;
-
-		const id = asString(candidate.id);
-		const name = asString(candidate.name);
-		if (id === undefined || name === undefined) continue;
-
-		transitions.push({
-			id,
-			name,
-			...(asString(candidate.to) === undefined
-				? {}
-				: { to: asString(candidate.to) }),
-			available: candidate.available !== false,
-			needsFields: candidate.needsFields === true,
-		});
-	}
-
-	return transitions;
-}
-
-function asPerson(value: unknown): PanelPerson | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const name = asString(value.name);
-	const accountId = asString(value.accountId);
-	if (name === undefined || accountId === undefined) return undefined;
-
-	return { name, accountId };
-}
+/** A target a sidebar passes to the panel. */
+const panelTarget = oneOf<PanelTarget>(
+	object<Extract<PanelTarget, { kind: "issue" }>>({
+		kind: required(literal("issue")),
+		key: required(nonEmptyString),
+	}),
+	object<Extract<PanelTarget, { kind: "page" }>>({
+		kind: required(literal("page")),
+		id: required(nonEmptyString),
+		title: optional(nonEmptyString),
+	}),
+);
 
 /**
  * Narrow one response body to a panel target.
  * @param value - an opaque `params` bag from the sidebar.
  * @returns the target, or undefined when it is not one this version understands.
  */
-export function asPanelTarget(value: unknown): PanelTarget | undefined {
-	if (!isRecord(value)) return undefined;
-
-	if (value.kind === "issue") {
-		const key = asString(value.key);
-		return key === undefined ? undefined : { kind: "issue", key };
-	}
-
-	if (value.kind === "page") {
-		const id = asString(value.id);
-		if (id === undefined) return undefined;
-
-		return {
-			kind: "page",
-			id,
-			...(asString(value.title) === undefined
-				? {}
-				: { title: asString(value.title) }),
-		};
-	}
-
-	return undefined;
-}
+export const asPanelTarget = panelTarget;
 
 /**
  * Narrow one response body to a panel document.
  * @param value - the parsed JSON the host answered with.
  * @returns the document, or undefined when it is not one this version can draw.
  */
-export function asPanelData(value: unknown): PanelData | undefined {
-	if (!isRecord(value)) return undefined;
-
-	if (value.kind === "issue") {
-		const key = asString(value.key);
-		if (key === undefined) return undefined;
-
-		const assignee = asPerson(value.assignee);
-
-		return {
-			kind: "issue",
-			key,
-			...(asString(value.summary) === undefined
-				? {}
-				: { summary: asString(value.summary) }),
-			...(asString(value.type) === undefined
-				? {}
-				: { type: asString(value.type) }),
-			...(asString(value.status) === undefined
-				? {}
-				: { status: asString(value.status) }),
-			...(asString(value.priority) === undefined
-				? {}
-				: { priority: asString(value.priority) }),
-			...(assignee === undefined ? {} : { assignee }),
-			...(asString(value.reporter) === undefined
-				? {}
-				: { reporter: asString(value.reporter) }),
-			...(asString(value.estimate) === undefined
-				? {}
-				: { estimate: asString(value.estimate) }),
-			...(asString(value.due) === undefined
-				? {}
-				: { due: asString(value.due) }),
-			labels: Array.isArray(value.labels)
-				? value.labels.filter(
-						(item): item is string => typeof item === "string",
-					)
-				: [],
-			...(asString(value.created) === undefined
-				? {}
-				: { created: asString(value.created) }),
-			...(asString(value.updated) === undefined
-				? {}
-				: { updated: asString(value.updated) }),
-			...(asString(value.description) === undefined
-				? {}
-				: { description: asString(value.description) }),
-			...(asString(value.url) === undefined
-				? {}
-				: { url: asString(value.url) }),
-			comments: asComments(value.comments),
-			transitions: asTransitions(value.transitions),
-		};
-	}
-
-	if (value.kind === "page") {
-		const id = asString(value.id);
-		const title = asString(value.title);
-		if (id === undefined || title === undefined) return undefined;
-
-		return {
-			kind: "page",
-			id,
-			title,
-			...(asString(value.space) === undefined
-				? {}
-				: { space: asString(value.space) }),
-			...(asString(value.url) === undefined
-				? {}
-				: { url: asString(value.url) }),
-			...(asString(value.body) === undefined
-				? {}
-				: { body: asString(value.body) }),
-			comments: asComments(value.comments),
-		};
-	}
-
-	return undefined;
-}
+export const asPanelData = oneOf<PanelData>(issuePanel, pagePanel);

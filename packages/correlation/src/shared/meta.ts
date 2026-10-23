@@ -13,6 +13,20 @@
  */
 
 import type { CorrelationKind } from "dsh-integration-host/correlation";
+import {
+	fallback,
+	isRecord,
+	list,
+	literal,
+	nonEmptyString,
+	number,
+	object,
+	oneOf,
+	optional,
+	type Reader,
+	required,
+	string,
+} from "dsh-integration-host/shape";
 
 export type { CorrelationKind };
 
@@ -60,19 +74,59 @@ export interface ChainReport {
 }
 
 /** The kinds this plugin will render; a card that cannot read one renders nothing. */
-const KINDS: readonly CorrelationKind[] = ["error", "commit", "change", "task"];
+const kind = oneOf<CorrelationKind>(
+	literal("error"),
+	literal("commit"),
+	literal("change"),
+	literal("task"),
+);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** A hop before its label falls back to the kind. */
+type HopWire = Omit<ChainHop, "label"> & { readonly label?: string };
 
-function isKind(value: unknown): value is CorrelationKind {
-	return KINDS.includes(value as CorrelationKind);
-}
+const hop = object<HopWire>({
+	id: required(nonEmptyString),
+	kind: required(kind),
+	label: optional(nonEmptyString),
+	provider: fallback(string, ""),
+	title: required(string),
+	url: optional(nonEmptyString),
+	meta: optional(nonEmptyString),
+	depth: fallback(number, 0),
+});
 
-function optionalString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
+/** A broken hop before its label falls back to the kind. */
+type BreakWire = Omit<ChainBreak, "label"> & { readonly label?: string };
+
+const chainBreak = object<BreakWire>({
+	kind: required(kind),
+	label: optional(nonEmptyString),
+	reason: required(string),
+});
+
+const readHop: Reader<ChainHop> = (value) => {
+	const parsed = hop(value);
+
+	return parsed === undefined
+		? undefined
+		: { ...parsed, label: parsed.label ?? parsed.kind };
+};
+
+const readBreak: Reader<ChainBreak> = (value) => {
+	const parsed = chainBreak(value);
+
+	return parsed === undefined
+		? undefined
+		: { ...parsed, label: parsed.label ?? parsed.kind };
+};
+
+const chainReport = object<ChainReport>({
+	callId: required(nonEmptyString),
+	title: required(string),
+	provider: required(string),
+	hops: required(list(readHop)),
+	breaks: required(list(readBreak)),
+});
 
 /**
  * Narrow one opaque record payload.
@@ -83,63 +137,14 @@ function optionalString(value: unknown): string | undefined {
  *   result as the source of truth for the model.
  */
 export function asChainReport(value: unknown): ChainReport | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.callId !== "string" || value.callId === "") return undefined;
-	if (typeof value.title !== "string") return undefined;
-	if (typeof value.provider !== "string") return undefined;
-	if (!Array.isArray(value.hops) || !Array.isArray(value.breaks))
+	// The list readers turn a malformed list into an empty one; a top-level
+	// document with no arrays is not a chain at all.
+	if (
+		!isRecord(value) ||
+		!Array.isArray(value.hops) ||
+		!Array.isArray(value.breaks)
+	)
 		return undefined;
 
-	const hops: ChainHop[] = [];
-
-	for (const candidate of value.hops) {
-		if (!isRecord(candidate)) continue;
-		if (typeof candidate.id !== "string") continue;
-		if (typeof candidate.title !== "string") continue;
-		if (!isKind(candidate.kind)) continue;
-
-		hops.push({
-			id: candidate.id,
-			kind: candidate.kind,
-			label:
-				typeof candidate.label === "string" && candidate.label !== ""
-					? candidate.label
-					: candidate.kind,
-			provider:
-				typeof candidate.provider === "string" ? candidate.provider : "",
-			title: candidate.title,
-			...(optionalString(candidate.url) === undefined
-				? {}
-				: { url: optionalString(candidate.url) }),
-			...(optionalString(candidate.meta) === undefined
-				? {}
-				: { meta: optionalString(candidate.meta) }),
-			depth: typeof candidate.depth === "number" ? candidate.depth : 0,
-		});
-	}
-
-	const breaks: ChainBreak[] = [];
-
-	for (const candidate of value.breaks) {
-		if (!isRecord(candidate)) continue;
-		if (!isKind(candidate.kind)) continue;
-		if (typeof candidate.reason !== "string") continue;
-
-		breaks.push({
-			kind: candidate.kind,
-			label:
-				typeof candidate.label === "string" && candidate.label !== ""
-					? candidate.label
-					: candidate.kind,
-			reason: candidate.reason,
-		});
-	}
-
-	return {
-		callId: value.callId,
-		title: value.title,
-		provider: value.provider,
-		hops,
-		breaks,
-	};
+	return chainReport(value);
 }

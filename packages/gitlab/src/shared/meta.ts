@@ -8,6 +8,22 @@
  * validates before rendering.
  */
 
+import {
+	fallback,
+	isRecord,
+	isTrue,
+	list,
+	literal,
+	nonEmptyString,
+	number,
+	object,
+	oneOf,
+	optional,
+	type Reader,
+	required,
+	trueOnly,
+} from "dsh-integration-host/shape";
+
 /** How much room one card gives each item. */
 export type PresentationLayout = "single" | "compact" | "list";
 
@@ -94,170 +110,89 @@ export interface GitLabPresentation {
 	readonly items: readonly PresentationItem[];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** A non-empty list; an empty one is the same as no field. */
+const reviewers: Reader<readonly string[]> = (value) => {
+	const items = list<string>(nonEmptyString)(value) ?? [];
 
-function optionalString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
-}
+	return items.length === 0 ? undefined : items;
+};
 
-function optionalNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
-}
+/** One merge request. */
+const mergeRequest = object<MergeRequestCard>({
+	project: required(nonEmptyString),
+	iid: required(number),
+	title: required(nonEmptyString),
+	url: optional(nonEmptyString),
+	state: optional(nonEmptyString),
+	draft: optional((value) => (typeof value === "boolean" ? value : undefined)),
+	author: optional(nonEmptyString),
+	reviewers: optional(reviewers),
+	sourceBranch: optional(nonEmptyString),
+	targetBranch: optional(nonEmptyString),
+	pipeline: optional(nonEmptyString),
+	updatedAt: optional(nonEmptyString),
+	notes: optional(number),
+	unresolved: optional(number),
+});
 
-function optionalBoolean(value: unknown): boolean | undefined {
-	return typeof value === "boolean" ? value : undefined;
-}
+/** One review finding. */
+const finding = object<FindingCard>({
+	project: required(nonEmptyString),
+	iid: required(number),
+	discussionId: required(nonEmptyString),
+	file: optional(nonEmptyString),
+	line: optional(number),
+	lineSide: optional(oneOf<"old" | "new">(literal("old"), literal("new"))),
+	author: optional(nonEmptyString),
+	resolved: required(isTrue),
+	body: required(nonEmptyString),
+	url: optional(nonEmptyString),
+});
 
-function stringList(value: unknown): string[] {
-	if (!Array.isArray(value)) return [];
+/** One CI job. */
+const job = object<JobCard>({
+	project: required(nonEmptyString),
+	iid: required(number),
+	id: required(number),
+	name: required(nonEmptyString),
+	stage: optional(nonEmptyString),
+	status: required(nonEmptyString),
+	failureReason: optional(nonEmptyString),
+	url: optional(nonEmptyString),
+});
 
-	return value.filter(
-		(item): item is string => typeof item === "string" && item !== "",
-	);
-}
+/** One item on the card. */
+const item = oneOf<PresentationItem>(
+	object<Extract<PresentationItem, { kind: "merge_request" }>>({
+		kind: required(literal("merge_request")),
+		mergeRequest: required(mergeRequest),
+	}),
+	object<Extract<PresentationItem, { kind: "finding" }>>({
+		kind: required(literal("finding")),
+		finding: required(finding),
+	}),
+	object<Extract<PresentationItem, { kind: "job" }>>({
+		kind: required(literal("job")),
+		job: required(job),
+	}),
+);
 
-function asMergeRequest(value: unknown): MergeRequestCard | undefined {
-	if (!isRecord(value)) return undefined;
+const layout = oneOf<PresentationLayout>(
+	literal("single"),
+	literal("compact"),
+	literal("list"),
+);
 
-	const project = optionalString(value.project);
-	const iid = optionalNumber(value.iid);
-	const title = optionalString(value.title);
-
-	if (project === undefined || iid === undefined || title === undefined)
-		return undefined;
-
-	const url = optionalString(value.url);
-	const state = optionalString(value.state);
-	const draft = optionalBoolean(value.draft);
-	const author = optionalString(value.author);
-	const sourceBranch = optionalString(value.sourceBranch);
-	const targetBranch = optionalString(value.targetBranch);
-	const pipeline = optionalString(value.pipeline);
-	const updatedAt = optionalString(value.updatedAt);
-	const notes = optionalNumber(value.notes);
-	const unresolved = optionalNumber(value.unresolved);
-	const reviewers = stringList(value.reviewers);
-
-	return {
-		project,
-		iid,
-		title,
-		...(url === undefined ? {} : { url }),
-		...(state === undefined ? {} : { state }),
-		...(draft === undefined ? {} : { draft }),
-		...(author === undefined ? {} : { author }),
-		...(reviewers.length === 0 ? {} : { reviewers }),
-		...(sourceBranch === undefined ? {} : { sourceBranch }),
-		...(targetBranch === undefined ? {} : { targetBranch }),
-		...(pipeline === undefined ? {} : { pipeline }),
-		...(updatedAt === undefined ? {} : { updatedAt }),
-		...(notes === undefined ? {} : { notes }),
-		...(unresolved === undefined ? {} : { unresolved }),
-	};
-}
-
-function asFinding(value: unknown): FindingCard | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const project = optionalString(value.project);
-	const iid = optionalNumber(value.iid);
-	const discussionId = optionalString(value.discussionId);
-	const body = optionalString(value.body);
-
-	if (
-		project === undefined ||
-		iid === undefined ||
-		discussionId === undefined ||
-		body === undefined
-	)
-		return undefined;
-
-	const file = optionalString(value.file);
-	const line = optionalNumber(value.line);
-	const lineSide =
-		value.lineSide === "old" || value.lineSide === "new"
-			? value.lineSide
-			: undefined;
-	const author = optionalString(value.author);
-	const url = optionalString(value.url);
-
-	return {
-		project,
-		iid,
-		discussionId,
-		body,
-		resolved: value.resolved === true,
-		...(file === undefined ? {} : { file }),
-		...(line === undefined ? {} : { line }),
-		...(lineSide === undefined ? {} : { lineSide }),
-		...(author === undefined ? {} : { author }),
-		...(url === undefined ? {} : { url }),
-	};
-}
-
-function asJob(value: unknown): JobCard | undefined {
-	if (!isRecord(value)) return undefined;
-
-	const project = optionalString(value.project);
-	const iid = optionalNumber(value.iid);
-	const id = optionalNumber(value.id);
-	const name = optionalString(value.name);
-	const status = optionalString(value.status);
-
-	if (
-		project === undefined ||
-		iid === undefined ||
-		id === undefined ||
-		name === undefined ||
-		status === undefined
-	)
-		return undefined;
-
-	const stage = optionalString(value.stage);
-	const failureReason = optionalString(value.failureReason);
-	const url = optionalString(value.url);
-
-	return {
-		project,
-		iid,
-		id,
-		name,
-		status,
-		...(stage === undefined ? {} : { stage }),
-		...(failureReason === undefined ? {} : { failureReason }),
-		...(url === undefined ? {} : { url }),
-	};
-}
-
-function asItem(value: unknown): PresentationItem | undefined {
-	if (!isRecord(value)) return undefined;
-
-	if (value.kind === "merge_request") {
-		const mergeRequest = asMergeRequest(value.mergeRequest);
-
-		return mergeRequest === undefined
-			? undefined
-			: { kind: "merge_request", mergeRequest };
-	}
-
-	if (value.kind === "finding") {
-		const finding = asFinding(value.finding);
-
-		return finding === undefined ? undefined : { kind: "finding", finding };
-	}
-
-	if (value.kind === "job") {
-		const job = asJob(value.job);
-
-		return job === undefined ? undefined : { kind: "job", job };
-	}
-
-	return undefined;
-}
+const presentation = object<GitLabPresentation>({
+	callId: required(nonEmptyString),
+	title: optional(nonEmptyString),
+	layout: fallback(layout, "list"),
+	total: optional(number),
+	query: optional(nonEmptyString),
+	subject: optional(nonEmptyString),
+	truncated: optional(trueOnly),
+	items: required(list(item)),
+});
 
 /**
  * Validate one opaque card payload.
@@ -268,38 +203,15 @@ function asItem(value: unknown): PresentationItem | undefined {
 export function asGitLabPresentation(
 	value: unknown,
 ): GitLabPresentation | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.callId !== "string" || value.callId === "") return undefined;
-	if (!Array.isArray(value.items)) return undefined;
+	if (!isRecord(value) || !Array.isArray(value.items)) return undefined;
 
-	const items: PresentationItem[] = [];
-	for (const candidate of value.items) {
-		const item = asItem(candidate);
-		if (item !== undefined) items.push(item);
-	}
+	const parsed = presentation(value);
 
-	if (items.length === 0) return undefined;
+	if (parsed === undefined || parsed.items.length === 0) return undefined;
 
-	const layout: PresentationLayout =
-		value.layout === "single" ||
-		value.layout === "compact" ||
-		value.layout === "list"
-			? value.layout
-			: "list";
+	const { total, ...rest } = parsed;
 
-	const title = optionalString(value.title);
-	const query = optionalString(value.query);
-	const subject = optionalString(value.subject);
-	const total = optionalNumber(value.total);
-
-	return {
-		callId: value.callId,
-		layout,
-		items,
-		...(title === undefined ? {} : { title }),
-		...(query === undefined ? {} : { query }),
-		...(subject === undefined ? {} : { subject }),
-		...(total === undefined || total <= items.length ? {} : { total }),
-		...(value.truncated === true ? { truncated: true } : {}),
-	};
+	return total === undefined || total <= parsed.items.length
+		? rest
+		: { ...rest, total };
 }

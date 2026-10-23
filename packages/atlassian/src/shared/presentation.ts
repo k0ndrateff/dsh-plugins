@@ -8,6 +8,21 @@
  * rendering.
  */
 
+import {
+	fallback,
+	isRecord,
+	list,
+	literal,
+	nonEmptyString,
+	number,
+	object,
+	oneOf,
+	optional,
+	type Reader,
+	required,
+	trueOnly,
+} from "dsh-integration-host/shape";
+
 import type { IssueCard, PageCard } from "./meta";
 
 /** How much room one card gives each item. */
@@ -41,29 +56,43 @@ export interface AtlassianPresentation {
 	readonly items: readonly PresentationItem[];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** A card is trusted once its identity field is there; the host built the rest. */
+const issueCard: Reader<IssueCard> = (value) =>
+	isRecord(value) && typeof value.key === "string"
+		? (value as unknown as IssueCard)
+		: undefined;
 
-function asItem(value: unknown): PresentationItem | undefined {
-	if (!isRecord(value)) return undefined;
+/** A page card is trusted once its title is there. */
+const pageCard: Reader<PageCard> = (value) =>
+	isRecord(value) && typeof value.title === "string"
+		? (value as unknown as PageCard)
+		: undefined;
 
-	if (
-		value.kind === "issue" &&
-		isRecord(value.issue) &&
-		typeof value.issue.key === "string"
-	)
-		return { kind: "issue", issue: value.issue as unknown as IssueCard };
+const item = oneOf<PresentationItem>(
+	object<Extract<PresentationItem, { kind: "issue" }>>({
+		kind: required(literal("issue")),
+		issue: required(issueCard),
+	}),
+	object<Extract<PresentationItem, { kind: "page" }>>({
+		kind: required(literal("page")),
+		page: required(pageCard),
+	}),
+);
 
-	if (
-		value.kind === "page" &&
-		isRecord(value.page) &&
-		typeof value.page.title === "string"
-	)
-		return { kind: "page", page: value.page as unknown as PageCard };
+const layout = oneOf<PresentationLayout>(
+	literal("single"),
+	literal("compact"),
+	literal("list"),
+);
 
-	return undefined;
-}
+const presentation = object<AtlassianPresentation>({
+	callId: required(nonEmptyString),
+	title: optional(nonEmptyString),
+	layout: fallback(layout, "list"),
+	total: optional(number),
+	truncated: optional(trueOnly),
+	items: required(list(item)),
+});
 
 /**
  * Validate one opaque record payload.
@@ -76,37 +105,13 @@ function asItem(value: unknown): PresentationItem | undefined {
 export function asPresentation(
 	value: unknown,
 ): AtlassianPresentation | undefined {
-	if (!isRecord(value)) return undefined;
-	if (typeof value.callId !== "string" || value.callId === "") return undefined;
-	if (!Array.isArray(value.items)) return undefined;
+	const parsed = presentation(value);
 
-	const layout: PresentationLayout =
-		value.layout === "single" ||
-		value.layout === "compact" ||
-		value.layout === "list"
-			? value.layout
-			: "list";
+	if (parsed === undefined || parsed.items.length === 0) return undefined;
 
-	const items: PresentationItem[] = [];
-	for (const candidate of value.items) {
-		const item = asItem(candidate);
-		if (item !== undefined) items.push(item);
-	}
+	const { total, ...rest } = parsed;
 
-	if (items.length === 0) return undefined;
-
-	return {
-		callId: value.callId,
-		...(typeof value.title === "string" && value.title !== ""
-			? { title: value.title }
-			: {}),
-		layout,
-		...(typeof value.total === "number" &&
-		Number.isFinite(value.total) &&
-		value.total > items.length
-			? { total: value.total }
-			: {}),
-		...(value.truncated === true ? { truncated: true } : {}),
-		items,
-	};
+	return total !== undefined && total > parsed.items.length
+		? { ...rest, total }
+		: rest;
 }

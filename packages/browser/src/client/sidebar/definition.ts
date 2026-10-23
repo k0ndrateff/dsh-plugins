@@ -16,6 +16,12 @@
  */
 
 import type { SidebarRightTabDefinition } from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
+import {
+	nonEmptyString,
+	object,
+	optional,
+	required,
+} from "dsh-integration-host/shape";
 import { createPanelDefinition } from "dsh-integration-ui";
 import { PANEL_ID, PANEL_KIND, type PanelParams } from "../../shared/panel";
 
@@ -35,21 +41,10 @@ declare module "@deepseek-ai/dsh-client-ui-sidebar-right/client" {
  * @param value - the opaque parameters a tab was opened with.
  * @returns the target, or undefined when this tab was opened without a session.
  */
-export const asBrowserTabParams = (
-	value: unknown,
-): BrowserTabParams | undefined => {
-	if (value === null || typeof value !== "object" || Array.isArray(value))
-		return undefined;
-
-	const record = value as Record<string, unknown>;
-	const session = record.session;
-	const url = record.url;
-
-	if (typeof session !== "string" || session === "") return undefined;
-	if (url !== undefined && typeof url !== "string") return undefined;
-
-	return { session, ...(url === undefined || url === "" ? {} : { url }) };
-};
+export const asBrowserTabParams = object<BrowserTabParams>({
+	session: required(nonEmptyString),
+	url: optional(nonEmptyString),
+});
 
 /** The panel's registry definition; the body and title carry the rest. */
 export const panelDefinition = (): SidebarRightTabDefinition => ({

@@ -9,6 +9,7 @@
  * chip nobody clicks must not cost a frame.
  */
 
+import { boolean, object, required, string } from "dsh-integration-host/shape";
 import { useEffect, useState } from "react";
 import { type PanelState, stateUrl } from "../../shared/panel";
 
@@ -18,29 +19,16 @@ export const STATE_POLL_MS = 4_000;
 /** What the chip knows before the first answer: nothing yet. */
 const CLOSED: PanelState = { open: false, url: "", title: "" };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	value !== null && typeof value === "object" && !Array.isArray(value);
-
-const asString = (value: unknown): string | undefined =>
-	typeof value === "string" ? value : undefined;
-
 /**
  * Read one answer from the state route.
  * @param value - the parsed body.
  * @returns the state, or undefined when it is not one this half reads.
  */
-export const asPanelState = (value: unknown): PanelState | undefined => {
-	if (!isRecord(value)) return undefined;
-
-	const open = value.open;
-	const url = asString(value.url);
-	const title = asString(value.title);
-
-	if (typeof open !== "boolean" || url === undefined || title === undefined)
-		return undefined;
-
-	return { open, url, title };
-};
+export const asPanelState = object<PanelState>({
+	open: required(boolean),
+	url: required(string),
+	title: required(string),
+});
 
 /**
  * Watch whether one session's browser is open.
