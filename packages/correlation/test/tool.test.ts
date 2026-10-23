@@ -9,21 +9,17 @@
  *   bun run test/tool.ts
  */
 
-import { expect, test } from "bun:test";
+import { test } from "bun:test";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type {
 	CorrelationFact,
 	CorrelationKind,
 	CorrelationRef,
 } from "dsh-integration-host/correlation";
+import { check } from "../../../test/support";
 import type { ChainResolver } from "../src/host/chain";
 import { correlateTool } from "../src/host/tool";
 import { asChainReport } from "../src/shared/meta";
-
-/** A labelled assertion; the test name says the scenario. */
-const check = (label: string, ok: boolean, detail = ""): void => {
-	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
-};
 
 /** The chain the fake integrations answer with. */
 const ANSWERS: Readonly<Record<string, readonly CorrelationFact[]>> = {

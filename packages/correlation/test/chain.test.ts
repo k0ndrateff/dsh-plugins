@@ -9,18 +9,14 @@
  *   bun run test/chain.ts
  */
 
-import { expect, test } from "bun:test";
+import { test } from "bun:test";
 import type {
 	CorrelationFact,
 	CorrelationKind,
 } from "dsh-integration-host/correlation";
+import { check } from "../../../test/support";
 import { anchorFor } from "../src/host/anchor";
 import { buildChain, type ChainResolver, refKey } from "../src/host/chain";
-
-/** A labelled assertion; the test name says the scenario. */
-const check = (label: string, ok: boolean, detail = ""): void => {
-	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
-};
 
 /** What one fake provider offers. */
 interface FakeProvider {

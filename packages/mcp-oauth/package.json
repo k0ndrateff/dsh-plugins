@@ -2,7 +2,7 @@
 	"name": "dsh-mcp-oauth",
 	"version": "0.2.0",
 	"type": "module",
-	"description": "OAuth for MCP servers, and the authenticated bridge, for DeepSeek Harness \u2014 a library, not a plugin",
+	"description": "OAuth for MCP servers, and the authenticated bridge, for DeepSeek Harness — a library, not a plugin",
 	"license": "MIT",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",
@@ -22,8 +22,8 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run test/unit.ts && bun run test/bridge.ts",
-		"test:live": "bun run test/conformance.ts",
+		"test": "bun test",
+		"test:live": "MCP_OAUTH_LIVE=1 bun test test/conformance.test.ts",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

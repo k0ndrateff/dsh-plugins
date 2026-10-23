@@ -41,8 +41,9 @@
 		"build": "node build.mjs",
 		"watch": "node build.mjs --watch",
 		"typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-		"test": "bun run test/readers.ts && bun run test/surface.ts && bun run test/dry-run.ts",
-		"prepack": "bun run build"
+		"test": "bun test",
+		"prepack": "bun run build",
+		"test:live": "FIGMA_LIVE=1 bun test test/dry-run.test.ts"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/client": "2.2.0",

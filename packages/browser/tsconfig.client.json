@@ -5,7 +5,7 @@
 		"moduleResolution": "Bundler",
 		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"jsx": "react-jsx",
-		"types": [],
+		"types": ["bun"],
 		"paths": {
 			"dsh-integration-ui": ["../integration-ui/src/index.ts"],
 			"dsh-integration-ui/styles": ["../integration-ui/src/styles/index.ts"]

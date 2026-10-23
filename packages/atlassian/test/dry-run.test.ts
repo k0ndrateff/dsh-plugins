@@ -10,7 +10,7 @@
  * registration and then abandons it.
  */
 
-import { expect, test } from "bun:test";
+import { test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { AuthorizationSession } from "@deepseek-ai/dsh-authorization";
@@ -22,6 +22,7 @@ import {
 	GrantStore,
 	type McpBridge,
 } from "dsh-mcp-oauth";
+import { check } from "../../../test/support";
 import { atlassianAuthSpec } from "../src/host/auth";
 import { atlassianProfile, resolveConfig } from "../src/host/config";
 import { apply } from "../src/host/index";
@@ -35,11 +36,6 @@ import { asPanelData, asPanelTarget } from "../src/shared/panel";
 import { asPresentation } from "../src/shared/presentation";
 import type { AtlassianStatus } from "../src/shared/status";
 import { issueTypeTone, priorityTone } from "../src/shared/tone";
-
-/** One assertion in a dry-run scenario, with the label as its message. */
-const check = (label: string, ok: boolean, detail = ""): void => {
-	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
-};
 
 const records = new Map<string, unknown>();
 const registered = {
@@ -1039,4 +1035,5 @@ const live = process.env.ATLASSIAN_LIVE === "1";
 		await driveFlow(ctx, "https://mcp.atlassian.com/v1/mcp");
 		await driveFlow(ctx, "https://mcp.atlassian.com/v2/mcp");
 	},
+	300_000,
 );

@@ -34,7 +34,7 @@
 	"scripts": {
 		"build": "node build.mjs && tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
-		"test": "bun test test/shape.test.ts && bun run test/unit.ts",
+		"test": "bun test",
 		"prepack": "bun run build"
 	},
 	"dependencies": {

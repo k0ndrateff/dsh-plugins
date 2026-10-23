@@ -1,7 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"types": ["node"],
+		"types": ["node", "bun"],
 		"paths": {
 			"dsh-integration-host": ["../integration-host/src/index.ts"],
 			"dsh-integration-host/digest": ["../integration-host/src/digest.ts"],

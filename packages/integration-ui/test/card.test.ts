@@ -9,12 +9,13 @@
  *   bun run test/card.ts
  */
 
-import { expect, test } from "bun:test";
+import { test } from "bun:test";
 import type {
 	ConversationMatch,
 	ConversationNodeContext,
 	ConversationStartMatch,
 } from "@deepseek-ai/dsh-client-ui-conversation/client";
+import { check } from "../../../test/support";
 import {
 	createPresentationType,
 	type PresentationTurnData,
@@ -29,11 +30,6 @@ declare module "@deepseek-ai/dsh-client-ui-conversation/client" {
 		"test-presented": PresentationTurnData<TestCard>;
 	}
 }
-
-/** A labelled assertion; the test name says the scenario. */
-const check = (label: string, ok: boolean, detail = ""): void => {
-	expect(ok, detail === "" ? label : `${label} — ${detail}`).toBe(true);
-};
 
 /** One card payload, as the test tool publishes it. */
 interface TestCard {
