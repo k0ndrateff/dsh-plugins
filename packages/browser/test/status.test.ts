@@ -9,8 +9,7 @@
  *   bun run test/status.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import { parseDoctor, summarizeDoctor } from "../src/host/status";
 
 const report_ = JSON.stringify({
@@ -38,19 +37,19 @@ const report_ = JSON.stringify({
 
 test("doctor's own report", async () => {
 	const parsed = parseDoctor(report_);
-	check("is read", parsed !== undefined);
-	check("with every check", parsed?.checks.length === 3);
+	expect(parsed !== undefined, "is read").toBe(true);
+	expect(parsed?.checks.length === 3, "with every check").toBe(true);
 
 	const summary = summarizeDoctor(parsed ?? { checks: [] });
-	check(
-		"the version is unwrapped",
+	expect(
 		summary.version === "0.35.1 (macos aarch64)",
-	);
-	check(
-		"Chrome is named as doctor named it",
+		"the version is unwrapped",
+	).toBe(true);
+	expect(
 		summary.chrome?.startsWith("Google Chrome 155") === true,
-	);
-	check("nothing failed", summary.failing.length === 0);
+		"Chrome is named as doctor named it",
+	).toBe(true);
+	expect(summary.failing.length === 0, "nothing failed").toBe(true);
 });
 test("a machine something is wrong with", async () => {
 	const broken = summarizeDoctor(
@@ -73,23 +72,29 @@ test("a machine something is wrong with", async () => {
 			}),
 		) ?? { checks: [] },
 	);
-	check(
-		"only failures are carried",
+	expect(
 		broken.failing.length === 1 &&
 			broken.failing[0] === "chrome.installed: no Chrome found",
+		"only failures are carried",
+	).toBe(true);
+	expect(broken.version === undefined, "a missing version is undefined").toBe(
+		true,
 	);
-	check("a missing version is undefined", broken.version === undefined);
-	check("a missing Chrome is undefined", broken.chrome === undefined);
+	expect(broken.chrome === undefined, "a missing Chrome is undefined").toBe(
+		true,
+	);
 });
 test("answers that are not a report", async () => {
-	check(
-		"a command envelope is not one",
+	expect(
 		parseDoctor('{"success":true}') === undefined,
+		"a command envelope is not one",
+	).toBe(true);
+	expect(parseDoctor("{nope") === undefined, "broken JSON is not one").toBe(
+		true,
 	);
-	check("broken JSON is not one", parseDoctor("{nope") === undefined);
-	check("nothing is not one", parseDoctor("") === undefined);
-	check(
-		"a report with a malformed check is not one",
+	expect(parseDoctor("") === undefined, "nothing is not one").toBe(true);
+	expect(
 		parseDoctor('{"checks":[{"id":"env.version"}]}') === undefined,
-	);
+		"a report with a malformed check is not one",
+	).toBe(true);
 });

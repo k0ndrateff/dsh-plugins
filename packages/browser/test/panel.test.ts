@@ -9,10 +9,9 @@
  *   bun run test/panel.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
-import { check } from "../../../test/support";
 import { createPanelHandler } from "../src/host/panel/route";
 import type { AgentBrowserRunner } from "../src/host/runner";
 import { StreamHub } from "../src/host/stream/hub";
@@ -167,32 +166,32 @@ test("naming the session", async () => {
 		hubs: unnamed.hubs,
 		runner: closingRunner(true).runner,
 	});
-	check(
-		"a poll without a session name is refused",
+	expect(
 		(await call(nameless, "/dsh-browser/panel")).status === 400,
-	);
-	check(
-		"and so is a fabricated one",
+		"a poll without a session name is refused",
+	).toBe(true);
+	expect(
 		(await call(nameless, "/dsh-browser/panel?session=other")).status === 400,
-	);
+		"and so is a fabricated one",
+	).toBe(true);
 });
 test("what a poll answers", async () => {
 	const first = await call(
 		idleHandler,
 		`/dsh-browser/panel?session=${SESSION}`,
 	);
-	check("a poll is answered", first.status === 200);
-	check(
-		"as JSON nothing caches",
+	expect(first.status === 200, "a poll is answered").toBe(true);
+	expect(
 		first.headers["cache-control"] === "no-store" &&
 			first.headers["content-type"]?.includes("application/json") === true,
-	);
-	check("with no connection yet", json(first).connected === false);
-	check(
-		"and a reason to act on",
+		"as JSON nothing caches",
+	).toBe(true);
+	expect(json(first).connected === false, "with no connection yet").toBe(true);
+	expect(
 		String(json(first).error).includes("no browser"),
-	);
-	check("and no picture to key on", json(first).seq === 0);
+		"and a reason to act on",
+	).toBe(true);
+	expect(json(first).seq === 0, "and no picture to key on").toBe(true);
 });
 test("a panel that is watching", async () => {
 	live.hubs.markLive(SESSION);
@@ -200,20 +199,25 @@ test("a panel that is watching", async () => {
 		liveHandler,
 		`/dsh-browser/panel?session=${SESSION}`,
 	);
-	check("the poll is what starts the screencast", live.sent.length === 1);
-	check(
-		"asking it for a bounded frame rate",
+	expect(live.sent.length === 1, "the poll is what starts the screencast").toBe(
+		true,
+	);
+	expect(
 		live.sent[0]?.includes('"maxFps"') === true,
-	);
-	check(
-		"and answers before the connection is up",
+		"asking it for a bounded frame rate",
+	).toBe(true);
+	expect(
 		json(started).connected === false,
-	);
+		"and answers before the connection is up",
+	).toBe(true);
 	await new Promise((resolve) => {
 		setTimeout(resolve, 0);
 	});
 	const next = await call(liveHandler, `/dsh-browser/panel?session=${SESSION}`);
-	check("the next poll reports the connection", json(next).connected === true);
+	expect(
+		json(next).connected === true,
+		"the next poll reports the connection",
+	).toBe(true);
 
 	live.feed({
 		type: "tabs",
@@ -230,78 +234,84 @@ test("a panel that is watching", async () => {
 	const watching = json(
 		await call(liveHandler, `/dsh-browser/panel?session=${SESSION}`),
 	);
-	check("the address is carried", watching.url === "http://x/");
-	check("with the title", watching.title === "X");
-	check("and the frame a reader should ask for", watching.seq === 7);
-	check(
-		"and the feed",
-		Array.isArray(watching.activity) && watching.activity.length === 1,
+	expect(watching.url === "http://x/", "the address is carried").toBe(true);
+	expect(watching.title === "X", "with the title").toBe(true);
+	expect(watching.seq === 7, "and the frame a reader should ask for").toBe(
+		true,
 	);
+	expect(
+		Array.isArray(watching.activity) && watching.activity.length === 1,
+		"and the feed",
+	).toBe(true);
 });
 test("the picture", async () => {
-	check(
-		"a reader with nothing gets no picture",
+	expect(
 		(await call(idleHandler, `/dsh-browser/frame?session=${SESSION}`))
 			.status === 204,
-	);
+		"a reader with nothing gets no picture",
+	).toBe(true);
 
 	const same = await call(
 		liveHandler,
 		`/dsh-browser/frame?session=${SESSION}&seq=7`,
 	);
-	check(
-		"a reader asking for the frame it has still gets it",
+	expect(
 		same.status === 200,
-	);
-	check(
-		"because a picture served with no-store cannot be `not modified`",
+		"a reader asking for the frame it has still gets it",
+	).toBe(true);
+	expect(
 		same.bytes === Buffer.byteLength("jpegbytes"),
-	);
+		"because a picture served with no-store cannot be `not modified`",
+	).toBe(true);
 
 	const fresh = await call(
 		liveHandler,
 		`/dsh-browser/frame?session=${SESSION}&seq=6`,
 	);
-	check(
-		"a reader that has an older one gets the picture",
+	expect(
 		fresh.status === 200,
+		"a reader that has an older one gets the picture",
+	).toBe(true);
+	expect(fresh.headers["content-type"] === "image/jpeg", "as JPEG bytes").toBe(
+		true,
 	);
-	check("as JPEG bytes", fresh.headers["content-type"] === "image/jpeg");
-	check(
-		"the whole picture, decoded",
+	expect(
 		fresh.bytes === Buffer.byteLength("jpegbytes"),
-	);
+		"the whole picture, decoded",
+	).toBe(true);
 
-	check(
-		"an unknown path is not found",
+	expect(
 		(await call(liveHandler, `/dsh-browser/nope?session=${SESSION}`)).status ===
 			404,
-	);
+		"an unknown path is not found",
+	).toBe(true);
 });
 test("the chip's question", async () => {
 	const status = await call(
 		idleHandler,
 		`/dsh-browser/state?session=${SESSION}`,
 	);
-	check(
-		"a conversation without a browser says so",
+	expect(
 		json(status).open === false,
-	);
-	check(
-		"and asking does not start watching",
+		"a conversation without a browser says so",
+	).toBe(true);
+	expect(
 		idle.sent.length === 0 && idle.hubs.state(SESSION).open === false,
-	);
+		"and asking does not start watching",
+	).toBe(true);
 
 	live.hubs.markLive(SESSION);
 	const known = json(
 		await call(liveHandler, `/dsh-browser/state?session=${SESSION}`),
 	);
-	check("a browser that was opened says so", known.open === true);
-	check("with the page it was last seen on", known.url === "http://x/");
-	check(
-		"and the answer costs no connection",
-		live.hubs.state(SESSION).open === true,
+	expect(known.open === true, "a browser that was opened says so").toBe(true);
+	expect(known.url === "http://x/", "with the page it was last seen on").toBe(
+		true,
 	);
+	expect(
+		live.hubs.state(SESSION).open === true,
+		"and the answer costs no connection",
+	).toBe(true);
 });
 test("a person's click", async () => {
 	const poke = screencast(4242);
@@ -315,10 +325,10 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "mouse", event: "click", ...cursor },
 	);
-	check(
-		"a click with nothing to carry it is refused",
+	expect(
 		early.status === 409 && String(json(early).error).includes("not connected"),
-	);
+		"a click with nothing to carry it is refused",
+	).toBe(true);
 
 	poke.hubs.markLive(SESSION);
 	await call(pokeHandler, `/dsh-browser/panel?session=${SESSION}`);
@@ -333,18 +343,18 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "mouse", event: "click", ...cursor },
 	);
-	check("a click on a live view is taken", clicked.status === 200);
-	check("and says so", json(clicked).ok === true);
-	check(
-		"and the page is told about it",
+	expect(clicked.status === 200, "a click on a live view is taken").toBe(true);
+	expect(json(clicked).ok === true, "and says so").toBe(true);
+	expect(
 		poke.sent.some((text) => text.includes("mousePressed")),
-	);
-	check(
-		"with the person's act in the feed",
+		"and the page is told about it",
+	).toBe(true);
+	expect(
 		(
 			await call(pokeHandler, `/dsh-browser/panel?session=${SESSION}`)
 		).body.includes('"human"'),
-	);
+		"with the person's act in the feed",
+	).toBe(true);
 
 	const nonsense = await call(
 		pokeHandler,
@@ -352,11 +362,11 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "mouse", event: "click" },
 	);
-	check(
-		"a click with no point is refused with a reason",
+	expect(
 		nonsense.status === 400 &&
 			String(json(nonsense).error).includes("x and a y"),
-	);
+		"a click with no point is refused with a reason",
+	).toBe(true);
 
 	const heavy = await call(
 		pokeHandler,
@@ -364,7 +374,9 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "wheel", x: 1, y: 2, deltaY: 1, pad: "x".repeat(4_096) },
 	);
-	check("a body too big to be a click is refused", heavy.status === 413);
+	expect(heavy.status === 413, "a body too big to be a click is refused").toBe(
+		true,
+	);
 
 	const moved = await call(
 		pokeHandler,
@@ -372,8 +384,8 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "navigate", to: "back" },
 	);
-	check("going back runs the CLI", poked[0]?.join(" ") === "back");
-	check("and is reported as done", json(moved).ok === true);
+	expect(poked[0]?.join(" ") === "back", "going back runs the CLI").toBe(true);
+	expect(json(moved).ok === true, "and is reported as done").toBe(true);
 
 	const sized = await call(
 		pokeHandler,
@@ -381,28 +393,30 @@ test("a person's click", async () => {
 		"POST",
 		{ type: "viewport", width: 390, height: 844 },
 	);
-	check(
-		"a page size runs the CLI's own setter",
+	expect(
 		poked[1]?.join(" ") === "set viewport 390 844",
-	);
-	check("and is reported as done", json(sized).ok === true);
+		"a page size runs the CLI's own setter",
+	).toBe(true);
+	expect(json(sized).ok === true, "and is reported as done").toBe(true);
 
 	const told = String(poke.hubs.takeNote(SESSION));
-	check(
-		"the agent is told the page size changed",
+	expect(
 		told.includes("changed the page size to 390×844"),
+		"the agent is told the page size changed",
+	).toBe(true);
+	expect(told.includes("went back"), "and that the page was navigated").toBe(
+		true,
 	);
-	check("and that the page was navigated", told.includes("went back"));
-	check(
-		"and told once, not in every call",
+	expect(
 		poke.hubs.takeNote(SESSION) === undefined,
-	);
+		"and told once, not in every call",
+	).toBe(true);
 
-	check(
-		"and an input is never a poll",
+	expect(
 		(await call(pokeHandler, `/dsh-browser/input?session=${SESSION}`))
 			.status === 404,
-	);
+		"and an input is never a poll",
+	).toBe(true);
 });
 test("closing the browser", async () => {
 	const closed = screencast(4242);
@@ -417,19 +431,21 @@ test("closing the browser", async () => {
 		`/dsh-browser/close?session=${SESSION}`,
 		"POST",
 	);
-	check("the close runs the CLI", commands[0]?.join(" ") === "close");
-	check("and is reported as done", json(answer).closed === true);
+	expect(commands[0]?.join(" ") === "close", "the close runs the CLI").toBe(
+		true,
+	);
+	expect(json(answer).closed === true, "and is reported as done").toBe(true);
 	const after = json(
 		await call(closeHandler, `/dsh-browser/panel?session=${SESSION}`),
 	);
-	check(
-		"and the session stops being looked for",
+	expect(
 		String(after.error).includes("closed"),
-	);
-	check(
-		"and the chip has nothing to offer any more",
+		"and the session stops being looked for",
+	).toBe(true);
+	expect(
 		closed.hubs.state(SESSION).open === false,
-	);
+		"and the chip has nothing to offer any more",
+	).toBe(true);
 
 	const refusing = screencast(4242);
 	const refusingHandler = createPanelHandler({
@@ -441,14 +457,16 @@ test("closing the browser", async () => {
 		`/dsh-browser/close?session=${SESSION}`,
 		"POST",
 	);
-	check("a close that failed says so", json(refused).closed === false);
-	check(
-		"with the CLI's own reason",
-		String(json(refused).error).includes("no browser to close"),
+	expect(json(refused).closed === false, "a close that failed says so").toBe(
+		true,
 	);
-	check(
-		"and a close is never a poll",
+	expect(
+		String(json(refused).error).includes("no browser to close"),
+		"with the CLI's own reason",
+	).toBe(true);
+	expect(
 		(await call(refusingHandler, `/dsh-browser/close?session=${SESSION}`))
 			.status === 404,
-	);
+		"and a close is never a poll",
+	).toBe(true);
 });

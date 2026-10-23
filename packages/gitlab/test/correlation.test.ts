@@ -9,8 +9,7 @@
  *   bun run test/correlation.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import type { GitLabApi } from "../src/host/api";
 import type { GitLabConfig } from "../src/host/config";
 import { gitLabCorrelationSource } from "../src/host/correlation";
@@ -56,13 +55,12 @@ const config: GitLabConfig = { endpoint: "https://gitlab.com", debug: false };
 const source = gitLabCorrelationSource({ api, config });
 
 test("what the source offers", async () => {
-	check(
-		"two kinds, so a chain can enter at a merge request or at a commit",
+	expect(
 		source.provider === "GitLab" &&
 			source.entry === "change" &&
 			source.resolves.join(",") === "commit,change",
-		`${source.provider} · ${source.entry} · ${source.resolves.join(",")}`,
-	);
+		`two kinds, so a chain can enter at a merge request or at a commit — ${`${source.provider} · ${source.entry} · ${source.resolves.join(",")}`}`,
+	).toBe(true);
 });
 test("a commit", async () => {
 	{
@@ -77,21 +75,18 @@ test("a commit", async () => {
 		});
 		const fact = facts[0];
 
-		check(
-			"the project is read out of the link, not out of the display name",
+		expect(
 			calls[0] ===
 				"/projects/acme%2Fstorefront/repository/commits/7c50a1e57b5a523da90bef0df35f5a6d87b772ed",
-			calls[0] ?? "",
-		);
-		check(
-			"and both the commit and the merge requests that contain it are asked for",
+			`the project is read out of the link, not out of the display name — ${calls[0] ?? ""}`,
+		).toBe(true);
+		expect(
 			calls.length === 2 &&
 				calls[1] ===
 					"/projects/acme%2Fstorefront/repository/commits/7c50a1e57b5a523da90bef0df35f5a6d87b772ed/merge_requests",
-			calls.join("\n"),
-		);
-		check(
-			"the hop is the commit, with GitLab's own words for it",
+			`and both the commit and the merge requests that contain it are asked for — ${calls.join("\n")}`,
+		).toBe(true);
+		expect(
 			fact?.id ===
 				"gitlab:acme/storefront@7c50a1e57b5a523da90bef0df35f5a6d87b772ed" &&
 				fact.kind === "commit" &&
@@ -99,25 +94,23 @@ test("a commit", async () => {
 				fact.title === "7c50a1e · DEV-5977: Handle split 500 error codes" &&
 				fact.meta === "Grace Hopper · 2026-10-20" &&
 				fact.url === COMMIT.web_url,
-			JSON.stringify(fact),
-		);
-		check(
-			"and points at every merge request that contains it",
+			`the hop is the commit, with GitLab's own words for it — ${JSON.stringify(fact)}`,
+		).toBe(true);
+		expect(
 			fact?.references?.length === 2 &&
 				fact.references[0]?.kind === "change" &&
 				fact.references[0].repository === "acme/storefront" &&
 				fact.references[0].number === "42" &&
 				fact.references[0].label === "acme/storefront!42",
-			JSON.stringify(fact?.references),
-		);
+			`and points at every merge request that contains it — ${JSON.stringify(fact?.references)}`,
+		).toBe(true);
 	}
 });
 test("what it declines", async () => {
 	{
 		calls.length = 0;
 
-		check(
-			"a commit from another code host is not GitLab's to answer for",
+		expect(
 			(
 				await source.resolve({
 					kind: "commit",
@@ -125,8 +118,8 @@ test("what it declines", async () => {
 					url: "https://github.example/acme/storefront/-/blob/main/src/x.ts",
 				})
 			).length === 0 && calls.length === 0,
-			calls.join(", "),
-		);
+			`a commit from another code host is not GitLab's to answer for — ${calls.join(", ")}`,
+		).toBe(true);
 
 		calls.length = 0;
 
@@ -136,17 +129,16 @@ test("what it declines", async () => {
 			repository: "acme/storefront",
 		});
 
-		check(
-			"a reference with only a project path still resolves",
+		expect(
 			byPath.length === 1 &&
 				calls[0] === "/projects/acme%2Fstorefront/repository/commits/7c50a1e5",
-			calls[0] ?? "",
-		);
+			`a reference with only a project path still resolves — ${calls[0] ?? ""}`,
+		).toBe(true);
 
-		check(
-			"a reference of another kind is not its business",
+		expect(
 			(await source.resolve({ kind: "task", key: "DEV-1" })).length === 0,
-		);
+			"a reference of another kind is not its business",
+		).toBe(true);
 	}
 });
 test("a merge request", async () => {
@@ -160,26 +152,23 @@ test("a merge request", async () => {
 		});
 		const fact = facts[0];
 
-		check(
-			"one request is read by its project and number",
+		expect(
 			calls[0] === "/projects/acme%2Fstorefront/merge_requests/42",
-			calls[0] ?? "",
-		);
-		check(
-			"the hop is the request, in GitLab's own words",
+			`one request is read by its project and number — ${calls[0] ?? ""}`,
+		).toBe(true);
+		expect(
 			fact?.id === "gitlab:acme/storefront!42" &&
 				fact.label === "Merge request" &&
 				fact.title === "acme/storefront!42 · DEV-5977: Handle split codes" &&
 				fact.meta === "opened · Ada Lovelace",
-			JSON.stringify(fact),
-		);
-		check(
-			"the key in the title is pointed at, once, though the branch names it too",
+			`the hop is the request, in GitLab's own words — ${JSON.stringify(fact)}`,
+		).toBe(true);
+		expect(
 			fact?.references?.length === 1 &&
 				fact.references[0]?.kind === "task" &&
 				fact.references[0].key === "DEV-5977",
-			JSON.stringify(fact?.references),
-		);
+			`the key in the title is pointed at, once, though the branch names it too — ${JSON.stringify(fact?.references)}`,
+		).toBe(true);
 	}
 });
 test("a branch that names a key differently", async () => {
@@ -196,12 +185,11 @@ test("a branch that names a key differently", async () => {
 			number: "42",
 		});
 
-		check(
-			"a branch spelling the key with separators still names the ticket",
+		expect(
 			facts[0]?.references?.[0]?.kind === "task" &&
 				facts[0].references[0].key === "DEV-5977",
-			JSON.stringify(facts[0]?.references),
-		);
+			`a branch spelling the key with separators still names the ticket — ${JSON.stringify(facts[0]?.references)}`,
+		).toBe(true);
 
 		const versioned = gitLabCorrelationSource({
 			api: {
@@ -219,10 +207,9 @@ test("a branch that names a key differently", async () => {
 			number: "42",
 		});
 
-		check(
-			"a package version in a branch is not a ticket",
+		expect(
 			(bumped[0]?.references ?? []).length === 0,
-			JSON.stringify(bumped[0]?.references),
-		);
+			`a package version in a branch is not a ticket — ${JSON.stringify(bumped[0]?.references)}`,
+		).toBe(true);
 	}
 });

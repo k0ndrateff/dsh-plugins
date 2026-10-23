@@ -10,13 +10,12 @@
  * that other sessions already own.
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { DigestBlockEntry } from "dsh-integration-host";
-import { check } from "../../../test/support";
 import type { DigestCollector } from "../src/host/collect";
 import {
 	createDigestCommand,
@@ -111,29 +110,35 @@ async function commandFor(name: string, withService = true) {
 }
 
 test("the weekday grammar", async () => {
-	check(
-		"names are matched by their first three letters",
+	expect(
 		parseDays("mon,wed,fri")?.join(",") === "1,3,5",
-	);
-	check(
-		"repeats collapse and the order is the week's",
+		"names are matched by their first three letters",
+	).toBe(true);
+	expect(
 		parseDays("fri,mon,mon")?.join(",") === "1,5",
-	);
-	check(
-		"full names work, and come back in week order",
+		"repeats collapse and the order is the week's",
+	).toBe(true);
+	expect(
 		parseDays("monday,sunday")?.join(",") === "0,1",
-	);
-	check(
-		"spaces work as well as commas",
+		"full names work, and come back in week order",
+	).toBe(true);
+	expect(
 		parseDays("mon tue wed")?.join(",") === "1,2,3",
-	);
-	check("an unknown name is refused", parseDays("mon,funday") === undefined);
-	check("an empty list is refused", parseDays(" , ") === undefined);
-	check(
-		"every day reads as one phrase",
+		"spaces work as well as commas",
+	).toBe(true);
+	expect(
+		parseDays("mon,funday") === undefined,
+		"an unknown name is refused",
+	).toBe(true);
+	expect(parseDays(" , ") === undefined, "an empty list is refused").toBe(true);
+	expect(
 		describeDays([0, 1, 2, 3, 4, 5, 6]) === "every day",
-	);
-	check("a narrow week reads as its days", describeDays([1, 3]) === "Mon, Wed");
+		"every day reads as one phrase",
+	).toBe(true);
+	expect(
+		describeDays([1, 3]) === "Mon, Wed",
+		"a narrow week reads as its days",
+	).toBe(true);
 });
 test("reading and writing the settings", async () => {
 	{
@@ -141,67 +146,69 @@ test("reading and writing the settings", async () => {
 
 		const status = await run({ rawInput: "", agent: { id: "session-a" } });
 
-		check(
-			"a bare command reports the state",
+		expect(
 			status.kind === "success" && status.text.includes("09:00"),
-			status.text,
-		);
+			`a bare command reports the state — ${status.text}`,
+		).toBe(true);
 
 		const time = await run({
 			rawInput: "time 07:05",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"a valid time is stored",
+		expect(
 			time.kind === "success" && settings.get().time === "07:05",
-			time.text,
-		);
+			`a valid time is stored — ${time.text}`,
+		).toBe(true);
 
 		const badTime = await run({
 			rawInput: "time 7:5",
 			agent: { id: "session-a" },
 		});
 
-		check("a malformed time is refused", badTime.kind === "error");
-		check("and nothing was written", settings.get().time === "07:05");
+		expect(badTime.kind === "error", "a malformed time is refused").toBe(true);
+		expect(settings.get().time === "07:05", "and nothing was written").toBe(
+			true,
+		);
 
 		const zone = await run({
 			rawInput: "timezone Europe/Berlin",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"a valid zone is stored",
+		expect(
 			zone.kind === "success" && settings.get().timeZone === "Europe/Berlin",
-		);
+			"a valid zone is stored",
+		).toBe(true);
 
 		const badZone = await run({
 			rawInput: "timezone Mars/Olympus",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"an invented zone is refused",
+		expect(
 			badZone.kind === "error" && settings.get().timeZone === "Europe/Berlin",
-		);
+			"an invented zone is refused",
+		).toBe(true);
 
 		const days = await run({
 			rawInput: "days mon,wed,fri",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"days are stored in week order",
+		expect(
 			days.kind === "success" && settings.get().days.join(",") === "1,3,5",
-		);
+			"days are stored in week order",
+		).toBe(true);
 
 		const badDays = await run({
 			rawInput: "days someday",
 			agent: { id: "session-a" },
 		});
 
-		check("an unknown weekday is refused", badDays.kind === "error");
+		expect(badDays.kind === "error", "an unknown weekday is refused").toBe(
+			true,
+		);
 	}
 });
 test("the block switches", async () => {
@@ -210,44 +217,42 @@ test("the block switches", async () => {
 
 		const list = await run({ rawInput: "blocks", agent: { id: "session-a" } });
 
-		check(
-			"the list names every block with its state",
+		expect(
 			list.kind === "success" &&
 				list.text.includes("on  jira-active") &&
 				list.text.includes("off coderabbit"),
-			list.text,
-		);
+			`the list names every block with its state — ${list.text}`,
+		).toBe(true);
 
 		const on = await run({
 			rawInput: "blocks coderabbit on",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"a block is switched on",
+		expect(
 			on.kind === "success" && settings.get().blocks.coderabbit === true,
-		);
+			"a block is switched on",
+		).toBe(true);
 
 		const off = await run({
 			rawInput: "blocks jira-active off",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"and another off",
+		expect(
 			off.kind === "success" && settings.get().blocks["jira-active"] === false,
-		);
+			"and another off",
+		).toBe(true);
 
 		const unknown = await run({
 			rawInput: "blocks nonsense on",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"an unknown block is refused",
+		expect(
 			unknown.kind === "error",
-			unknown.text,
-		);
+			`an unknown block is refused — ${unknown.text}`,
+		).toBe(true);
 	}
 });
 test("binding the digest to a session", async () => {
@@ -256,30 +261,28 @@ test("binding the digest to a session", async () => {
 
 		const on = await run({ rawInput: "on", agent: { id: "session-a" } });
 
-		check(
-			"on binds to the asking session",
+		expect(
 			on.kind === "success" && service?.held.length === 1,
-		);
-		check(
-			"and says when it will arrive",
+			"on binds to the asking session",
+		).toBe(true);
+		expect(
 			on.text.includes("09:00") && on.text.includes("Mon"),
-			on.text,
-		);
+			`and says when it will arrive — ${on.text}`,
+		).toBe(true);
 
 		const other = await run({ rawInput: "on", agent: { id: "session-b" } });
 
-		check(
-			"another session gets its own",
+		expect(
 			other.kind === "success" && service?.held.length === 2,
-		);
+			"another session gets its own",
+		).toBe(true);
 
 		const retimed = await run({
 			rawInput: "time 06:30",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"a change of time reaches every bound session",
+		expect(
 			retimed.kind === "success" &&
 				service?.held.length === 2 &&
 				service.held.every(
@@ -287,28 +290,30 @@ test("binding the digest to a session", async () => {
 						entry.request.weekly?.time === "06:30:00" ||
 						entry.request.daily?.time === "06:30:00",
 				),
-			JSON.stringify(
+			`a change of time reaches every bound session — ${JSON.stringify(
 				service?.held.map(
 					(entry) => entry.request.weekly?.time ?? entry.request.daily?.time,
 				),
-			),
-		);
+			)}`,
+		).toBe(true);
 
 		const off = await run({ rawInput: "off", agent: { id: "session-a" } });
 
-		check(
-			"off releases only this session",
+		expect(
 			off.kind === "success" && service?.held.length === 1,
-		);
-		check("and the settings are untouched", settings.get().time === "06:30");
+			"off releases only this session",
+		).toBe(true);
+		expect(
+			settings.get().time === "06:30",
+			"and the settings are untouched",
+		).toBe(true);
 
 		const again = await run({ rawInput: "off", agent: { id: "session-a" } });
 
-		check(
-			"off with nothing bound says so",
+		expect(
 			again.kind === "success" && again.text.includes("No digest"),
-			again.text,
-		);
+			`off with nothing bound says so — ${again.text}`,
+		).toBe(true);
 	}
 });
 test("a deployment without the reminder service", async () => {
@@ -317,22 +322,20 @@ test("a deployment without the reminder service", async () => {
 
 		const on = await run({ rawInput: "on", agent: { id: "session-a" } });
 
-		check(
-			"binding is refused with a reason",
+		expect(
 			on.kind === "error" && on.text.includes("no reminder service"),
-			on.text,
-		);
+			`binding is refused with a reason — ${on.text}`,
+		).toBe(true);
 
 		const status = await run({
 			rawInput: "status",
 			agent: { id: "session-a" },
 		});
 
-		check(
-			"and the status says the same",
+		expect(
 			status.kind === "success" && status.text.includes("no reminder service"),
-			status.text,
-		);
+			`and the status says the same — ${status.text}`,
+		).toBe(true);
 	}
 });
 test("an agent that names no session", async () => {
@@ -340,8 +343,8 @@ test("an agent that names no session", async () => {
 		const { run, service } = await commandFor("nosession");
 		const on = await run({ rawInput: "on" });
 
-		check("cannot be bound", on.kind === "error", on.text);
-		check("and nothing was created", service?.held.length === 0);
+		expect(on.kind === "error", `cannot be bound — ${on.text}`).toBe(true);
+		expect(service?.held.length === 0, "and nothing was created").toBe(true);
 	}
 });
 test("assembling on demand", async () => {
@@ -349,12 +352,11 @@ test("assembling on demand", async () => {
 		const { run } = await commandFor("now");
 		const now = await run({ rawInput: "now", agent: { id: "session-a" } });
 
-		check(
-			"now answers with the collector's text",
+		expect(
 			now.kind === "success" && now.text.startsWith("digest digest-command-"),
-			now.text,
-		);
-		check("and binds nothing", now.kind === "success");
+			`now answers with the collector's text — ${now.text}`,
+		).toBe(true);
+		expect(now.kind === "success", "and binds nothing").toBe(true);
 	}
 
 	await rm(workdir, { recursive: true, force: true });

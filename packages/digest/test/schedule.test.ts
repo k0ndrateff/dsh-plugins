@@ -9,9 +9,8 @@
  * the plugin never touches the service's storage, only its three calls.
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
-import { check } from "../../../test/support";
 import {
 	DigestSchedule,
 	isDigestReminder,
@@ -79,25 +78,22 @@ const contextWith = (schedule: FakeSchedule | undefined): Context =>
 	}) as unknown as Context;
 
 test("the clock the service stores", async () => {
-	check(
-		"a card time gains seconds",
+	expect(
 		toScheduleTime("09:00") === "09:00:00",
-		toScheduleTime("09:00"),
-	);
-	check(
-		"a short zone name resolves to a usable one",
+		`a card time gains seconds — ${toScheduleTime("09:00")}`,
+	).toBe(true);
+	expect(
 		typeof canonicalTimeZone("GMT") === "string" &&
 			canonicalTimeZone("GMT") !== "",
-		String(canonicalTimeZone("GMT")),
-	);
+		`a short zone name resolves to a usable one — ${String(canonicalTimeZone("GMT"))}`,
+	).toBe(true);
 });
 test("a configuration becomes a recurrence", async () => {
 	{
 		const settings = defaultDigestSettings();
 		const everyDay = new DigestSchedule(contextWith(undefined));
 
-		check(
-			"seven days is a daily rule, with the service's own snake case",
+		expect(
 			JSON.stringify(
 				(await import("../src/host/schedule")).timingOf({
 					...settings,
@@ -107,13 +103,13 @@ test("a configuration becomes a recurrence", async () => {
 				JSON.stringify({
 					daily: { time: `${settings.time}:00`, time_zone: settings.timeZone },
 				}),
-		);
+			"seven days is a daily rule, with the service's own snake case",
+		).toBe(true);
 
 		const { timingOf } = await import("../src/host/schedule");
 		const weekdays = timingOf({ ...settings, days: [5, 1, 3] });
 
-		check(
-			"a narrower week is a weekly rule, sorted and in ISO numbering",
+		expect(
 			JSON.stringify(weekdays) ===
 				JSON.stringify({
 					weekly: {
@@ -122,34 +118,34 @@ test("a configuration becomes a recurrence", async () => {
 						weekdays: [1, 3, 5],
 					},
 				}),
-			JSON.stringify(weekdays),
-		);
+			`a narrower week is a weekly rule, sorted and in ISO numbering — ${JSON.stringify(weekdays)}`,
+		).toBe(true);
 
-		check(
-			"Sunday becomes ISO 7, not 0",
+		expect(
 			JSON.stringify(timingOf({ ...settings, days: [0] }).weekly?.weekdays) ===
 				"[7]",
-		);
+			"Sunday becomes ISO 7, not 0",
+		).toBe(true);
 		void everyDay;
 	}
 });
 test("what counts as this plugin's reminder", async () => {
-	check(
-		"our own prompt is ours",
+	expect(
 		isDigestReminder({ id: "1", title: "x", prompt: `${PROMPT_MARKER} go` }),
-	);
-	check(
-		"a task with our title but a foreign prompt is not ours",
+		"our own prompt is ours",
+	).toBe(true);
+	expect(
 		!isDigestReminder({
 			id: "1",
 			title: "Daily work digest",
 			prompt: "water the plants",
 		}),
-	);
-	check(
-		"a task with no prompt is not ours",
+		"a task with our title but a foreign prompt is not ours",
+	).toBe(true);
+	expect(
 		!isDigestReminder({ id: "1", title: "Daily work digest" }),
-	);
+		"a task with no prompt is not ours",
+	).toBe(true);
 });
 test("binding to a session", async () => {
 	{
@@ -157,57 +153,60 @@ test("binding to a session", async () => {
 		const schedule = new DigestSchedule(contextWith(service));
 		const settings = defaultDigestSettings();
 
-		check(
-			"a deployment with no service says so",
+		expect(
 			!new DigestSchedule(contextWith(undefined)).isAvailable,
-		);
+			"a deployment with no service says so",
+		).toBe(true);
 
-		check("binding succeeds", await schedule.bind("session-a", settings));
-		check("one reminder exists", service.held.length === 1);
-		check(
-			"it is bound to the asking session",
-			service.held[0]?.sessionId === "session-a",
+		expect(await schedule.bind("session-a", settings), "binding succeeds").toBe(
+			true,
 		);
-		check(
-			"it carries our marker",
+		expect(service.held.length === 1, "one reminder exists").toBe(true);
+		expect(
+			service.held[0]?.sessionId === "session-a",
+			"it is bound to the asking session",
+		).toBe(true);
+		expect(
 			isDigestReminder({
 				...(service.held[0]?.request ?? { prompt: "", title: "" }),
 				id: "x",
 				title: "t",
 			}),
-		);
+			"it carries our marker",
+		).toBe(true);
 
 		await schedule.bind("session-a", { ...settings, time: "07:00" });
 
-		check(
-			"re-binding replaces rather than duplicates",
+		expect(
 			service.held.length === 1 &&
 				(service.held[0]?.request.daily?.time ??
 					service.held[0]?.request.weekly?.time) === "07:00:00",
-			JSON.stringify(
+			`re-binding replaces rather than duplicates — ${JSON.stringify(
 				service.held.map(
 					(entry) => entry.request.daily?.time ?? entry.request.weekly?.time,
 				),
-			),
-		);
+			)}`,
+		).toBe(true);
 
 		await schedule.bind("session-b", settings);
 
-		check("another session gets its own", service.held.length === 2);
+		expect(service.held.length === 2, "another session gets its own").toBe(
+			true,
+		);
 
-		check(
-			"unbinding one leaves the other",
+		expect(
 			(await schedule.unbind("session-a")) === 1,
-		);
-		check(
-			"and it is the right one that went",
+			"unbinding one leaves the other",
+		).toBe(true);
+		expect(
 			service.held.length === 1 && service.held[0]?.sessionId === "session-b",
-		);
+			"and it is the right one that went",
+		).toBe(true);
 
-		check(
-			"unbinding an empty session removes nothing",
+		expect(
 			(await schedule.unbind("session-c")) === 0,
-		);
+			"unbinding an empty session removes nothing",
+		).toBe(true);
 	}
 });
 test("re-timing every bound reminder", async () => {
@@ -225,24 +224,22 @@ test("re-timing every bound reminder", async () => {
 			days: [1, 2, 3, 4, 5],
 		});
 
-		check("every reminder was re-created", rebound === 2);
-		check(
-			"each kept its own session",
+		expect(rebound === 2, "every reminder was re-created").toBe(true);
+		expect(
 			service.held
 				.map((entry) => entry.sessionId)
 				.sort()
 				.join(",") === "session-a,session-b",
-			service.held.map((entry) => entry.sessionId).join(","),
-		);
-		check(
-			"and carries the new rule",
+			`each kept its own session — ${service.held.map((entry) => entry.sessionId).join(",")}`,
+		).toBe(true);
+		expect(
 			service.held.every(
 				(entry) =>
 					entry.request.weekly?.time === "06:30:00" &&
 					entry.request.weekly?.weekdays.join(",") === "1,2,3,4,5",
 			),
-			JSON.stringify(service.held.map((entry) => entry.request.weekly)),
-		);
+			`and carries the new rule — ${JSON.stringify(service.held.map((entry) => entry.request.weekly))}`,
+		).toBe(true);
 	}
 });
 test("a deployment without the service", async () => {
@@ -250,9 +247,20 @@ test("a deployment without the service", async () => {
 		const schedule = new DigestSchedule(contextWith(undefined));
 		const settings = defaultDigestSettings();
 
-		check("nothing is bound", !(await schedule.bind("session-a", settings)));
-		check("nothing is counted", (await schedule.bound()).length === 0);
-		check("re-timing is a no-op", (await schedule.rebindAll(settings)) === 0);
-		check("unbinding is a no-op", (await schedule.unbind("session-a")) === 0);
+		expect(
+			!(await schedule.bind("session-a", settings)),
+			"nothing is bound",
+		).toBe(true);
+		expect((await schedule.bound()).length === 0, "nothing is counted").toBe(
+			true,
+		);
+		expect(
+			(await schedule.rebindAll(settings)) === 0,
+			"re-timing is a no-op",
+		).toBe(true);
+		expect(
+			(await schedule.unbind("session-a")) === 0,
+			"unbinding is a no-op",
+		).toBe(true);
 	}
 });

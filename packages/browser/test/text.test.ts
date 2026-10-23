@@ -8,43 +8,50 @@
  *   bun run test/text.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import { bound, errorText, jsonText } from "../src/host/text";
 
 test("an answer inside the cap", async () => {
 	const short = '- button "Poke me" [ref=e1]';
-	check("is returned unchanged", bound(short, 1_000) === short);
-	check("a cap of exactly its size still fits", bound("abcd", 4) === "abcd");
+	expect(bound(short, 1_000) === short, "is returned unchanged").toBe(true);
+	expect(
+		bound("abcd", 4) === "abcd",
+		"a cap of exactly its size still fits",
+	).toBe(true);
 });
 test("an answer over the cap", async () => {
 	const long = Array.from({ length: 50 }, (_, i) => `line ${i + 1}`).join("\n");
 	const cut = bound(long, 40);
-	check("keeps whole lines", cut.startsWith("line 1\nline 2"));
-	check(
-		"keeps them whole to the last one",
+	expect(cut.startsWith("line 1\nline 2"), "keeps whole lines").toBe(true);
+	expect(
 		cut.split("\n").includes("line 5") && !cut.split("\n").includes("line 6"),
+		"keeps them whole to the last one",
+	).toBe(true);
+	expect(/…and \d+ more lines/.test(cut), "says how many lines went").toBe(
+		true,
 	);
-	check("says how many lines went", /…and \d+ more lines/.test(cut));
-	check("says where it was cut", cut.includes("cut at 40 bytes"));
-	check(
-		"one dropped line reads in the singular",
+	expect(cut.includes("cut at 40 bytes"), "says where it was cut").toBe(true);
+	expect(
 		bound("aa\nbb\ncc", 6).includes("1 more line"),
-	);
-	check(
-		"a single line over the cap still says something",
+		"one dropped line reads in the singular",
+	).toBe(true);
+	expect(
 		bound("x".repeat(100), 10).startsWith("…and 1 more line"),
-	);
+		"a single line over the cap still says something",
+	).toBe(true);
 });
 test("the reason inside a thrown value", async () => {
-	check("an Error is its message", errorText(new Error("nope")) === "nope");
-	check("anything else is stringified", errorText(7) === "7");
+	expect(
+		errorText(new Error("nope")) === "nope",
+		"an Error is its message",
+	).toBe(true);
+	expect(errorText(7) === "7", "anything else is stringified").toBe(true);
 });
 test("one JSON value as text", async () => {
-	check(
-		"an object is indented by one space",
+	expect(
 		jsonText({ a: 1 }) === '{\n "a": 1\n}',
-	);
-	check("nothing is the empty string", jsonText(undefined) === "");
-	check("a string stays a string", jsonText("hi") === '"hi"');
+		"an object is indented by one space",
+	).toBe(true);
+	expect(jsonText(undefined) === "", "nothing is the empty string").toBe(true);
+	expect(jsonText("hi") === '"hi"', "a string stays a string").toBe(true);
 });

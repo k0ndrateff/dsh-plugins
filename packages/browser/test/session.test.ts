@@ -9,8 +9,7 @@
  *   bun run test/session.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	MAX_SESSION_NAME,
 	SESSION_PREFIX,
@@ -18,33 +17,41 @@ import {
 } from "../src/host/session";
 
 test("one session, one browser", async () => {
-	check("an id becomes a prefixed name", sessionNameOf("01H8") === "dsh-01H8");
-	check(
-		"a call with no session still gets its own",
+	expect(
+		sessionNameOf("01H8") === "dsh-01H8",
+		"an id becomes a prefixed name",
+	).toBe(true);
+	expect(
 		sessionNameOf(undefined) === "dsh-nosession",
-	);
-	check(
-		"an empty id is the same as none",
+		"a call with no session still gets its own",
+	).toBe(true);
+	expect(
 		sessionNameOf("") === "dsh-nosession",
-	);
-	check(
-		"the shared default session is never used",
+		"an empty id is the same as none",
+	).toBe(true);
+	expect(
 		sessionNameOf("default") === "dsh-default",
-	);
+		"the shared default session is never used",
+	).toBe(true);
 });
 test("a name that is safe in a path", async () => {
-	check("slashes become dashes", sessionNameOf("a/b") === "dsh-a-b");
-	check("spaces become dashes", sessionNameOf("a b") === "dsh-a-b");
-	check(
-		"runs of unsafe characters become one dash",
-		sessionNameOf("a///b") === "dsh-a-b",
+	expect(sessionNameOf("a/b") === "dsh-a-b", "slashes become dashes").toBe(
+		true,
 	);
-	check("edges are trimmed", sessionNameOf("/a/") === "dsh-a");
-	check("case is kept", sessionNameOf("AbC") === "dsh-AbC");
-	check("dots and dashes survive", sessionNameOf("a.b-c") === "dsh-a.b-c");
+	expect(sessionNameOf("a b") === "dsh-a-b", "spaces become dashes").toBe(true);
+	expect(
+		sessionNameOf("a///b") === "dsh-a-b",
+		"runs of unsafe characters become one dash",
+	).toBe(true);
+	expect(sessionNameOf("/a/") === "dsh-a", "edges are trimmed").toBe(true);
+	expect(sessionNameOf("AbC") === "dsh-AbC", "case is kept").toBe(true);
+	expect(
+		sessionNameOf("a.b-c") === "dsh-a.b-c",
+		"dots and dashes survive",
+	).toBe(true);
 });
 test("a name that fits", async () => {
 	const long = sessionNameOf("x".repeat(200));
-	check("is capped", long.length === MAX_SESSION_NAME);
-	check("keeps its prefix", long.startsWith(SESSION_PREFIX));
+	expect(long.length === MAX_SESSION_NAME, "is capped").toBe(true);
+	expect(long.startsWith(SESSION_PREFIX), "keeps its prefix").toBe(true);
 });

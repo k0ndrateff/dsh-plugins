@@ -9,8 +9,7 @@
  *   bun run test/input.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	buttonOf,
 	modifiersOf,
@@ -47,18 +46,22 @@ const wheel = inputOf({ type: "wheel", x: 10, y: 20, deltaY: 120 });
 const key = inputOf({ type: "key", event: "down", key: "Enter" });
 
 test("a click, before it is trusted", async () => {
-	check("a click is read", click?.type === "mouse" && click.event === "click");
-	check("with its point", click?.type === "mouse" && click.x === 120);
-	check(
-		"and modifiers nobody held",
+	expect(
+		click?.type === "mouse" && click.event === "click",
+		"a click is read",
+	).toBe(true);
+	expect(click?.type === "mouse" && click.x === 120, "with its point").toBe(
+		true,
+	);
+	expect(
 		click?.type === "mouse" && click.modifiers.ctrl === false,
-	);
-	check(
-		"a click with no point is refused",
+		"and modifiers nobody held",
+	).toBe(true);
+	expect(
 		inputOf({ type: "mouse", event: "click", button: "left" }) === undefined,
-	);
-	check(
-		"a point outside the page is refused",
+		"a click with no point is refused",
+	).toBe(true);
+	expect(
 		inputOf({
 			type: "mouse",
 			event: "click",
@@ -66,9 +69,9 @@ test("a click, before it is trusted", async () => {
 			y: 40,
 			button: "left",
 		}) === undefined,
-	);
-	check(
-		"a button the page does not have is refused",
+		"a point outside the page is refused",
+	).toBe(true);
+	expect(
 		inputOf({
 			type: "mouse",
 			event: "click",
@@ -76,9 +79,9 @@ test("a click, before it is trusted", async () => {
 			y: 40,
 			button: "back",
 		}) === undefined,
-	);
-	check(
-		"and an event that is not a mouse event is refused",
+		"a button the page does not have is refused",
+	).toBe(true);
+	expect(
 		inputOf({
 			type: "mouse",
 			event: "wiggle",
@@ -86,77 +89,89 @@ test("a click, before it is trusted", async () => {
 			y: 40,
 			button: "left",
 		}) === undefined,
-	);
-	check(
-		"the reason is a sentence",
+		"and an event that is not a mouse event is refused",
+	).toBe(true);
+	expect(
 		readPanelInput({ type: "mouse" }).ok === false &&
 			String(
 				(readPanelInput({ type: "mouse" }) as { reason: string }).reason,
 			).includes("x and a y"),
-	);
+		"the reason is a sentence",
+	).toBe(true);
 });
 test("a wheel and a key", async () => {
-	check(
-		"a wheel carries its own movement",
+	expect(
 		wheel?.type === "wheel" && wheel.deltaY === 120,
-	);
-	check(
-		"and its missing axis is still a number",
+		"a wheel carries its own movement",
+	).toBe(true);
+	expect(
 		wheel?.type === "wheel" && wheel.deltaX === 0,
+		"and its missing axis is still a number",
+	).toBe(true);
+	expect(key?.type === "key" && key.key === "Enter", "a key is read").toBe(
+		true,
 	);
-	check("a key is read", key?.type === "key" && key.key === "Enter");
-	check(
-		"a key with no name is refused",
+	expect(
 		inputOf({ type: "key", event: "down", key: "" }) === undefined,
-	);
-	check(
-		"a key event that goes neither way is refused",
+		"a key with no name is refused",
+	).toBe(true);
+	expect(
 		inputOf({ type: "key", event: "sideways", key: "a" }) === undefined,
-	);
+		"a key event that goes neither way is refused",
+	).toBe(true);
 });
 test("a navigation and nothing else", async () => {
-	check(
-		"going back is an input",
+	expect(
 		inputOf({ type: "navigate", to: "back" })?.type === "navigate",
-	);
-	check(
-		"a direction the page cannot take is refused",
+		"going back is an input",
+	).toBe(true);
+	expect(
 		inputOf({ type: "navigate", to: "sideways" }) === undefined,
-	);
-	check("an unknown input is refused", inputOf({ type: "jump" }) === undefined);
-	check("a body that is not an object is refused", inputOf([]) === undefined);
+		"a direction the page cannot take is refused",
+	).toBe(true);
+	expect(
+		inputOf({ type: "jump" }) === undefined,
+		"an unknown input is refused",
+	).toBe(true);
+	expect(
+		inputOf([]) === undefined,
+		"a body that is not an object is refused",
+	).toBe(true);
 });
 test("a page size", async () => {
-	check(
-		"a size a page could have is an input",
+	expect(
 		inputOf({ type: "viewport", width: 390, height: 844 })?.type === "viewport",
-	);
-	check(
-		"a size no page could have is refused",
+		"a size a page could have is an input",
+	).toBe(true);
+	expect(
 		inputOf({ type: "viewport", width: 40, height: 844 }) === undefined,
-	);
-	check(
-		"and so is half of one",
+		"a size no page could have is refused",
+	).toBe(true);
+	expect(
 		inputOf({ type: "viewport", width: 390 }) === undefined,
-	);
+		"and so is half of one",
+	).toBe(true);
 });
 test("what the page is told", async () => {
-	check(
-		"a click is a press and a release",
+	expect(
 		wireMessagesOf(click as PanelInput).length === 2 &&
 			at(click as PanelInput, 1)?.eventType === "mouseReleased",
-	);
-	check(
-		"the press is the click",
+		"a click is a press and a release",
+	).toBe(true);
+	expect(
 		at(click as PanelInput, 0)?.eventType === "mousePressed" &&
 			at(click as PanelInput, 0)?.clickCount === 1,
-	);
-	check(
-		"with the point the panel measured",
+		"the press is the click",
+	).toBe(true);
+	expect(
 		at(click as PanelInput, 0)?.x === 120 &&
 			at(click as PanelInput, 0)?.y === 40,
-	);
-	check("and no modifiers held", at(click as PanelInput, 0)?.modifiers === 0);
+		"with the point the panel measured",
+	).toBe(true);
+	expect(
+		at(click as PanelInput, 0)?.modifiers === 0,
+		"and no modifiers held",
+	).toBe(true);
 
 	const chord: PanelInput = {
 		type: "mouse",
@@ -166,9 +181,10 @@ test("what the page is told", async () => {
 		button: "left",
 		modifiers: { alt: false, ctrl: true, meta: false, shift: true },
 	};
-	check("held buttons are a bitmask", at(chord, 0)?.modifiers === 10);
-	check(
-		"a right click keeps its button",
+	expect(at(chord, 0)?.modifiers === 10, "held buttons are a bitmask").toBe(
+		true,
+	);
+	expect(
 		at(
 			{
 				type: "mouse",
@@ -180,9 +196,9 @@ test("what the page is told", async () => {
 			},
 			0,
 		)?.button === "right",
-	);
-	check(
-		"a hover is one move",
+		"a right click keeps its button",
+	).toBe(true);
+	expect(
 		wireMessagesOf({
 			type: "mouse",
 			event: "move",
@@ -202,13 +218,14 @@ test("what the page is told", async () => {
 				},
 				0,
 			)?.eventType === "mouseMoved",
-	);
-	check(
-		"a wheel is a mouse event with no button",
+		"a hover is one move",
+	).toBe(true);
+	expect(
 		at(wheel as PanelInput, 0)?.eventType === "mouseWheel" &&
 			at(wheel as PanelInput, 0)?.button === "none" &&
 			at(wheel as PanelInput, 0)?.deltaY === 120,
-	);
+		"a wheel is a mouse event with no button",
+	).toBe(true);
 
 	const letter: PanelInput = {
 		type: "key",
@@ -217,9 +234,10 @@ test("what the page is told", async () => {
 		code: "KeyA",
 		modifiers: NO_FLAGS,
 	};
-	check("a letter carries its own text", at(letter, 0)?.text === "a");
-	check(
-		"Enter inserts a line break",
+	expect(at(letter, 0)?.text === "a", "a letter carries its own text").toBe(
+		true,
+	);
+	expect(
 		at(
 			{
 				type: "key",
@@ -230,9 +248,9 @@ test("what the page is told", async () => {
 			},
 			0,
 		)?.text === "\r",
-	);
-	check(
-		"and is the code the keyboard produces",
+		"Enter inserts a line break",
+	).toBe(true);
+	expect(
 		at(
 			{
 				type: "key",
@@ -243,34 +261,34 @@ test("what the page is told", async () => {
 			},
 			0,
 		)?.windowsVirtualKeyCode === 13,
-	);
-	check(
-		"a letter is the key above the letter",
+		"and is the code the keyboard produces",
+	).toBe(true);
+	expect(
 		at(letter, 0)?.windowsVirtualKeyCode === 65,
-	);
-	check(
-		"while a release inserts nothing",
+		"a letter is the key above the letter",
+	).toBe(true);
+	expect(
 		at(
 			{ type: "key", event: "up", key: "a", code: "KeyA", modifiers: NO_FLAGS },
 			0,
 		)?.text === undefined,
-	);
-	check(
-		"a navigation is a command, not a message",
+		"while a release inserts nothing",
+	).toBe(true);
+	expect(
 		wireMessagesOf({ type: "navigate", to: "back" }).length === 0,
-	);
-	check(
-		"and so is a page size",
+		"a navigation is a command, not a message",
+	).toBe(true);
+	expect(
 		wireMessagesOf({ type: "viewport", width: 390, height: 844 }).length === 0,
-	);
+		"and so is a page size",
+	).toBe(true);
 });
 test("what the person's act reads as in the feed", async () => {
-	check(
-		"a click names where it landed",
+	expect(
 		humanLineOf(click as PanelInput) === "click 120×40",
-	);
-	check(
-		"a key names what was pressed",
+		"a click names where it landed",
+	).toBe(true);
+	expect(
 		humanLineOf({
 			type: "key",
 			event: "down",
@@ -278,9 +296,9 @@ test("what the person's act reads as in the feed", async () => {
 			code: "Enter",
 			modifiers: NO_FLAGS,
 		}) === "key Enter",
-	);
-	check(
-		"a release is not worth a line",
+		"a key names what was pressed",
+	).toBe(true);
+	expect(
 		humanLineOf({
 			type: "key",
 			event: "up",
@@ -288,9 +306,9 @@ test("what the person's act reads as in the feed", async () => {
 			code: "Enter",
 			modifiers: NO_FLAGS,
 		}) === undefined,
-	);
-	check(
-		"a hover is not worth a line",
+		"a release is not worth a line",
+	).toBe(true);
+	expect(
 		humanLineOf({
 			type: "mouse",
 			event: "move",
@@ -299,11 +317,12 @@ test("what the person's act reads as in the feed", async () => {
 			button: "left",
 			modifiers: NO_FLAGS,
 		}) === undefined,
-	);
-	check(
-		"and a wheel is the page's own movement",
+		"a hover is not worth a line",
+	).toBe(true);
+	expect(
 		humanLineOf(wheel as PanelInput) === undefined,
-	);
+		"and a wheel is the page's own movement",
+	).toBe(true);
 });
 test("where a click lands in the page", async () => {
 	const pictureBox = { left: 16, top: 100, width: 400, height: 198 };
@@ -315,37 +334,37 @@ test("where a click lands in the page", async () => {
 		desktopPicture,
 		desktopPage,
 	);
-	check(
-		"the middle of the picture is the middle of the page",
+	expect(
 		middle !== undefined &&
 			Math.abs(middle.x - 640) <= 2 &&
 			Math.abs(middle.y - 316) <= 2,
-	);
-	check(
-		"the corner is the corner",
+		"the middle of the picture is the middle of the page",
+	).toBe(true);
+	expect(
 		pagePointOf(
 			{ clientX: 16, clientY: 100 },
 			pictureBox,
 			desktopPicture,
 			desktopPage,
 		)?.x === 0,
-	);
-	check(
-		"a picture that decoded to nothing measures nothing",
+		"the corner is the corner",
+	).toBe(true);
+	expect(
 		pagePointOf(
 			{ clientX: 1, clientY: 1 },
 			pictureBox,
 			{ naturalWidth: 0, naturalHeight: 0 },
 			desktopPage,
 		) === undefined,
-	);
-	check(
-		"and neither does a page with no size",
+		"a picture that decoded to nothing measures nothing",
+	).toBe(true);
+	expect(
 		pagePointOf({ clientX: 1, clientY: 1 }, pictureBox, desktopPicture, {
 			width: 0,
 			height: 0,
 		}) === undefined,
-	);
+		"and neither does a page with no size",
+	).toBe(true);
 
 	// A phone viewport inside a desktop window: the page is 390x844, the picture is
 	// 474x800 because the page was fitted into the window's surface and the leftover
@@ -359,38 +378,37 @@ test("where a click lands in the page", async () => {
 		phonePicture,
 		phonePage,
 	);
-	check(
-		"a fitted page is measured by the factor the fit used",
+	expect(
 		aimedAtButton !== undefined &&
 			Math.abs(aimedAtButton.x - 194) <= 1 &&
 			Math.abs(aimedAtButton.y - 565) <= 2,
-	);
-	check(
-		"the strip beside the page is not the page",
+		"a fitted page is measured by the factor the fit used",
+	).toBe(true);
+	expect(
 		pagePointOf(
 			{ clientX: 430, clientY: 300 },
 			phoneBox,
 			phonePicture,
 			phonePage,
 		) === undefined,
-	);
-	check(
-		"and a point above the picture is not either",
+		"the strip beside the page is not the page",
+	).toBe(true);
+	expect(
 		pagePointOf(
 			{ clientX: 10, clientY: -4 },
 			{ ...phoneBox, top: 0 },
 			phonePicture,
 			phonePage,
 		) === undefined,
-	);
-	check(
-		"the right and middle buttons keep their names",
+		"and a point above the picture is not either",
+	).toBe(true);
+	expect(
 		buttonOf(2) === "right" &&
 			buttonOf(1) === "middle" &&
 			buttonOf(0) === "left",
-	);
-	check(
-		"and the held buttons are read from the event",
+		"the right and middle buttons keep their names",
+	).toBe(true);
+	expect(
 		modifiersOf({
 			altKey: false,
 			ctrlKey: true,
@@ -403,5 +421,6 @@ test("where a click lands in the page", async () => {
 				metaKey: false,
 				shiftKey: true,
 			}).shift === true,
-	);
+		"and the held buttons are read from the event",
+	).toBe(true);
 });

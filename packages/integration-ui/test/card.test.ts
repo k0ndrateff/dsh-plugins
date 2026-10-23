@@ -9,13 +9,12 @@
  *   bun run test/card.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type {
 	ConversationMatch,
 	ConversationNodeContext,
 	ConversationStartMatch,
 } from "@deepseek-ai/dsh-client-ui-conversation/client";
-import { check } from "../../../test/support";
 import {
 	createPresentationType,
 	type PresentationTurnData,
@@ -149,32 +148,30 @@ test("one settled call", () => {
 		resultEvent(7, "c1", CARD, 4),
 	);
 
-	check(
-		"a result of this tool's call becomes a card",
+	expect(
 		state.presentations.length === 1 &&
 			state.presentations[0]?.card.callId === "c1" &&
 			state.presentations[0]?.seq === 4,
-		JSON.stringify(state.presentations),
-	);
+		`a result of this tool's call becomes a card — ${JSON.stringify(state.presentations)}`,
+	).toBe(true);
 
 	const location = definition.buildLocationData?.(context(state), "turn", null);
 
-	check(
-		"the card is published against its Turn under this plugin's key",
+	expect(
 		location?.kind === "turn" && location.key === "test-presented",
-		JSON.stringify(location)?.slice(0, 80),
-	);
+		`the card is published against its Turn under this plugin's key — ${JSON.stringify(location)?.slice(0, 80)}`,
+	).toBe(true);
 
 	const published =
 		location?.kind === "turn" && location.key === "test-presented"
 			? location.value
 			: undefined;
 
-	check(
-		"publishing again with the same list keeps the previous value",
+	expect(
 		definition.buildLocationData?.(context(state), "turn", location ?? null) ===
 			location,
-	);
+		"publishing again with the same list keeps the previous value",
+	).toBe(true);
 
 	const store = {
 		get: (key: string) =>
@@ -186,24 +183,22 @@ test("one settled call", () => {
 		seq: 10,
 	} as unknown as PresentationTurnOwner;
 
-	check(
-		"the tail reads the card back",
+	expect(
 		type.select(owner)?.presentations[0]?.card.callId === "c1",
-		JSON.stringify(
+		`the tail reads the card back — ${JSON.stringify(
 			type.select(owner)?.presentations.map((item) => item.card.callId),
-		),
-	);
+		)}`,
+	).toBe(true);
 
 	const closed = {
 		turn: { data: store, end: { seq: 3 } },
 		seq: 3,
 	} as unknown as PresentationTurnOwner;
 
-	check(
-		"a card recorded after the Turn's own end is not shown",
+	expect(
 		type.select(closed) === null,
-		JSON.stringify(type.select(closed)),
-	);
+		`a card recorded after the Turn's own end is not shown — ${JSON.stringify(type.select(closed))}`,
+	).toBe(true);
 });
 
 test("what does not become a card", () => {
@@ -212,41 +207,37 @@ test("what does not become a card", () => {
 		resultEvent(7, "c2", CARD, 4),
 	);
 
-	check(
-		"a result of another tool's call is not this card",
+	expect(
 		other.presentations.length === 0,
-		String(other.presentations.length),
-	);
+		`a result of another tool's call is not this card — ${String(other.presentations.length)}`,
+	).toBe(true);
 
 	const failed = updated(
 		updated(started(7), callEvent(7, "c3", "test_present", 3)),
 		resultEvent(7, "c3", CARD, 4, true),
 	);
 
-	check(
-		"a failed call shows no card",
+	expect(
 		failed.presentations.length === 0,
-		String(failed.presentations.length),
-	);
+		`a failed call shows no card — ${String(failed.presentations.length)}`,
+	).toBe(true);
 
 	const unparsable = updated(
 		updated(started(7), callEvent(7, "c4", "test_present", 3)),
 		resultEvent(7, "c4", { nope: true }, 4),
 	);
 
-	check(
-		"a payload this version cannot read shows no card",
+	expect(
 		unparsable.presentations.length === 0,
-		String(unparsable.presentations.length),
-	);
+		`a payload this version cannot read shows no card — ${String(unparsable.presentations.length)}`,
+	).toBe(true);
 
 	const unknownCall = updated(started(7), resultEvent(7, "c5", CARD, 4));
 
-	check(
-		"a result whose call was never seen is not attributed",
+	expect(
 		unknownCall.presentations.length === 0,
-		String(unknownCall.presentations.length),
-	);
+		`a result whose call was never seen is not attributed — ${String(unknownCall.presentations.length)}`,
+	).toBe(true);
 });
 
 test("two cards in one turn", () => {
@@ -260,13 +251,12 @@ test("two cards in one turn", () => {
 		resultEvent(7, "c2", { callId: "c2", items: ["z"] }, 7),
 	);
 
-	check(
-		"both cards are kept, in call order",
+	expect(
 		state.presentations.length === 2 &&
 			state.presentations[0]?.card.callId === "c1" &&
 			state.presentations[1]?.card.callId === "c2",
-		JSON.stringify(state.presentations.map((item) => item.card.callId)),
-	);
+		`both cards are kept, in call order — ${JSON.stringify(state.presentations.map((item) => item.card.callId))}`,
+	).toBe(true);
 
 	const location = definition.buildLocationData?.(context(state), "turn", null);
 	const published =
@@ -274,11 +264,10 @@ test("two cards in one turn", () => {
 			? location.value
 			: undefined;
 
-	check(
-		"both cards are published together",
+	expect(
 		published?.presentations.length === 2,
-		String(published?.presentations.length),
-	);
+		`both cards are published together — ${String(published?.presentations.length)}`,
+	).toBe(true);
 });
 
 test("a card that reports a state, not a thing", () => {
@@ -308,23 +297,21 @@ test("a card that reports a state, not a thing", () => {
 		resultEvent(9, "c2", { callId: "c2", items: ["z"] }, 7),
 	);
 
-	check(
-		"the newest run is the one the turn keeps",
+	expect(
 		state.presentations.length === 1 &&
 			state.presentations[0]?.card.callId === "c2" &&
 			state.presentations[0]?.seq === 7,
-		JSON.stringify(state.presentations.map((item) => item.card.callId)),
-	);
+		`the newest run is the one the turn keeps — ${JSON.stringify(state.presentations.map((item) => item.card.callId))}`,
+	).toBe(true);
 });
 
 test("the card's own drawing rules", () => {
 	const presented: PresentedCard<TestCard> = { card: CARD, seq: 4 };
 
-	check(
-		"the heading and the count come from the payload",
+	expect(
 		card.title(presented.card) === "Found" &&
 			card.count(presented.card) === "2 items" &&
 			card.length(presented.card) === 2,
-		`${String(card.title(presented.card))} / ${card.count(presented.card)}`,
-	);
+		`the heading and the count come from the payload — ${`${String(card.title(presented.card))} / ${card.count(presented.card)}`}`,
+	).toBe(true);
 });

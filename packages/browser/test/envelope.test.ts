@@ -8,8 +8,7 @@
  *   bun run test/envelope.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	fieldOf,
 	isList,
@@ -23,35 +22,43 @@ test("a command envelope", async () => {
 	const success = parseEnvelope(
 		'{"success":true,"data":{"url":"http://x","title":"X"},"error":null}',
 	);
-	check("success is read as success", success?.ok === true);
-	check(
-		"its payload survives",
+	expect(success?.ok === true, "success is read as success").toBe(true);
+	expect(
 		fieldOf(modelData(success?.data), "url", isText) === "http://x",
-	);
+		"its payload survives",
+	).toBe(true);
 
 	const failure = parseEnvelope(
 		'{"error":"Unknown command: frobnicate","success":false,"type":"unknown_command"}',
 	);
-	check("failure is read as failure", failure?.ok === false);
-	check(
-		"its reason survives",
+	expect(failure?.ok === false, "failure is read as failure").toBe(true);
+	expect(
 		failure?.error === "Unknown command: frobnicate",
-	);
+		"its reason survives",
+	).toBe(true);
 
-	check(
-		"a failure without a reason still reads",
+	expect(
 		parseEnvelope('{"success":false,"error":null}')?.error === undefined,
-	);
+		"a failure without a reason still reads",
+	).toBe(true);
 });
 test("what is not a command envelope", async () => {
-	check(
-		"doctor's own report is not one",
+	expect(
 		parseEnvelope('{"checks":[{"id":"env.version"}]}') === undefined,
+		"doctor's own report is not one",
+	).toBe(true);
+	expect(parseEnvelope("[1,2]") === undefined, "an array is not one").toBe(
+		true,
 	);
-	check("an array is not one", parseEnvelope("[1,2]") === undefined);
-	check("a bare string is not one", parseEnvelope('"ok"') === undefined);
-	check("broken JSON is not one", parseEnvelope("{nope") === undefined);
-	check("nothing at all is not one", parseEnvelope("   ") === undefined);
+	expect(parseEnvelope('"ok"') === undefined, "a bare string is not one").toBe(
+		true,
+	);
+	expect(parseEnvelope("{nope") === undefined, "broken JSON is not one").toBe(
+		true,
+	);
+	expect(parseEnvelope("   ") === undefined, "nothing at all is not one").toBe(
+		true,
+	);
 });
 test("the fields that ride every answer", async () => {
 	const stripped = modelData({
@@ -59,43 +66,45 @@ test("the fields that ride every answer", async () => {
 		lifecycle: { effectiveLaunch: { browserLaunched: true } },
 		targetId: "5F2C",
 	}) as Record<string, unknown>;
-	check("lifecycle is dropped", stripped.lifecycle === undefined);
-	check("the CDP target is dropped", stripped.targetId === undefined);
-	check("the answer itself is kept", stripped.url === "http://x");
-	check(
-		"a list is passed through",
-		Array.isArray(modelData([{ lifecycle: 1 }])),
+	expect(stripped.lifecycle === undefined, "lifecycle is dropped").toBe(true);
+	expect(stripped.targetId === undefined, "the CDP target is dropped").toBe(
+		true,
 	);
-	check("a string is passed through", modelData("hi") === "hi");
+	expect(stripped.url === "http://x", "the answer itself is kept").toBe(true);
+	expect(
+		Array.isArray(modelData([{ lifecycle: 1 }])),
+		"a list is passed through",
+	).toBe(true);
+	expect(modelData("hi") === "hi", "a string is passed through").toBe(true);
 });
 test("reading one named field", async () => {
 	const payload = { url: "http://x", refs: { e1: { role: "button" } } };
-	check(
-		"a string field is read",
+	expect(
 		fieldOf(payload, "url", isText) === "http://x",
-	);
-	check(
-		"a wrong type is refused",
+		"a string field is read",
+	).toBe(true);
+	expect(
 		fieldOf(payload, "url", isList) === undefined,
-	);
-	check(
-		"a missing field is undefined",
+		"a wrong type is refused",
+	).toBe(true);
+	expect(
 		fieldOf(payload, "nope", isText) === undefined,
-	);
-	check(
-		"a named-fields field is read",
+		"a missing field is undefined",
+	).toBe(true);
+	expect(
 		fieldOf(payload, "refs", isRecord) !== undefined,
-	);
-	check(
-		"and is not mistaken for a list",
+		"a named-fields field is read",
+	).toBe(true);
+	expect(
 		fieldOf(payload, "refs", isList) === undefined,
-	);
-	check(
-		"a list is not mistaken for named fields",
+		"and is not mistaken for a list",
+	).toBe(true);
+	expect(
 		fieldOf({ messages: [] }, "messages", isRecord) === undefined,
-	);
-	check(
-		"a non-object payload has no fields",
+		"a list is not mistaken for named fields",
+	).toBe(true);
+	expect(
 		fieldOf(undefined, "url", isText) === undefined,
-	);
+		"a non-object payload has no fields",
+	).toBe(true);
 });

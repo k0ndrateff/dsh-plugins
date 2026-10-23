@@ -9,12 +9,11 @@
  *   bun run test/chain.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type {
 	CorrelationFact,
 	CorrelationKind,
 } from "dsh-integration-host/correlation";
-import { check } from "../../../test/support";
 import { anchorFor } from "../src/host/anchor";
 import { buildChain, type ChainResolver, refKey } from "../src/host/chain";
 
@@ -57,19 +56,18 @@ const ATLASSIAN: FakeProvider = {
 };
 
 test("what the user typed", () => {
-	check(
-		"a short id is an issue as it stands",
+	expect(
 		JSON.stringify(anchorFor("error", " CHECKOUT-13P ")) ===
 			JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
-	);
-	check(
-		"a pasted link is trimmed to the id at its end",
+		"a short id is an issue as it stands",
+	).toBe(true);
+	expect(
 		JSON.stringify(
 			anchorFor("error", "https://acme.sentry.io/issues/CHECKOUT-13P/"),
 		) === JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
-	);
-	check(
-		"a commit is read as its sha, and a link keeps the link",
+		"a pasted link is trimmed to the id at its end",
+	).toBe(true);
+	expect(
 		JSON.stringify(
 			anchorFor(
 				"commit",
@@ -81,21 +79,22 @@ test("what the user typed", () => {
 				sha: "7c50a1e5",
 				url: "https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
 			}),
-	);
-	check(
-		"a change request is the project path and its number",
+		"a commit is read as its sha, and a link keeps the link",
+	).toBe(true);
+	expect(
 		JSON.stringify(anchorFor("change", "acme/storefront!42")) ===
 			JSON.stringify({
 				kind: "change",
 				repository: "acme/storefront",
 				number: "42",
 			}),
-	);
-	check(
-		"a tracker key is case-folded",
+		"a change request is the project path and its number",
+	).toBe(true);
+	expect(
 		JSON.stringify(anchorFor("task", "dev-5977")) ===
 			JSON.stringify({ kind: "task", key: "DEV-5977" }),
-	);
+		"a tracker key is case-folded",
+	).toBe(true);
 
 	for (const [kind, text] of [
 		["commit", "main"],
@@ -113,7 +112,10 @@ test("what the user typed", () => {
 			}
 		})();
 
-		check(`"${text}" is refused as a ${kind}`, message !== "", message);
+		expect(
+			message !== "",
+			String(`"${text}" is refused as a ${kind}`) + " — " + message,
+		).toBe(true);
 	}
 });
 
@@ -181,36 +183,32 @@ test("walking a chain", async () => {
 		ref: "CHECKOUT-13P",
 	});
 
-	check(
-		"the chain reads as one chain: error, commit, merge request, ticket",
+	expect(
 		report.hops.map((hop) => hop.kind).join(" → ") ===
 			"error → commit → change → task",
-		report.hops.map((hop) => hop.kind).join(" → "),
-	);
-	check(
-		"each hop knows how far from the anchor it sits",
+		`the chain reads as one chain: error, commit, merge request, ticket — ${report.hops.map((hop) => hop.kind).join(" → ")}`,
+	).toBe(true);
+	expect(
 		report.hops.map((hop) => hop.depth).join(",") === "0,1,2,3",
-		report.hops.map((hop) => hop.depth).join(","),
-	);
-	check(
-		"the card is titled by the anchor's own provider",
+		`each hop knows how far from the anchor it sits — ${report.hops.map((hop) => hop.depth).join(",")}`,
+	).toBe(true);
+	expect(
 		report.title === "CHECKOUT-13P · AxiosError: 422" &&
 			report.provider === "Sentry",
-		`${report.provider} · ${report.title}`,
-	);
-	check(
-		"every hop answered by the provider that owns it",
+		`the card is titled by the anchor's own provider — ${`${report.provider} · ${report.title}`}`,
+	).toBe(true);
+	expect(
 		report.hops.every((hop) => hop.provider !== ""),
-	);
-	check(
-		"a chain that was followed whole reports no breaks",
+		"every hop answered by the provider that owns it",
+	).toBe(true);
+	expect(
 		report.breaks.length === 0,
-		JSON.stringify(report.breaks),
-	);
-	check(
-		"the ticket found through the commit is not asked for twice",
+		`a chain that was followed whole reports no breaks — ${JSON.stringify(report.breaks)}`,
+	).toBe(true);
+	expect(
 		report.hops.filter((hop) => hop.id === "jira:DEV-5977").length === 1,
-	);
+		"the ticket found through the commit is not asked for twice",
+	).toBe(true);
 });
 
 test("where a chain stops", async () => {
@@ -230,12 +228,11 @@ test("where a chain stops", async () => {
 		{ callId: "call-2", provider: "Sentry", ref: "CHECKOUT-13P" },
 	);
 
-	check(
-		"a hop no installed integration resolves says so",
+	expect(
 		unowned.breaks[0]?.reason === "no installed integration resolves this" &&
 			unowned.breaks[0]?.label === "Commit",
-		JSON.stringify(unowned.breaks),
-	);
+		`a hop no installed integration resolves says so — ${JSON.stringify(unowned.breaks)}`,
+	).toBe(true);
 
 	const refused = await buildChain(
 		{
@@ -247,22 +244,20 @@ test("where a chain stops", async () => {
 		{ callId: "call-3", provider: "Sentry", ref: "CHECKOUT-13P" },
 	);
 
-	check(
-		"a provider that refuses is quoted, not swallowed",
+	expect(
 		refused.breaks[0]?.reason === "GitLab refused the request (403)",
-		JSON.stringify(refused.breaks),
-	);
+		`a provider that refuses is quoted, not swallowed — ${JSON.stringify(refused.breaks)}`,
+	).toBe(true);
 
 	const nothing = await buildChain(
 		fake([SENTRY, ATLASSIAN], { "error:CHECKOUT-13P": [] }),
 		{ callId: "call-4", provider: "Sentry", ref: "CHECKOUT-13P" },
 	);
 
-	check(
-		"a provider that knows nothing says that instead",
+	expect(
 		nothing.breaks[0]?.reason === "nothing found",
-		JSON.stringify(nothing.breaks),
-	);
+		`a provider that knows nothing says that instead — ${JSON.stringify(nothing.breaks)}`,
+	).toBe(true);
 
 	const deep = await buildChain(
 		fake([SENTRY, GITLAB, ATLASSIAN], {
@@ -312,14 +307,13 @@ test("where a chain stops", async () => {
 		{ depth: 2, facts: 40 },
 	);
 
-	check(
-		"a chain deeper than the walk follows stops with a reason",
+	expect(
 		deep.hops.length === 3 &&
 			deep.breaks.some(
 				(item) => item.reason === "deeper than this answer follows",
 			),
-		`${String(deep.hops.length)} hops · ${JSON.stringify(deep.breaks)}`,
-	);
+		`a chain deeper than the walk follows stops with a reason — ${`${String(deep.hops.length)} hops · ${JSON.stringify(deep.breaks)}`}`,
+	).toBe(true);
 
 	const commit = (sha: string): CorrelationFact => ({
 		id: `gitlab:acme/storefront@${sha}`,
@@ -351,15 +345,14 @@ test("where a chain stops", async () => {
 		{ depth: 4, facts: 1 },
 	);
 
-	check(
-		"a chain longer than the answer holds says it was cut",
+	expect(
 		capped.hops.length === 1 &&
 			capped.breaks.some(
 				(item) =>
 					item.reason === "the chain is longer than this answer follows",
 			),
-		`${String(capped.hops.length)} hops · ${JSON.stringify(capped.breaks)}`,
-	);
+		`a chain longer than the answer holds says it was cut — ${`${String(capped.hops.length)} hops · ${JSON.stringify(capped.breaks)}`}`,
+	).toBe(true);
 
 	const unknown = await buildChain(fake([SENTRY], {}), {
 		callId: "call-7",
@@ -370,9 +363,8 @@ test("where a chain stops", async () => {
 		(error: unknown) => (error as Error).message,
 	);
 
-	check(
-		"naming an integration that is not installed lists the ones that are",
+	expect(
 		unknown.includes("Datadog") && unknown.includes("Sentry"),
-		unknown,
-	);
+		`naming an integration that is not installed lists the ones that are — ${unknown}`,
+	).toBe(true);
 });

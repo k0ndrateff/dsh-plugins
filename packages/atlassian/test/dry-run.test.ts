@@ -10,7 +10,7 @@
  * registration and then abandons it.
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { AuthorizationSession } from "@deepseek-ai/dsh-authorization";
@@ -22,7 +22,6 @@ import {
 	GrantStore,
 	type McpBridge,
 } from "dsh-mcp-oauth";
-import { check } from "../../../test/support";
 import { atlassianAuthSpec } from "../src/host/auth";
 import { atlassianProfile, resolveConfig } from "../src/host/config";
 import { apply } from "../src/host/index";
@@ -214,7 +213,7 @@ async function driveFlow(ctx: Context, endpoint: string): Promise<void> {
 		});
 
 	if (notify === undefined) {
-		check("the flow publishes an authorize URL", false);
+		expect(false, "the flow publishes an authorize URL").toBe(true);
 		await running;
 
 		return;
@@ -223,86 +222,91 @@ async function driveFlow(ctx: Context, endpoint: string): Promise<void> {
 	const authorize = new URL(notify.url ?? "");
 	const params = authorize.searchParams;
 
-	check("authorize host resolved", authorize.host !== "", authorize.host);
-	check(
-		"client registered dynamically",
+	expect(
+		authorize.host !== "",
+		`authorize host resolved — ${authorize.host}`,
+	).toBe(true);
+	expect(
 		typeof params.get("client_id") === "string",
+		"client registered dynamically",
+	).toBe(true);
+	expect(
+		params.get("code_challenge_method") === "S256",
+		"PKCE challenge sent",
+	).toBe(true);
+	expect(params.get("resource") === endpoint, "resource parameter sent").toBe(
+		true,
 	);
-	check("PKCE challenge sent", params.get("code_challenge_method") === "S256");
-	check("resource parameter sent", params.get("resource") === endpoint);
-	check(
-		"scopes negotiated",
+	expect(
 		(params.get("scope") ?? "").includes("offline_access"),
-		params.get("scope") ?? "",
-	);
+		`scopes negotiated — ${params.get("scope") ?? ""}`,
+	).toBe(true);
 
 	// The consent page must render for this exact client and redirect URI.
 	const page = await fetch(notify.url ?? "");
-	check(
-		"authorize endpoint accepts the request",
+	expect(
 		page.status < 400,
-		`HTTP ${page.status}`,
-	);
+		`authorize endpoint accepts the request — ${`HTTP ${page.status}`}`,
+	).toBe(true);
 
 	// The loopback listener must be live and must reject a forged state.
 	const redirect = new URL(params.get("redirect_uri") ?? "");
 	const forged = await fetch(`${redirect.href}?code=forged&state=wrong`);
-	check(
-		"callback rejects a forged state",
+	expect(
 		forged.status === 400,
-		`HTTP ${forged.status}`,
-	);
+		`callback rejects a forged state — ${`HTTP ${forged.status}`}`,
+	).toBe(true);
 
 	controller.abort();
 	const outcome = await running;
-	check(
-		"cancellation settles the attempt",
+	expect(
 		outcome instanceof Error,
-		String(outcome),
-	);
+		`cancellation settles the attempt — ${String(outcome)}`,
+	).toBe(true);
 
 	// The registration it wrote must be readable as a real grant.
 	const grant = await fakeStore(ctx).read();
-	check(
-		"the stored registration is rehydrated",
+	expect(
 		typeof grant?.isSignedIn === "function",
-	);
-	check("an unfinished grant is not signed in", grant?.isSignedIn() === false);
+		"the stored registration is rehydrated",
+	).toBe(true);
+	expect(
+		grant?.isSignedIn() === false,
+		"an unfinished grant is not signed in",
+	).toBe(true);
 }
 
 const ctx = fakeContext();
 
 test("the host against recorded payloads", async () => {
 	apply(ctx, { endpoint: resolveConfig(undefined).endpoint });
-	check(
-		"apply registers one authorization flow",
+	expect(
 		registered.flows.length === 1,
-	);
-	check(
-		"apply registers the /atlassian command",
+		"apply registers one authorization flow",
+	).toBe(true);
+	expect(
 		registered.commands.length === 1,
-	);
-	check(
-		"apply registers the loopback API route",
+		"apply registers the /atlassian command",
+	).toBe(true);
+	expect(
 		registered.routes.length === 1,
-	);
-	check(
-		"apply offers the digest its Jira blocks",
+		"apply registers the loopback API route",
+	).toBe(true);
+	expect(
 		registered.digestSources.length === 1 &&
 			registered.digestSources[0]?.blocks.map((block) => block.id).join(",") ===
 				"jira-active,jira-queued",
-		registered.digestSources
+		`apply offers the digest its Jira blocks — ${registered.digestSources
 			.flatMap((source) => source.blocks.map((block) => block.id))
-			.join(","),
-	);
-	check(
-		"and offers a chain the Jira issue a ticket key names",
+			.join(",")}`,
+	).toBe(true);
+	expect(
 		registered.correlationSources.length === 1 &&
 			registered.correlationSources[0]?.resolves.join(",") === "task",
-		registered.correlationSources
+		`and offers a chain the Jira issue a ticket key names — ${registered.correlationSources
 			.flatMap((source) => source.resolves)
-			.join(","),
-	);
+			.join(",")}`,
+	).toBe(true);
 
 	// A grant read back from the store is plain JSON, not a class instance: this is
 	// the shape the credential store hands to every caller, so it must still work.
@@ -311,16 +315,18 @@ test("the host against recorded payloads", async () => {
 		accessToken: "token",
 		expiresAt: Date.now() + 60_000,
 	});
-	check("Grant.from rebuilds an instance", rehydrated?.isSignedIn() === true);
-	check(
-		"Grant.from tolerates a missing payload",
+	expect(
+		rehydrated?.isSignedIn() === true,
+		"Grant.from rebuilds an instance",
+	).toBe(true);
+	expect(
 		Grant.from(null) === undefined,
-	);
+		"Grant.from tolerates a missing payload",
+	).toBe(true);
 
 	// The card is rendered from a record the browser validates; a payload this
 	// version cannot read must be skipped rather than drawn wrongly.
-	check(
-		"a well-formed presentation is accepted",
+	expect(
 		asPresentation({
 			callId: "call-1",
 			title: "План на день",
@@ -330,25 +336,25 @@ test("the host against recorded payloads", async () => {
 				{ kind: "page", page: { id: "42", title: "Notes" } },
 			],
 		})?.items.length === 2,
-	);
-	check(
-		"an unknown layout falls back to a list",
+		"a well-formed presentation is accepted",
+	).toBe(true);
+	expect(
 		asPresentation({
 			callId: "c",
 			layout: "fancy",
 			items: [{ kind: "issue", issue: { key: "D-1" } }],
 		})?.layout === "list",
-	);
-	check(
-		"a foreign record is ignored",
+		"an unknown layout falls back to a list",
+	).toBe(true);
+	expect(
 		asPresentation({ some: "other" }) === undefined,
-	);
-	check(
-		"a record without items is ignored",
+		"a foreign record is ignored",
+	).toBe(true);
+	expect(
 		asPresentation({ callId: "c", items: [] }) === undefined,
-	);
-	check(
-		"an unreadable item is dropped, not rendered",
+		"a record without items is ignored",
+	).toBe(true);
+	expect(
 		asPresentation({
 			callId: "c",
 			items: [
@@ -356,73 +362,101 @@ test("the host against recorded payloads", async () => {
 				{ kind: "page", page: { title: "ok" } },
 			],
 		})?.items.length === 1,
-	);
-	check(
-		"a card says how many items matched",
+		"an unreadable item is dropped, not rendered",
+	).toBe(true);
+	expect(
 		asPresentation({
 			callId: "c",
 			layout: "list",
 			total: 42,
 			items: [{ kind: "issue", issue: { key: "D-1" } }],
 		})?.total === 42,
-	);
-	check(
-		"a total that adds nothing is dropped",
+		"a card says how many items matched",
+	).toBe(true);
+	expect(
 		asPresentation({
 			callId: "c",
 			total: 1,
 			items: [{ kind: "issue", issue: { key: "D-1" } }],
 		})?.total === undefined,
-	);
+		"a total that adds nothing is dropped",
+	).toBe(true);
 
 	// An estimate arrives as seconds or as Jira's own words; the card shows either.
-	check("a day of estimate reads as a day", formatDuration(28_800) === "1d");
-	check(
-		"an hours-and-minutes estimate keeps both",
+	expect(
+		formatDuration(28_800) === "1d",
+		"a day of estimate reads as a day",
+	).toBe(true);
+	expect(
 		formatDuration(3 * 3600 + 1800) === "3h 30m",
-	);
-	check("a sub-hour estimate reads in minutes", formatDuration(2700) === "45m");
-	check("no estimate is not a zero estimate", formatDuration(0) === undefined);
+		"an hours-and-minutes estimate keeps both",
+	).toBe(true);
+	expect(
+		formatDuration(2700) === "45m",
+		"a sub-hour estimate reads in minutes",
+	).toBe(true);
+	expect(
+		formatDuration(0) === undefined,
+		"no estimate is not a zero estimate",
+	).toBe(true);
 
 	// The sentences come back from a model, so the reader must survive its habits.
 	const parsed = parseGists(
 		"Here you go:\n```\n1: Починить баннер\n2. Собрать статистику\n- 3) Третья\n",
 		3,
 	);
-	check(
-		"numbered sentences are read out of an answer",
+	expect(
 		parsed[0] === "Починить баннер" && parsed[1] === "Собрать статистику",
-		String(parsed),
-	);
-	check(
-		"a bulleted number still counts",
+		`numbered sentences are read out of an answer — ${String(parsed)}`,
+	).toBe(true);
+	expect(
 		parsed[2] === "Третья",
-		String(parsed),
-	);
-	check(
-		"an out-of-range number is ignored",
+		`a bulleted number still counts — ${String(parsed)}`,
+	).toBe(true);
+	expect(
 		parseGists("9: nope", 2).every((item) => item === undefined),
-	);
-	check(
-		"a second answer for one item does not overwrite the first",
+		"an out-of-range number is ignored",
+	).toBe(true);
+	expect(
 		parseGists("1: first\n1: second", 1)[0] === "first",
-	);
+		"a second answer for one item does not overwrite the first",
+	).toBe(true);
 
 	// Colour is a claim about meaning, so an unknown name stays neutral.
-	check("a bug is red", issueTypeTone("Bug") === "danger");
-	check("a Russian epic is still an epic", issueTypeTone("Эпик") === "solid");
-	check("an unknown type is neutral", issueTypeTone("Mystery") === "neutral");
-	check("a missing type is neutral", issueTypeTone(undefined) === "neutral");
-	check("a blocker is red", priorityTone("P1") === "danger");
-	check("a normal priority is quiet", priorityTone("P3") === "quiet");
-	// A Jira scheme may spell its priorities with Cyrillic lookalikes: "Р3".
-	check(
-		"a Cyrillic priority still reads as a priority",
-		priorityTone("Р4") === "quiet",
+	expect(issueTypeTone("Bug") === "danger", "a bug is red").toBe(true);
+	expect(
+		issueTypeTone("Эпик") === "solid",
+		"a Russian epic is still an epic",
+	).toBe(true);
+	expect(
+		issueTypeTone("Mystery") === "neutral",
+		"an unknown type is neutral",
+	).toBe(true);
+	expect(
+		issueTypeTone(undefined) === "neutral",
+		"a missing type is neutral",
+	).toBe(true);
+	expect(priorityTone("P1") === "danger", "a blocker is red").toBe(true);
+	expect(priorityTone("P3") === "quiet", "a normal priority is quiet").toBe(
+		true,
 	);
-	check("an unknown priority is neutral", priorityTone("??") === "neutral");
-	check("a localized bug type is red too", issueTypeTone("Баг") === "danger");
-	check("a localized task type is blue", issueTypeTone("Задача") === "info");
+	// A Jira scheme may spell its priorities with Cyrillic lookalikes: "Р3".
+	expect(
+		priorityTone("Р4") === "quiet",
+		"a Cyrillic priority still reads as a priority",
+	).toBe(true);
+	expect(
+		priorityTone("??") === "neutral",
+		"an unknown priority is neutral",
+	).toBe(true);
+	expect(
+		issueTypeTone("Баг") === "danger",
+		"a localized bug type is red too",
+	).toBe(true);
+	expect(
+		issueTypeTone("Задача") === "info",
+		"a localized task type is blue",
+	).toBe(true);
 
 	// One MCP search result, as Atlassian sends it: JSON inside a text block.
 	const searchPayload = {
@@ -473,25 +507,27 @@ test("the host against recorded payloads", async () => {
 	});
 	const card = withBodies.issues[0];
 
-	check("a Jira search is recognized", withBodies.kind === "jira-issues");
-	check("the match count is read from the payload", withBodies.total === 42);
-	check(
-		"the estimate is kept",
-		card?.estimate === "3d 4h",
-		String(card?.estimate),
+	expect(withBodies.kind === "jira-issues", "a Jira search is recognized").toBe(
+		true,
 	);
-	check("the type is kept", card?.type === "Bug");
-	check(
-		"an ADF description is flattened for the summary pass",
+	expect(
+		withBodies.total === 42,
+		"the match count is read from the payload",
+	).toBe(true);
+	expect(
+		card?.estimate === "3d 4h",
+		`the estimate is kept — ${String(card?.estimate)}`,
+	).toBe(true);
+	expect(card?.type === "Bug", "the type is kept").toBe(true);
+	expect(
 		card?.rawText?.includes("Нужно починить") === true &&
 			card?.rawText?.includes("баннер cookie") === true,
-		String(card?.rawText),
-	);
-	check(
-		"a learned site URL gives every issue a link",
+		`an ADF description is flattened for the summary pass — ${String(card?.rawText)}`,
+	).toBe(true);
+	expect(
 		card?.url === `${site}/browse/DEV-7`,
-		String(card?.url),
-	);
+		`a learned site URL gives every issue a link — ${String(card?.url)}`,
+	).toBe(true);
 
 	const withoutBodies = extractor.extract({
 		tool: "searchJiraIssuesUsingJql",
@@ -499,10 +535,10 @@ test("the host against recorded payloads", async () => {
 		value: searchPayload,
 		siteUrl: site,
 	});
-	check(
-		"the raw description is collected only when asked for",
+	expect(
 		withoutBodies.issues[0]?.rawText === undefined,
-	);
+		"the raw description is collected only when asked for",
+	).toBe(true);
 
 	const secondsOnly = extractor.extract({
 		tool: "getJiraIssue",
@@ -520,15 +556,14 @@ test("the host against recorded payloads", async () => {
 		},
 		siteUrl: undefined,
 	});
-	check(
-		"a raw seconds estimate is rendered",
+	expect(
 		secondsOnly.issues[0]?.estimate === "1d",
-		String(secondsOnly.issues[0]?.estimate),
-	);
-	check(
-		"without a site URL an issue has no link",
+		`a raw seconds estimate is rendered — ${String(secondsOnly.issues[0]?.estimate)}`,
+	).toBe(true);
+	expect(
 		secondsOnly.issues[0]?.url === undefined,
-	);
+		"without a site URL an issue has no link",
+	).toBe(true);
 
 	// A Confluence search answers with a site-relative URL, an HTML-ish excerpt,
 	// and the page again nested inside the result: one card, one absolute link.
@@ -568,23 +603,25 @@ test("the host against recorded payloads", async () => {
 		bodies: true,
 	});
 
-	check("a Confluence search is recognized", found.kind === "confluence-pages");
-	check("a Confluence search reports its total", found.total === 712);
-	check(
-		"a page nested inside its own search result is not drawn twice",
+	expect(
+		found.kind === "confluence-pages",
+		"a Confluence search is recognized",
+	).toBe(true);
+	expect(found.total === 712, "a Confluence search reports its total").toBe(
+		true,
+	);
+	expect(
 		found.pages.length === 1,
-		String(found.pages.length),
-	);
-	check(
-		"a site-relative page path is resolved against the wiki",
+		`a page nested inside its own search result is not drawn twice — ${String(found.pages.length)}`,
+	).toBe(true);
+	expect(
 		found.pages[0]?.url === `${site}/wiki/spaces/~123/overview`,
-		String(found.pages[0]?.url),
-	);
-	check(
-		"an HTML snippet becomes the text to summarize",
+		`a site-relative page path is resolved against the wiki — ${String(found.pages[0]?.url)}`,
+	).toBe(true);
+	expect(
 		found.pages[0]?.rawText === "Поздоровайтесь & расскажите о себе",
-		String(found.pages[0]?.rawText),
-	);
+		`an HTML snippet becomes the text to summarize — ${String(found.pages[0]?.rawText)}`,
+	).toBe(true);
 
 	// The whole card pipeline, with both the MCP bridge and the model absent: the
 	// tool must still resolve, project and record a card that carries no raw text.
@@ -610,36 +647,38 @@ test("the host against recorded payloads", async () => {
 	const row = recorded?.items[0];
 	const fields = calls[0]?.args.fields;
 
-	check(
-		"the tool resolves through the MCP bridge",
+	expect(
 		calls[0]?.name === "searchJiraIssuesUsingJql",
-	);
-	check(
-		"the card asks for the description it will compress",
+		"the tool resolves through the MCP bridge",
+	).toBe(true);
+	expect(
 		Array.isArray(fields) && fields.includes("description"),
-	);
-	check(
-		"the recorded card keeps its title",
+		"the card asks for the description it will compress",
+	).toBe(true);
+	expect(
 		recorded?.title === "План на день",
+		"the recorded card keeps its title",
+	).toBe(true);
+	expect(recorded?.layout === "single", "one item is a single card").toBe(true);
+	expect(recorded?.total === 42, "the recorded card counts what matched").toBe(
+		true,
 	);
-	check("one item is a single card", recorded?.layout === "single");
-	check("the recorded card counts what matched", recorded?.total === 42);
-	check(
-		"the recorded card links to the issue",
+	expect(
 		row?.kind === "issue" && row.issue.url === `${site}/browse/DEV-7`,
-	);
-	check(
-		"the recorded card keeps the estimate",
+		"the recorded card links to the issue",
+	).toBe(true);
+	expect(
 		row?.kind === "issue" && row.issue.estimate === "3d 4h",
-	);
-	check(
-		"no raw description reaches the recorded card",
+		"the recorded card keeps the estimate",
+	).toBe(true);
+	expect(
 		row?.kind === "issue" && !("rawText" in row.issue),
-	);
-	check(
-		"the model is told what the card shows",
+		"no raw description reaches the recorded card",
+	).toBe(true);
+	expect(
 		outcome.summary.includes("План на день"),
-	);
+		"the model is told what the card shows",
+	).toBe(true);
 
 	const emptyTool = presentTool.create({
 		ctx,
@@ -654,16 +693,14 @@ test("the host against recorded payloads", async () => {
 		} as unknown as ToolRunContext,
 	)) as { shown: number; summary: string; presentation: { items: unknown[] } };
 
-	check(
-		"an empty JQL is an answer, not a failed call",
+	expect(
 		empty.shown === 0 && empty.summary.includes("No issues or pages matched"),
-		empty.summary,
-	);
-	check(
-		"and it records no card for the client to draw",
+		`an empty JQL is an answer, not a failed call — ${empty.summary}`,
+	).toBe(true);
+	expect(
 		empty.presentation.items.length === 0,
-		JSON.stringify(empty.presentation),
-	);
+		`and it records no card for the client to draw — ${JSON.stringify(empty.presentation)}`,
+	).toBe(true);
 
 	// --- The side panel ------------------------------------------------------
 	// The panel is the only writer in this plugin, so its half of the test drives
@@ -808,82 +845,82 @@ test("the host against recorded payloads", async () => {
 	const panel = new PanelApi({ bridge: panelBridge, state: panelState });
 	const loaded = await panel.issue("DEV-6471");
 
-	check("the panel loads the issue", loaded.key === "DEV-6471");
-	check(
-		"the panel keeps the localized type and priority",
+	expect(loaded.key === "DEV-6471", "the panel loads the issue").toBe(true);
+	expect(
 		loaded.type === "Задача" && loaded.priority === "Р2",
-	);
-	check(
-		"the panel links to the issue",
+		"the panel keeps the localized type and priority",
+	).toBe(true);
+	expect(
 		loaded.url === `${site}/browse/DEV-6471`,
+		"the panel links to the issue",
+	).toBe(true);
+	expect(
+		loaded.assignee?.name === "Egor Kain",
+		"the panel shows the assignee",
+	).toBe(true);
+	expect(loaded.estimate === "1ч", "the panel shows Jira's own estimate").toBe(
+		true,
 	);
-	check("the panel shows the assignee", loaded.assignee?.name === "Egor Kain");
-	check("the panel shows Jira's own estimate", loaded.estimate === "1ч");
-	check(
-		"the panel shows the labels and the due date",
+	expect(
 		loaded.labels.length === 2 && loaded.due === "2026-10-30",
-	);
-	check(
-		"the panel shows the description as text",
+		"the panel shows the labels and the due date",
+	).toBe(true);
+	expect(
 		loaded.description === "Требуется убрать base64-PNG из иконок.",
-		String(loaded.description),
-	);
-	check(
-		"the panel shows the comment and who wrote it",
+		`the panel shows the description as text — ${String(loaded.description)}`,
+	).toBe(true);
+	expect(
 		loaded.comments[0]?.author === "Azaliia Kh" &&
 			loaded.comments[0]?.body === "заменили цвет текста",
-	);
-	check(
-		"a transition that opens a screen is marked as one",
+		"the panel shows the comment and who wrote it",
+	).toBe(true);
+	expect(
 		loaded.transitions[1]?.needsFields === true &&
 			loaded.transitions[1]?.available === false,
-	);
-	check(
-		"an ordinary transition is offered",
+		"a transition that opens a screen is marked as one",
+	).toBe(true);
+	expect(
 		loaded.transitions[0]?.name === "Ready on Preview" &&
 			loaded.transitions[0]?.to === "Ready on Preview",
-	);
+		"an ordinary transition is offered",
+	).toBe(true);
 
 	// A workflow the token cannot read must not cost the user the issue itself.
 	failTransitions = true;
 	const withoutTransitions = await panel.issue("DEV-6471");
-	check(
-		"a failed transition list still answers with the issue",
+	expect(
 		withoutTransitions.key === "DEV-6471" &&
 			withoutTransitions.transitions.length === 0,
-	);
+		"a failed transition list still answers with the issue",
+	).toBe(true);
 	failTransitions = false;
 
 	const people = await panel.people("Kir");
-	check(
-		"the panel can find a person",
+	expect(
 		people.length === 1 && people[0]?.accountId === "acc-1",
-		String(people.length),
-	);
+		`the panel can find a person — ${String(people.length)}`,
+	).toBe(true);
 
 	const page = await panel.page("988676219");
-	check(
-		"the panel loads the page",
+	expect(
 		page.title === "Обзор" && page.body === "# Привет",
-	);
-	check(
-		"a page with no webui link still gets one",
+		"the panel loads the page",
+	).toBe(true);
+	expect(
 		page.url === `${site}/wiki/pages/viewpage.action?pageId=988676219`,
-		String(page.url),
-	);
-	check(
-		"the page shows its footer comments",
+		`a page with no webui link still gets one — ${String(page.url)}`,
+	).toBe(true);
+	expect(
 		page.comments[0]?.body === "Спасибо, поправили" &&
 			page.comments[0]?.author === "Ada Lovelace",
-		JSON.stringify(page.comments),
-	);
+		`the page shows its footer comments — ${JSON.stringify(page.comments)}`,
+	).toBe(true);
 
 	const me = await panel.me();
-	check(
-		"the panel reads the account id in the identity endpoint's spelling",
+	expect(
 		me?.accountId === "acc-me" && me.name === "Ada Lovelace",
-		JSON.stringify(me),
-	);
+		`the panel reads the account id in the identity endpoint's spelling — ${JSON.stringify(me)}`,
+	).toBe(true);
 
 	// The routes the browser half actually calls.
 	const routeConfig = resolveConfig(undefined);
@@ -911,32 +948,31 @@ test("the host against recorded payloads", async () => {
 		readIssue.response,
 	);
 	const issueAnswer = readIssue.read();
-	check(
-		"the issue route answers a readable document",
+	expect(
 		issueAnswer.status === 200 &&
 			asPanelData(issueAnswer.body)?.kind === "issue",
-		`HTTP ${issueAnswer.status}`,
-	);
+		`the issue route answers a readable document — ${`HTTP ${issueAnswer.status}`}`,
+	).toBe(true);
 
 	const readPage = fakeResponse();
 	await route(
 		fakeRequest("GET", "/dsh-atlassian/page?id=988676219"),
 		readPage.response,
 	);
-	check(
-		"the page route answers a readable document",
+	expect(
 		asPanelData(readPage.read().body)?.kind === "page",
-	);
+		"the page route answers a readable document",
+	).toBe(true);
 
 	const readPeople = fakeResponse();
 	await route(
 		fakeRequest("GET", "/dsh-atlassian/people?q=Kir"),
 		readPeople.response,
 	);
-	check(
-		"the people route answers a list",
+	expect(
 		Array.isArray(readPeople.read().body),
-	);
+		"the people route answers a list",
+	).toBe(true);
 
 	panelWrite.length = 0;
 	const assign = fakeResponse();
@@ -947,19 +983,19 @@ test("the host against recorded payloads", async () => {
 		}),
 		assign.response,
 	);
-	check(
-		"the assignee route writes the change",
+	expect(
 		panelWrite.some(
 			(call) =>
 				call.name === "editJiraIssue" &&
 				(call.args.fields as { assignee?: { accountId?: string } }).assignee
 					?.accountId === "acc-1",
 		),
-	);
-	check(
-		"the assignee route answers with the fresh issue",
+		"the assignee route writes the change",
+	).toBe(true);
+	expect(
 		asPanelData(assign.read().body)?.kind === "issue",
-	);
+		"the assignee route answers with the fresh issue",
+	).toBe(true);
 
 	const unassign = fakeResponse();
 	await route(
@@ -969,14 +1005,14 @@ test("the host against recorded payloads", async () => {
 		}),
 		unassign.response,
 	);
-	check(
-		"an explicit null clears the assignee",
+	expect(
 		panelWrite.some(
 			(call) =>
 				call.name === "editJiraIssue" &&
 				(call.args.fields as { assignee?: unknown }).assignee === null,
 		),
-	);
+		"an explicit null clears the assignee",
+	).toBe(true);
 
 	const transition = fakeResponse();
 	await route(
@@ -986,45 +1022,44 @@ test("the host against recorded payloads", async () => {
 		}),
 		transition.response,
 	);
-	check(
-		"the transition route sends the transition id",
+	expect(
 		panelWrite.some(
 			(call) =>
 				call.name === "transitionJiraIssue" &&
 				(call.args.transition as { id?: string }).id === "11",
 		),
-	);
+		"the transition route sends the transition id",
+	).toBe(true);
 
 	const missing = fakeResponse();
 	await route(
 		fakeRequest("POST", "/dsh-atlassian/issue/transition", { key: "DEV-6471" }),
 		missing.response,
 	);
-	check(
-		"a write without its target is refused as a bad request, not a gateway",
+	expect(
 		missing.read().status === 400,
-		`HTTP ${missing.read().status}`,
-	);
+		`a write without its target is refused as a bad request, not a gateway — ${`HTTP ${missing.read().status}`}`,
+	).toBe(true);
 
 	// The panel's own validator: the browser half must not draw a document this
 	// version cannot read.
-	check(
-		"a panel target is narrowed",
+	expect(
 		asPanelTarget({ kind: "issue", key: "D-1" })?.kind === "issue" &&
 			asPanelTarget({ kind: "page", id: "42", title: "T" })?.kind === "page",
-	);
-	check(
-		"a foreign panel target is ignored",
+		"a panel target is narrowed",
+	).toBe(true);
+	expect(
 		asPanelTarget({ kind: "wiki" }) === undefined,
-	);
-	check(
-		"a panel document without its identity is ignored",
+		"a foreign panel target is ignored",
+	).toBe(true);
+	expect(
 		asPanelData({ kind: "issue", summary: "no key" }) === undefined,
-	);
-	check(
-		"a panel document survives a missing optional field",
+		"a panel document without its identity is ignored",
+	).toBe(true);
+	expect(
 		asPanelData({ kind: "issue", key: "D-1" })?.kind === "issue",
-	);
+		"a panel document survives a missing optional field",
+	).toBe(true);
 });
 
 const live = process.env.ATLASSIAN_LIVE === "1";

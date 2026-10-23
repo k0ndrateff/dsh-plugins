@@ -17,8 +17,7 @@
  *   bun run test/conformance.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	DEFAULT_INSTANCE,
 	discover,
@@ -218,11 +217,10 @@ async function checkClientAccepted(
 	let accepted = await tokenError(oauth, client);
 
 	if (unknown !== "invalid_client") {
-		check(
-			"the token endpoint validates the grant before the client, as recorded",
+		expect(
 			accepted === unknown,
-			`registered: ${String(accepted)}, unknown: ${String(unknown)}`,
-		);
+			`the token endpoint validates the grant before the client, as recorded — ${`registered: ${String(accepted)}, unknown: ${String(unknown)}`}`,
+		).toBe(true);
 
 		return;
 	}
@@ -236,7 +234,10 @@ async function checkClientAccepted(
 		accepted = await tokenError(oauth, client);
 	}
 
-	check(label, accepted !== "invalid_client", String(accepted));
+	expect(
+		accepted !== "invalid_client",
+		String(label) + " — " + String(accepted),
+	).toBe(true);
 }
 
 /** Register a client asking for one method, whatever the server prefers. */
@@ -297,11 +298,12 @@ async function conformConfidential(oauth: OAuthServer): Promise<void> {
 				clientSecret: "not-the-secret",
 			});
 
-			check(
-				`a wrong ${method} secret is refused as a client error`,
+			expect(
 				refused === "invalid_client",
-				String(refused),
-			);
+				String(`a wrong ${method} secret is refused as a client error`) +
+					" — " +
+					String(refused),
+			).toBe(true);
 		} catch (error) {
 			const reason = errorText(error);
 
@@ -311,7 +313,10 @@ async function conformConfidential(oauth: OAuthServer): Promise<void> {
 				continue;
 			}
 
-			check(`${method} registration issued a secret`, false, reason);
+			expect(
+				false,
+				String(`${method} registration issued a secret`) + " — " + reason,
+			).toBe(true);
 		}
 	}
 }
@@ -341,17 +346,15 @@ async function conformAuthorize(
 			signal: AbortSignal.timeout(30_000),
 		});
 
-		check(
-			"the authorize endpoint accepts the registered client",
+		expect(
 			page.status < 400,
-			`HTTP ${page.status}`,
-		);
+			`the authorize endpoint accepts the registered client — ${`HTTP ${page.status}`}`,
+		).toBe(true);
 	} catch (error) {
-		check(
-			"the authorize endpoint accepts the registered client",
+		expect(
 			false,
-			errorText(error),
-		);
+			`the authorize endpoint accepts the registered client — ${errorText(error)}`,
+		).toBe(true);
 	}
 }
 
@@ -361,40 +364,35 @@ async function conform(provider: Provider): Promise<void> {
 	try {
 		oauth = await discover(provider.profile);
 	} catch (error) {
-		check("discovery succeeded", false, errorText(error));
+		expect(false, `discovery succeeded — ${errorText(error)}`).toBe(true);
 
 		return;
 	}
 
-	check("issuer resolved", oauth.issuer !== "", oauth.issuer);
-	check(
-		"authorization endpoint is absolute",
+	expect(oauth.issuer !== "", `issuer resolved — ${oauth.issuer}`).toBe(true);
+	expect(
 		oauth.authorizationEndpoint.startsWith("https://"),
-		oauth.authorizationEndpoint,
-	);
-	check(
-		"token endpoint is absolute",
+		`authorization endpoint is absolute — ${oauth.authorizationEndpoint}`,
+	).toBe(true);
+	expect(
 		oauth.tokenEndpoint.startsWith("https://"),
-		oauth.tokenEndpoint,
-	);
-	check(
-		"the resource is the one asked for",
+		`token endpoint is absolute — ${oauth.tokenEndpoint}`,
+	).toBe(true);
+	expect(
 		oauth.resource === provider.profile.endpoint,
-		oauth.resource,
-	);
-	check(
-		"the scopes are the provider's, narrowed to what was advertised",
+		`the resource is the one asked for — ${oauth.resource}`,
+	).toBe(true);
+	expect(
 		oauth.scopes.length > 0 &&
 			oauth.scopes.every((scope) =>
 				provider.profile.oauth.scopes.includes(scope),
 			),
-		oauth.scopes.join(" "),
-	);
-	check(
-		"dynamic client registration is advertised",
+		`the scopes are the provider's, narrowed to what was advertised — ${oauth.scopes.join(" ")}`,
+	).toBe(true);
+	expect(
 		typeof oauth.registrationEndpoint === "string",
-		String(oauth.registrationEndpoint),
-	);
+		`dynamic client registration is advertised — ${String(oauth.registrationEndpoint)}`,
+	).toBe(true);
 
 	if (provider.registration === "closed") {
 		let refusal = "";
@@ -405,11 +403,10 @@ async function conform(provider: Provider): Promise<void> {
 			refusal = errorText(error);
 		}
 
-		check(
-			"registration is refused, as recorded",
+		expect(
 			/failed \((401|403)\)/u.test(refusal),
-			refusal === "" ? "registration unexpectedly succeeded" : refusal,
-		);
+			`registration is refused, as recorded — ${refusal === "" ? "registration unexpectedly succeeded" : refusal}`,
+		).toBe(true);
 
 		return;
 	}
@@ -429,26 +426,23 @@ async function conform(provider: Provider): Promise<void> {
 			return;
 		}
 
-		check("registration issued a client", false, reason);
+		expect(false, `registration issued a client — ${reason}`).toBe(true);
 
 		return;
 	}
 
-	check(
-		"registration issued a client id",
+	expect(
 		client.clientId !== "",
-		client.clientId,
-	);
-	check(
-		"the issued client authentication is the one recorded",
+		`registration issued a client id — ${client.clientId}`,
+	).toBe(true);
+	expect(
 		client.tokenAuthMethod === provider.issued,
-		`${client.tokenAuthMethod}, recorded ${String(provider.issued)}`,
-	);
-	check(
-		"whether a secret came with it is the one recorded",
+		`the issued client authentication is the one recorded — ${`${client.tokenAuthMethod}, recorded ${String(provider.issued)}`}`,
+	).toBe(true);
+	expect(
 		(client.clientSecret !== undefined) === (provider.issuedSecret === true),
-		client.clientSecret === undefined ? "no secret" : "a secret",
-	);
+		`whether a secret came with it is the one recorded — ${client.clientSecret === undefined ? "no secret" : "a secret"}`,
+	).toBe(true);
 
 	await checkClientAccepted(
 		oauth,

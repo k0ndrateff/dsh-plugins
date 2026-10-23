@@ -10,8 +10,7 @@
  *   bun run test/parse.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	parseIssueDetail,
 	parseIssueSearch,
@@ -182,76 +181,66 @@ name: "Firefox"
 	{
 		const search = parseIssueSearch(SEARCH);
 
-		check(
-			"every listed issue is read",
+		expect(
 			search.issues.length === 3,
-			String(search.issues.length),
-		);
-		check(
-			"the query the server echoed is kept",
+			`every listed issue is read — ${String(search.issues.length)}`,
+		).toBe(true);
+		expect(
 			search.query === "is:unresolved",
-			String(search.query),
-		);
-		check(
-			"the dashboard link under its label is kept",
+			`the query the server echoed is kept — ${String(search.query)}`,
+		).toBe(true);
+		expect(
 			search.dashboardUrl ===
 				"https://acme.sentry.io/issues/?query=is%3Aunresolved",
-			String(search.dashboardUrl),
-		);
-		check(
-			"the count the answer claims is kept",
+			`the dashboard link under its label is kept — ${String(search.dashboardUrl)}`,
+		).toBe(true);
+		expect(
 			search.total === 3,
-			String(search.total),
-		);
+			`the count the answer claims is kept — ${String(search.total)}`,
+		).toBe(true);
 
 		const first = search.issues[0];
 
-		check(
-			"a row carries its id, link and title",
+		expect(
 			first?.id === "CHECKOUT-13P" &&
 				first?.url === "https://acme.sentry.io/issues/CHECKOUT-13P" &&
 				first?.title === "AxiosError: Request failed with status code 422",
-			JSON.stringify(first),
-		);
-		check(
-			"its numbers are numbers, not the words around them",
+			`a row carries its id, link and title — ${JSON.stringify(first)}`,
+		).toBe(true);
+		expect(
 			first?.events === 16 && first?.users === 6,
-			`${String(first?.events)}/${String(first?.users)}`,
-		);
-		check(
-			"its other fields keep the server's wording",
+			`its numbers are numbers, not the words around them — ${`${String(first?.events)}/${String(first?.users)}`}`,
+		).toBe(true);
+		expect(
 			first?.status === "unresolved" &&
 				first?.assignee === "Ada Lovelace" &&
 				first?.lastSeen === "2 minutes ago" &&
 				first?.culprit === "/:locale/exchange/step2",
-			JSON.stringify({
+			`its other fields keep the server's wording — ${JSON.stringify({
 				status: first?.status,
 				assignee: first?.assignee,
 				lastSeen: first?.lastSeen,
-			}),
-		);
-		check(
-			"a row the server left unassigned carries no assignee",
+			})}`,
+		).toBe(true);
+		expect(
 			search.issues[2]?.assignee === undefined,
-			String(search.issues[2]?.assignee),
-		);
-		check(
-			"the prose after the list is not read as another issue",
+			`a row the server left unassigned carries no assignee — ${String(search.issues[2]?.assignee)}`,
+		).toBe(true);
+		expect(
 			search.issues.every((issue) => issue.id.startsWith("CHECKOUT-")),
-		);
+			"the prose after the list is not read as another issue",
+		).toBe(true);
 	}
 
 	console.log("\n=== the issue document ===");
 	{
 		const detail = parseIssueDetail(DETAIL);
 
-		check(
-			"the issue's own id is read",
+		expect(
 			detail.id === "CHECKOUT-13P",
-			detail.id,
-		);
-		check(
-			"the field block is read into fields",
+			`the issue's own id is read — ${detail.id}`,
+		).toBe(true);
+		expect(
 			detail.description ===
 				"AxiosError: Request failed with status code 422" &&
 				detail.status === "unresolved" &&
@@ -259,19 +248,17 @@ name: "Firefox"
 				detail.assignee === "Ada Lovelace (User)" &&
 				detail.project === "storefront" &&
 				detail.platform === "javascript",
-			JSON.stringify({
+			`the field block is read into fields — ${JSON.stringify({
 				status: detail.status,
 				assignee: detail.assignee,
 				project: detail.project,
-			}),
-		);
-		check(
-			"its counts are numbers",
+			})}`,
+		).toBe(true);
+		expect(
 			detail.occurrences === 35 && detail.users === 11,
-			`${String(detail.occurrences)}/${String(detail.users)}`,
-		);
-		check(
-			"the code location carries repository, path, line and link",
+			`its counts are numbers — ${`${String(detail.occurrences)}/${String(detail.users)}`}`,
+		).toBe(true);
+		expect(
 			detail.code?.path ===
 				"src/packages/error-telemetry/captureAppException.ts" &&
 				detail.code?.line === 60 &&
@@ -279,45 +266,39 @@ name: "Firefox"
 				(detail.code?.url ?? "").startsWith(
 					"https://gitlab.com/acme/storefront",
 				),
-			JSON.stringify(detail.code),
-		);
-		check(
-			"the suspect commit carries sha, message and author",
+			`the code location carries repository, path, line and link — ${JSON.stringify(detail.code)}`,
+		).toBe(true);
+		expect(
 			detail.suspect?.sha === "7c50a1e57b5a523da90bef0df35f5a6d87b772ed" &&
 				detail.suspect?.author === "Grace Hopper" &&
 				(detail.suspect?.message ?? "").startsWith("DEV-5977:"),
-			JSON.stringify(detail.suspect),
-		);
-		check(
-			"the tracker key inside the commit message is picked out",
+			`the suspect commit carries sha, message and author — ${JSON.stringify(detail.suspect)}`,
+		).toBe(true);
+		expect(
 			detail.suspect?.issueKey === "DEV-5977",
-			String(detail.suspect?.issueKey),
-		);
-		check(
-			"the event id and time are read",
+			`the tracker key inside the commit message is picked out — ${String(detail.suspect?.issueKey)}`,
+		).toBe(true);
+		expect(
 			detail.eventId === "d346dc1b6344421784917c0c6edb9fea" &&
 				detail.occurredAt === "2026-10-20T13:03:39.611Z",
-			`${String(detail.eventId)}/${String(detail.occurredAt)}`,
-		);
-		check(
-			"the exception's own line is the message",
+			`the event id and time are read — ${`${String(detail.eventId)}/${String(detail.occurredAt)}`}`,
+		).toBe(true);
+		expect(
 			detail.message === "AxiosError: Request failed with status code 422",
-			String(detail.message),
-		);
-		check(
-			"the full stack trace is read, first-party frames included",
+			`the exception's own line is the message — ${String(detail.message)}`,
+		).toBe(true);
+		expect(
 			(detail.stacktrace ?? "").includes(
 				"src/exchange/store/Step2/ExchangeStep2Store.ts:414:16",
 			) && (detail.stacktrace ?? "").includes("node_modules/mobx"),
-			(detail.stacktrace ?? "").slice(0, 60),
-		);
-		check(
-			"the stack trace stops at its own fence",
+			`the full stack trace is read, first-party frames included — ${(detail.stacktrace ?? "").slice(0, 60)}`,
+		).toBe(true);
+		expect(
 			!(detail.stacktrace ?? "").includes("### User") &&
 				!(detail.stacktrace ?? "").includes("**browser**"),
-		);
-		check(
-			"the tags are read as name and value pairs",
+			"the stack trace stops at its own fence",
+		).toBe(true);
+		expect(
 			detail.tags.some(
 				(tag) => tag.name === "release" && tag.value === "storefront@3.0.1",
 			) &&
@@ -325,26 +306,28 @@ name: "Firefox"
 					(tag) => tag.name === "environment" && tag.value === "prod",
 				) &&
 				detail.tags.length >= 10,
-			String(detail.tags.length),
-		);
-		check(
-			"the user and extra-data sections are not read as tags",
+			`the tags are read as name and value pairs — ${String(detail.tags.length)}`,
+		).toBe(true);
+		expect(
 			detail.tags.every((tag) => !tag.name.startsWith("user")),
-			JSON.stringify(detail.tags.map((tag) => tag.name)),
-		);
-		check("the whole document is kept for a raw view", detail.raw === DETAIL);
+			`the user and extra-data sections are not read as tags — ${JSON.stringify(detail.tags.map((tag) => tag.name))}`,
+		).toBe(true);
+		expect(
+			detail.raw === DETAIL,
+			"the whole document is kept for a raw view",
+		).toBe(true);
 	}
 
 	console.log("\n=== what a different answer does ===");
 
-	check(
-		"a search that found nothing reads as an empty list",
+	expect(
 		parseIssueSearch(
 			'# Search Results for "is:resolved"\n\nFound **0** issues:\n',
 		).issues.length === 0,
-	);
-	check(
-		"an issue document with no fields still reads its id",
+		"a search that found nothing reads as an empty list",
+	).toBe(true);
+	expect(
 		parseIssueDetail("# Issue CHECKOUT-1 in **acme**\n").id === "CHECKOUT-1",
-	);
+		"an issue document with no fields still reads its id",
+	).toBe(true);
 });

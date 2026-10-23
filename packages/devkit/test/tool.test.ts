@@ -10,10 +10,9 @@
  *   bun run test/tool.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { check } from "../../../test/support";
 import { CONFIG_FILE } from "../src/host/config";
 import { apply, inject, name } from "../src/host/index";
 import { RecipeRunner } from "../src/host/runner";
@@ -100,49 +99,43 @@ test("one recipe", async () => {
 			execution(),
 		)) as ChecksCard;
 
-		check(
-			"the run reports one check and its identity",
+		expect(
 			value.checks.length === 1 && value.callId === "call-1",
-			`${value.checks.length}/${value.callId}`,
-		);
-		check(
-			"a failing check makes the run not ok",
+			`the run reports one check and its identity — ${`${value.checks.length}/${value.callId}`}`,
+		).toBe(true);
+		expect(
 			value.ok === false && value.checks[0]?.status === "failed",
-			`${String(value.ok)}/${value.checks[0]?.status}`,
-		);
-		check(
-			"the parser read every failure",
+			`a failing check makes the run not ok — ${`${String(value.ok)}/${value.checks[0]?.status}`}`,
+		).toBe(true);
+		expect(
 			value.checks[0]?.failures.length === 25,
-			String(value.checks[0]?.failures.length),
-		);
+			`the parser read every failure — ${String(value.checks[0]?.failures.length)}`,
+		).toBe(true);
 
 		const text = textOf(definition, value);
 
-		check(
-			"the text tells the model how many checks passed",
+		expect(
 			text.startsWith("0 of 1 checks passed."),
-			text.split("\n")[0],
-		);
-		check(
-			"the text names the check, its counts and a failure position",
+			`the text tells the model how many checks passed — ${text.split("\n")[0]}`,
+		).toBe(true);
+		expect(
 			text.includes("typecheck") &&
 				text.includes("25 errors") &&
 				text.includes("src/a.ts:1:3 problem 1"),
-			text.split("\n")[1],
-		);
-		check(
-			"the text is bounded and says what it dropped",
+			`the text names the check, its counts and a failure position — ${text.split("\n")[1]}`,
+		).toBe(true);
+		expect(
 			text.includes("… 5 more") && !text.includes("problem 21"),
-			String(text.includes("problem 21")),
-		);
+			`the text is bounded and says what it dropped — ${String(text.includes("problem 21"))}`,
+		).toBe(true);
 
 		const meta = definition.output.presentationMeta?.({}, value as never);
 
-		check(
-			"the card payload is what the browser half validates",
+		expect(
 			asChecksCard(meta)?.callId === "call-1" &&
 				asChecksCard(meta)?.checks.length === 1,
-		);
+			"the card payload is what the browser half validates",
+		).toBe(true);
 	}
 });
 test("every recipe, and none that exists", async () => {
@@ -152,12 +145,11 @@ test("every recipe, and none that exists", async () => {
 
 		const all = (await definition.execute({}, execution())) as ChecksCard;
 
-		check(
-			"omitting the name runs every recipe in config order",
+		expect(
 			all.checks.map((check) => check.name).join(",") === "typecheck,test",
-			all.checks.map((check) => check.name).join(","),
-		);
-		check("a clean run is ok", all.ok === true);
+			`omitting the name runs every recipe in config order — ${all.checks.map((check) => check.name).join(",")}`,
+		).toBe(true);
+		expect(all.ok === true, "a clean run is ok").toBe(true);
 
 		let refusal = "";
 		try {
@@ -166,26 +158,24 @@ test("every recipe, and none that exists", async () => {
 			refusal = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"an unknown recipe is refused with the ones the project has",
+		expect(
 			refusal.includes("nope") && refusal.includes("typecheck"),
-			refusal,
-		);
+			`an unknown recipe is refused with the ones the project has — ${refusal}`,
+		).toBe(true);
 	}
 });
 test("what the browser half refuses", async () => {
-	check(
-		"a payload that is not a card is refused",
+	expect(
 		asChecksCard(undefined) === undefined &&
 			asChecksCard("checks") === undefined &&
 			asChecksCard({ ok: true }) === undefined,
-	);
-	check(
-		"a card with no checks is refused",
+		"a payload that is not a card is refused",
+	).toBe(true);
+	expect(
 		asChecksCard({ callId: "c", ok: true, checks: [] }) === undefined,
-	);
-	check(
-		"a failure with no message is dropped, not drawn empty",
+		"a card with no checks is refused",
+	).toBe(true);
+	expect(
 		asChecksCard({
 			callId: "c",
 			ok: false,
@@ -200,15 +190,16 @@ test("what the browser half refuses", async () => {
 				},
 			],
 		})?.checks[0]?.failures.length === 1,
-	);
-	check(
-		"an unreadable status reads as errored rather than as passed",
+		"a failure with no message is dropped, not drawn empty",
+	).toBe(true);
+	expect(
 		asChecksCard({
 			callId: "c",
 			ok: false,
 			checks: [{ name: "test", status: "exploded" }],
 		})?.checks[0]?.status === "errored",
-	);
+		"an unreadable status reads as errored rather than as passed",
+	).toBe(true);
 });
 test("the plugin's composition root", async () => {
 	const registered: { tools: string[]; commands: string[] } = {
@@ -235,22 +226,19 @@ test("the plugin's composition root", async () => {
 
 	apply(registering);
 
-	check(
-		"the plugin names itself and declares the services it needs",
+	expect(
 		name === "dsh-devkit" &&
 			["tools", "commands", "shell", "fs", "workingDirectory"].every(
 				(service) => inject.includes(service),
 			),
-		`${name}: ${inject.join(", ")}`,
-	);
-	check(
-		"it registers the checks tool",
+		`the plugin names itself and declares the services it needs — ${`${name}: ${inject.join(", ")}`}`,
+	).toBe(true);
+	expect(
 		registered.tools.join(",") === "checks",
-		registered.tools.join(","),
-	);
-	check(
-		"it registers the /checks command",
+		`it registers the checks tool — ${registered.tools.join(",")}`,
+	).toBe(true);
+	expect(
 		registered.commands.join(",") === "checks",
-		registered.commands.join(","),
-	);
+		`it registers the /checks command — ${registered.commands.join(",")}`,
+	).toBe(true);
 });

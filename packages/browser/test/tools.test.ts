@@ -9,9 +9,8 @@
  *   bun run test/tools.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { check } from "../../../test/support";
 import { BrowserSettings } from "../src/host/config";
 import type {
 	AgentBrowserRunner,
@@ -169,42 +168,44 @@ test("opening a page", async () => {
 		execOf({ sessionId: "s1" }),
 	);
 
-	check(
-		"the URL is the command's argument",
+	expect(
 		opened.commands[0]?.args.join(" ") === "open http://x/checkout",
-	);
-	check(
-		"the answer carries the final address",
+		"the URL is the command's argument",
+	).toBe(true);
+	expect(
 		open.value.url === "http://x/checkout",
+		"the answer carries the final address",
+	).toBe(true);
+	expect(open.value.title === "Checkout", "and the page's own title").toBe(
+		true,
 	);
-	check("and the page's own title", open.value.title === "Checkout");
-	check(
-		"the model reads both",
+	expect(
 		open.text.includes("Checkout") && open.text.includes("http://x/checkout"),
-	);
-	check(
-		"the calling session is the one resolved",
+		"the model reads both",
+	).toBe(true);
+	expect(
 		opened.asked[0] !== undefined,
-	);
-	check(
-		"the session's directory is used",
+		"the calling session is the one resolved",
+	).toBe(true);
+	expect(
 		opened.commands[0]?.cwd === "/tmp/project",
-	);
-	check("and its name", opened.commands[0]?.session === "dsh-test");
-	check(
-		"a call without a URL is refused",
+		"the session's directory is used",
+	).toBe(true);
+	expect(opened.commands[0]?.session === "dsh-test", "and its name").toBe(true);
+	expect(
 		(await refusalOf(() => call(opened.open, {}))).includes("needs a url"),
-	);
+		"a call without a URL is refused",
+	).toBe(true);
 
 	const unreachable = toolsFor([
 		{ ok: false, error: "net::ERR_CONNECTION_REFUSED", durationMs: 1 },
 	]);
-	check(
-		"a page that will not load fails the call",
+	expect(
 		(
 			await refusalOf(() => call(unreachable.open, { url: "http://x" }))
 		).includes("ERR_CONNECTION_REFUSED"),
-	);
+		"a page that will not load fails the call",
+	).toBe(true);
 });
 test("seeing the page", async () => {
 	const seenTree = {
@@ -218,32 +219,36 @@ test("seeing the page", async () => {
 	const seen = toolsFor(() => ok(seenTree));
 	const tree = await call(seen.snapshot, {});
 
-	check(
-		"only interactive elements by default",
+	expect(
 		seen.commands[0]?.args.join(" ") === "snapshot -i",
-	);
-	check(
-		"the tree is the answer",
+		"only interactive elements by default",
+	).toBe(true);
+	expect(
 		tree.value.snapshot ===
 			'- button "Save" [ref=e1]\n- textbox "Email" [ref=e2]',
+		"the tree is the answer",
+	).toBe(true);
+	expect(tree.value.elements === 2, "with the references counted").toBe(true);
+	expect(tree.value.url === "http://x/", "and the page named").toBe(true);
+	expect(tree.text.includes("[ref=e1]"), "the model reads the references").toBe(
+		true,
 	);
-	check("with the references counted", tree.value.elements === 2);
-	check("and the page named", tree.value.url === "http://x/");
-	check("the model reads the references", tree.text.includes("[ref=e1]"));
 
 	await call(seen.snapshot, { interactive: false, selector: "#main" });
-	check(
-		"the whole tree of one part is what was asked",
+	expect(
 		seen.commands[1]?.args.join(" ") === "snapshot -s #main",
-	);
+		"the whole tree of one part is what was asked",
+	).toBe(true);
 
 	const empty = toolsFor([ok({ origin: "http://x/", refs: {}, snapshot: "" })]);
 	const nothing = await call(empty.snapshot, {});
-	check("an empty tree is not an error", nothing.value.elements === 0);
-	check(
-		"and the model is told what it means",
-		nothing.text.includes("no interactive elements"),
+	expect(nothing.value.elements === 0, "an empty tree is not an error").toBe(
+		true,
 	);
+	expect(
+		nothing.text.includes("no interactive elements"),
+		"and the model is told what it means",
+	).toBe(true);
 
 	const dense = toolsFor(
 		[
@@ -258,16 +263,16 @@ test("seeing the page", async () => {
 		200,
 	);
 	const denseTree = await call(dense.snapshot, {});
-	check(
-		"a tree over the cap is cut",
+	expect(
 		String(denseTree.value.snapshot).includes(
 			"the answer was cut at 200 bytes",
 		),
-	);
-	check(
-		"and the references are still counted",
+		"a tree over the cap is cut",
+	).toBe(true);
+	expect(
 		denseTree.value.elements === 80,
-	);
+		"and the references are still counted",
+	).toBe(true);
 });
 test("acting on the page", async () => {
 	const clicked = toolsFor((command) =>
@@ -277,20 +282,25 @@ test("acting on the page", async () => {
 	);
 	const click = await call(clicked.act, { action: "click", target: "@e1" });
 
-	check(
-		"a click is one command",
+	expect(
 		clicked.commands[0]?.args.join(" ") === "click @e1",
-	);
-	check("the reference is quoted back", String(click.value.target) === "@e1");
-	check(
-		"the address is read after it",
+		"a click is one command",
+	).toBe(true);
+	expect(
+		String(click.value.target) === "@e1",
+		"the reference is quoted back",
+	).toBe(true);
+	expect(
 		clicked.commands[1]?.args.join(" ") === "get url",
-	);
-	check(
-		"and the page is reported as moved",
+		"the address is read after it",
+	).toBe(true);
+	expect(
 		click.value.url === "http://x/next",
+		"and the page is reported as moved",
+	).toBe(true);
+	expect(click.text.includes("Clicked"), "the model reads what happened").toBe(
+		true,
 	);
-	check("the model reads what happened", click.text.includes("Clicked"));
 
 	const typed = toolsFor([ok({ filled: "@e2" })]);
 	await call(typed.act, {
@@ -298,56 +308,55 @@ test("acting on the page", async () => {
 		target: "@e2",
 		value: "ada@example.com",
 	});
-	check(
-		"typing passes the text as one argument",
+	expect(
 		typed.commands[0]?.args.join(" ") === "fill @e2 ada@example.com",
-	);
-	check(
-		"typing without a value is refused",
+		"typing passes the text as one argument",
+	).toBe(true);
+	expect(
 		(
 			await refusalOf(() => call(typed.act, { action: "fill", target: "@e2" }))
 		).includes("needs a value"),
-	);
+		"typing without a value is refused",
+	).toBe(true);
 
 	const chosen = toolsFor([ok({ selected: "@e3" })]);
 	await call(chosen.act, { action: "select", target: "@e3", value: "eu west" });
-	check(
-		"a multi-word option becomes one argument each",
+	expect(
 		chosen.commands[0]?.args.join("|") === "select|@e3|eu|west",
-	);
+		"a multi-word option becomes one argument each",
+	).toBe(true);
 
 	const scrolled = toolsFor([ok({ scrolled: "down" })]);
 	await call(scrolled.act, { action: "scroll", target: "down", value: "400" });
-	check(
-		"scrolling passes how far",
+	expect(
 		scrolled.commands[0]?.args.join(" ") === "scroll down 400",
-	);
-	check("and reads no address", scrolled.commands.length === 1);
+		"scrolling passes how far",
+	).toBe(true);
+	expect(scrolled.commands.length === 1, "and reads no address").toBe(true);
 
 	const hovered = toolsFor([ok({ hovered: "@e4" })]);
 	await call(hovered.act, { action: "hover", target: "@e4" });
-	check("hovering is one command", hovered.commands.length === 1);
-	check(
-		"and reads no address",
+	expect(hovered.commands.length === 1, "hovering is one command").toBe(true);
+	expect(
 		hovered.commands[0]?.args.join(" ") === "hover @e4",
-	);
+		"and reads no address",
+	).toBe(true);
 
-	check(
-		"an unknown verb is refused before anything runs",
+	expect(
 		(
 			await refusalOf(() =>
 				call(hovered.act, { action: "submit", target: "@e1" }),
 			)
 		).includes("click, fill, press, select, hover, scroll, wait"),
-	);
-	check(
-		"a missing target is refused",
+		"an unknown verb is refused before anything runs",
+	).toBe(true);
+	expect(
 		(await refusalOf(() => call(hovered.act, { action: "click" }))).includes(
 			"needs a target",
 		),
-	);
-	check(
-		"a page that refuses the click fails the call",
+		"a missing target is refused",
+	).toBe(true);
+	expect(
 		(
 			await refusalOf(() =>
 				call(
@@ -358,19 +367,20 @@ test("acting on the page", async () => {
 				),
 			)
 		).includes("no element matches"),
-	);
+		"a page that refuses the click fails the call",
+	).toBe(true);
 });
 test("reading the page", async () => {
 	const text = toolsFor([
 		ok({ content: "Checkout\n\n# Pay now", contentType: "text/html" }),
 	]);
 	const page = await call(text.read, {});
-	check(
-		"the page text is one command",
+	expect(
 		text.commands[0]?.args.join(" ") === "read",
-	);
-	check("every line is kept", page.value.count === 3);
-	check("and the model reads them", page.text.includes("Pay now"));
+		"the page text is one command",
+	).toBe(true);
+	expect(page.value.count === 3, "every line is kept").toBe(true);
+	expect(page.text.includes("Pay now"), "and the model reads them").toBe(true);
 
 	const console_ = toolsFor(() =>
 		ok({
@@ -381,76 +391,79 @@ test("reading the page", async () => {
 		}),
 	);
 	const logged = await call(console_.read, { what: "console" });
-	check(
-		"the console is one command",
+	expect(
 		console_.commands[0]?.args.join(" ") === "console",
+		"the console is one command",
+	).toBe(true);
+	expect(logged.value.count === 2, "every message is kept").toBe(true);
+	expect(logged.text.includes("error: failed to load"), "with its level").toBe(
+		true,
 	);
-	check("every message is kept", logged.value.count === 2);
-	check("with its level", logged.text.includes("error: failed to load"));
 
 	await call(console_.read, { what: "console", clear: true });
-	check(
-		"clearing is passed through",
+	expect(
 		console_.commands[1]?.args.join(" ") === "console --clear",
-	);
+		"clearing is passed through",
+	).toBe(true);
 
 	const errors = toolsFor([
 		ok({ errors: [{ column: 23, line: 5, text: "Error: boom", url: null }] }),
 	]);
 	const thrown = await call(errors.read, { what: "errors" });
-	check(
-		"the error log is one command",
+	expect(
 		errors.commands[0]?.args.join(" ") === "errors",
-	);
-	check(
-		"and the page's own error is kept",
+		"the error log is one command",
+	).toBe(true);
+	expect(
 		thrown.text.includes("Error: boom"),
-	);
+		"and the page's own error is kept",
+	).toBe(true);
 
 	const quiet = toolsFor([ok({ messages: [] })]);
 	const silent = await call(quiet.read, { what: "console" });
-	check("an empty log is not an error", silent.value.count === 0);
-	check(
-		"and the model is told which log is empty",
+	expect(silent.value.count === 0, "an empty log is not an error").toBe(true);
+	expect(
 		silent.text.includes("console is empty"),
-	);
+		"and the model is told which log is empty",
+	).toBe(true);
 
-	check(
-		"an unknown log is refused",
+	expect(
 		(await refusalOf(() => call(quiet.read, { what: "network" }))).includes(
 			"text, console, errors",
 		),
-	);
+		"an unknown log is refused",
+	).toBe(true);
 });
 test("the escape hatch", async () => {
 	const escaped = toolsFor(() => ok({ requests: [{ url: "http://x/api" }] }));
 	const ran = await call(escaped.run, { args: ["network", "requests"] });
-	check(
-		"the command is passed as it came",
+	expect(
 		escaped.commands[0]?.args.join(" ") === "network requests",
+		"the command is passed as it came",
+	).toBe(true);
+	expect(ran.text.includes("http://x/api"), "its answer is JSON text").toBe(
+		true,
 	);
-	check("its answer is JSON text", ran.text.includes("http://x/api"));
 
 	await call(escaped.run, { args: ["agent-browser", "tab", "list"] });
-	check(
-		"a command that names the executable has it dropped",
+	expect(
 		escaped.commands[1]?.args.join(" ") === "tab list",
-	);
+		"a command that names the executable has it dropped",
+	).toBe(true);
 
-	check(
-		"an empty command is refused",
+	expect(
 		(await refusalOf(() => call(escaped.run, { args: [] }))).includes(
 			"needs a command",
 		),
-	);
-	check(
-		"a command of things that are not strings is refused",
+		"an empty command is refused",
+	).toBe(true);
+	expect(
 		(await refusalOf(() => call(escaped.run, { args: [1, 2] }))).includes(
 			"array of strings",
 		),
-	);
-	check(
-		"a session override is refused",
+		"a command of things that are not strings is refused",
+	).toBe(true);
+	expect(
 		(
 			await refusalOf(() =>
 				call(escaped.run, {
@@ -458,13 +471,14 @@ test("the escape hatch", async () => {
 				}),
 			)
 		).includes("pinned to this conversation"),
-	);
-	check(
-		"closing every session is refused",
+		"a session override is refused",
+	).toBe(true);
+	expect(
 		(
 			await refusalOf(() => call(escaped.run, { args: ["close", "--all"] }))
 		).includes("not every session"),
-	);
+		"closing every session is refused",
+	).toBe(true);
 });
 test("what the person did while the agent was away", async () => {
 	const notingHubs = (note: string | undefined) => {
@@ -490,13 +504,13 @@ test("what the person did while the agent was away", async () => {
 		toolsFor([{ ok: true, data: {}, durationMs: 0 }]).deps,
 	);
 	const quietNotice = withHumanNotice(plain, notingHubs(undefined).hubs);
-	check(
-		"a person who did nothing adds nothing",
+	expect(
 		quietNotice.finalizeContent?.(
 			execOf({ session: { id: "session-9" } }),
 			result("tree"),
 		) === undefined,
-	);
+		"a person who did nothing adds nothing",
+	).toBe(true);
 
 	const { hubs: telling, taken } = notingHubs(
 		"The person at the panel used this browser: clicked at (4, 5).",
@@ -506,18 +520,21 @@ test("what the person did while the agent was away", async () => {
 		execOf({ session: { id: "session-9" } }),
 		result("tree"),
 	);
-	check(
-		"a person's act leads the result",
+	expect(
 		blocks?.[0]?.type === "text" &&
 			String(blocks[0].text).startsWith("The person at the panel"),
-	);
-	check("with the tool's own answer after it", blocks?.[1]?.type === "text");
-	check(
-		"and the note is asked for the session that called",
+		"a person's act leads the result",
+	).toBe(true);
+	expect(
+		blocks?.[1]?.type === "text",
+		"with the tool's own answer after it",
+	).toBe(true);
+	expect(
 		taken[0] === "dsh-session-9",
-	);
-	check(
-		"the tool itself is left as it was",
+		"and the note is asked for the session that called",
+	).toBe(true);
+	expect(
 		plain.finalizeContent === undefined && plain.name === noticed.name,
-	);
+		"the tool itself is left as it was",
+	).toBe(true);
 });

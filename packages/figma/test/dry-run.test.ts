@@ -13,10 +13,9 @@
  *   bun run test/dry-run.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
 import { McpBridge } from "dsh-mcp-oauth";
-import { check } from "../../../test/support";
 import type { FigmaConfig } from "../src/host/config";
 import { PanelApi } from "../src/host/panels/panel";
 import { parseMetadata } from "../src/host/presentation/parse";
@@ -80,11 +79,10 @@ run(
 
 		const names = [...bridge.toolNames];
 
-		check(
-			"the server published its tools",
+		expect(
 			names.length > 0,
-			`${names.length} tools`,
-		);
+			`the server published its tools — ${`${names.length} tools`}`,
+		).toBe(true);
 
 		for (const tool of [
 			"get_metadata",
@@ -92,11 +90,10 @@ run(
 			"get_code_connect_map",
 			"get_screenshot",
 		]) {
-			check(
-				`it offers ${tool}`,
+			expect(
 				names.includes(`mcp__figma__${tool}`),
-				names.slice(0, 4).join(", "),
-			);
+				String(`it offers ${tool}`) + " — " + names.slice(0, 4).join(", "),
+			).toBe(true);
 		}
 
 		const panel = new PanelApi({ bridge, ctx });
@@ -114,11 +111,10 @@ run(
 		const selected = parseMetadata(listing);
 		const target = selected?.root.id ?? firstPageOf(listingText);
 
-		check(
-			"the server answers with the current selection or the document's pages",
+		expect(
 			target !== undefined,
-			listingText.split("\n")[0]?.slice(0, 60),
-		);
+			`the server answers with the current selection or the document's pages — ${listingText.split("\n")[0]?.slice(0, 60)}`,
+		).toBe(true);
 
 		if (target === undefined) {
 			return;
@@ -126,36 +122,31 @@ run(
 
 		const document = await panel.node({ node: target });
 
-		check(
-			"the target's metadata is read",
+		expect(
 			document.node.id === target && document.node.type !== "",
-			`${document.node.id} ${document.node.type} ${document.node.width}×${document.node.height}`,
-		);
-		check(
-			"every layer it lists carries a size",
+			`the target's metadata is read — ${`${document.node.id} ${document.node.type} ${document.node.width}×${document.node.height}`}`,
+		).toBe(true);
+		expect(
 			document.children.every((child) => child.width >= 0 && child.height >= 0),
-			`${document.children.length} layers`,
-		);
-		check(
-			"the panel is given a route to draw the picture from",
+			`every layer it lists carries a size — ${`${document.children.length} layers`}`,
+		).toBe(true);
+		expect(
 			document.screenshot?.includes("/dsh-figma/screenshot?node=") === true,
-			String(document.screenshot),
-		);
+			`the panel is given a route to draw the picture from — ${String(document.screenshot)}`,
+		).toBe(true);
 
 		console.log("\n=== a real picture ===");
 
 		const shot = await panel.screenshot(target);
 
-		check(
-			"the server answers an image",
+		expect(
 			shot.contentType.startsWith("image/"),
-			`${shot.contentType}, ${shot.bytes.byteLength} bytes`,
-		);
-		check(
-			"the bytes are a real image",
+			`the server answers an image — ${`${shot.contentType}, ${shot.bytes.byteLength} bytes`}`,
+		).toBe(true);
+		expect(
 			shot.bytes[0] === 0x89 && shot.bytes[1] === 0x50,
-			`${shot.bytes[0]} ${shot.bytes[1]}`,
-		);
+			`the bytes are a real image — ${`${shot.bytes[0]} ${shot.bytes[1]}`}`,
+		).toBe(true);
 
 		console.log("\n=== the tool on a real node ===");
 
@@ -169,20 +160,22 @@ run(
 			agent: {},
 		} as never)) as { summary: string; nodeId: string };
 
-		check("the tool answers about the node it read", value.nodeId === target);
-		check(
-			"its summary names the node and its size",
+		expect(
+			value.nodeId === target,
+			"the tool answers about the node it read",
+		).toBe(true);
+		expect(
 			value.summary.includes(target) && value.summary.includes("×"),
-			value.summary.split("\n")[0],
-		);
-		check(
-			"the card carries the same node",
+			`its summary names the node and its size — ${value.summary.split("\n")[0]}`,
+		).toBe(true);
+		expect(
 			(
 				definition.output.presentationMeta?.({}, value as never) as {
 					node?: { id?: string };
 				}
 			)?.node?.id === target,
-		);
+			"the card carries the same node",
+		).toBe(true);
 
 		await bridge.drop();
 	},

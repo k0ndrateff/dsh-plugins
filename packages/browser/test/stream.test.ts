@@ -10,8 +10,7 @@
  *   bun run test/stream.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	commandText,
 	parseStreamMessage,
@@ -28,45 +27,45 @@ const tick = (): Promise<void> =>
 	});
 
 test("what the CLI says about a screencast", async () => {
-	check(
-		"a port is read",
+	expect(
 		parseStreamStatus({ port: 9335, connected: false })?.port === 9335,
-	);
-	check(
-		"with what it is doing",
+		"a port is read",
+	).toBe(true);
+	expect(
 		parseStreamStatus({ port: 9335, screencasting: true })?.screencasting ===
 			true,
-	);
-	check(
-		"no port means no stream",
+		"with what it is doing",
+	).toBe(true);
+	expect(
 		parseStreamStatus({ connected: false }) === undefined,
-	);
-	check(
-		"and nonsense means none either",
+		"no port means no stream",
+	).toBe(true);
+	expect(
 		parseStreamStatus("ws://…") === undefined,
-	);
+		"and nonsense means none either",
+	).toBe(true);
 });
 test("what the page says about itself", async () => {
-	check(
-		"a pair is the page's size",
+	expect(
 		parsePageSize({ result: "[1280,633]" })?.height === 633,
-	);
-	check(
-		"and its width is the other half",
+		"a pair is the page's size",
+	).toBe(true);
+	expect(
 		parsePageSize({ result: "[1280,633]" })?.width === 1280,
-	);
-	check(
-		"a page that could not be measured is nothing",
+		"and its width is the other half",
+	).toBe(true);
+	expect(
 		parsePageSize({ result: "[0,633]" }) === undefined,
-	);
-	check(
-		"and so is a script that answered something else",
+		"a page that could not be measured is nothing",
+	).toBe(true);
+	expect(
 		parsePageSize({ result: "undefined" }) === undefined,
-	);
-	check(
-		"or an answer that is not a pair",
+		"and so is a script that answered something else",
+	).toBe(true);
+	expect(
 		parsePageSize({ result: "{}" }) === undefined,
-	);
+		"or an answer that is not a pair",
+	).toBe(true);
 });
 test("what one screencast message means", async () => {
 	const frame = parseStreamMessage(
@@ -77,12 +76,14 @@ test("what one screencast message means", async () => {
 			metadata: { deviceWidth: 1280, deviceHeight: 720 },
 		}),
 	);
-	check("a frame carries its picture", frame?.kind === "frame");
-	check("its sequence", frame?.kind === "frame" && frame.frame.seq === 7);
-	check(
-		"and the viewport it was taken in",
-		frame?.kind === "frame" && frame.frame.width === 1280,
+	expect(frame?.kind === "frame", "a frame carries its picture").toBe(true);
+	expect(frame?.kind === "frame" && frame.frame.seq === 7, "its sequence").toBe(
+		true,
 	);
+	expect(
+		frame?.kind === "frame" && frame.frame.width === 1280,
+		"and the viewport it was taken in",
+	).toBe(true);
 
 	const tabs = parseStreamMessage(
 		JSON.stringify({
@@ -93,19 +94,21 @@ test("what one screencast message means", async () => {
 			],
 		}),
 	);
-	check(
-		"the active tab is the address",
+	expect(
 		tabs?.kind === "address" && tabs.url === "http://x/",
+		"the active tab is the address",
+	).toBe(true);
+	expect(tabs?.kind === "address" && tabs.title === "X", "with its title").toBe(
+		true,
 	);
-	check("with its title", tabs?.kind === "address" && tabs.title === "X");
 
 	const bare = parseStreamMessage(
 		JSON.stringify({ type: "url", url: "http://y/" }),
 	);
-	check(
-		"a bare url is an address too",
+	expect(
 		bare?.kind === "address" && bare.url === "http://y/",
-	);
+		"a bare url is an address too",
+	).toBe(true);
 
 	const command = parseStreamMessage(
 		JSON.stringify({
@@ -116,15 +119,17 @@ test("what one screencast message means", async () => {
 			timestamp: 5,
 		}),
 	);
-	check("a command is an activity line", command?.kind === "activity");
-	check(
-		"naming what was done to what",
+	expect(command?.kind === "activity", "a command is an activity line").toBe(
+		true,
+	);
+	expect(
 		command?.kind === "activity" && command.activity.text === "click @e2",
-	);
-	check(
-		"and which half of a pair it is",
+		"naming what was done to what",
+	).toBe(true);
+	expect(
 		command?.kind === "activity" && command.activity.kind === "command",
-	);
+		"and which half of a pair it is",
+	).toBe(true);
 
 	const outcome = parseStreamMessage(
 		JSON.stringify({
@@ -134,17 +139,16 @@ test("what one screencast message means", async () => {
 			duration_ms: 10,
 		}),
 	);
-	check(
-		"an outcome carries its duration",
+	expect(
 		outcome?.kind === "activity" && outcome.activity.text === "10ms",
-	);
-	check(
-		"and is the other half",
+		"an outcome carries its duration",
+	).toBe(true);
+	expect(
 		outcome?.kind === "activity" && outcome.activity.kind === "result",
-	);
+		"and is the other half",
+	).toBe(true);
 
-	check(
-		"the page-size probe is not the agent's work",
+	expect(
 		parseStreamMessage(
 			JSON.stringify({
 				type: "command",
@@ -153,9 +157,9 @@ test("what one screencast message means", async () => {
 				params: { script: PAGE_SIZE_SCRIPT },
 			}),
 		) === undefined,
-	);
-	check(
-		"while the agent's own evaluate is still worth a line",
+		"the page-size probe is not the agent's work",
+	).toBe(true);
+	expect(
 		parseStreamMessage(
 			JSON.stringify({
 				type: "command",
@@ -164,9 +168,9 @@ test("what one screencast message means", async () => {
 				params: { script: "document.title" },
 			}),
 		)?.kind === "activity",
-	);
-	check(
-		"the CLI attaching itself is dropped",
+		"while the agent's own evaluate is still worth a line",
+	).toBe(true);
+	expect(
 		parseStreamMessage(
 			JSON.stringify({
 				type: "command",
@@ -175,26 +179,33 @@ test("what one screencast message means", async () => {
 				params: {},
 			}),
 		) === undefined,
-	);
-	check(
-		"and so is the screencast's own health",
+		"the CLI attaching itself is dropped",
+	).toBe(true);
+	expect(
 		parseStreamMessage(JSON.stringify({ type: "status", connected: true })) ===
 			undefined,
-	);
-	check("not JSON is nothing", parseStreamMessage("<html>") === undefined);
-	check(
-		"a frame without a picture is nothing",
+		"and so is the screencast's own health",
+	).toBe(true);
+	expect(
+		parseStreamMessage("<html>") === undefined,
+		"not JSON is nothing",
+	).toBe(true);
+	expect(
 		parseStreamMessage(JSON.stringify({ type: "frame", seq: 1 })) === undefined,
-	);
-	check(
-		"a command with no detail is its action",
+		"a frame without a picture is nothing",
+	).toBe(true);
+	expect(
 		commandText("console", { id: "r2" }) === "console",
-	);
-	check(
-		"a wordless action still reads",
+		"a command with no detail is its action",
+	).toBe(true);
+	expect(
 		commandText("snapshot", undefined) === "snapshot",
-	);
-	check("a missing duration reads as done", resultText(undefined) === "done");
+		"a wordless action still reads",
+	).toBe(true);
+	expect(
+		resultText(undefined) === "done",
+		"a missing duration reads as done",
+	).toBe(true);
 });
 test("one hub, one screencast", async () => {
 	/** This session's screencast, as the test decides it. */
@@ -263,58 +274,63 @@ test("one hub, one screencast", async () => {
 	const quiet = scenario(undefined);
 	quiet.hub.touch();
 	const quietAnswer = quiet.hub.snapshot();
-	check(
-		"a hub nobody opened a browser in has no chip",
+	expect(
 		quiet.hub.state().open === false,
-	);
-	check(
-		"a panel may ask before any browser exists",
+		"a hub nobody opened a browser in has no chip",
+	).toBe(true);
+	expect(
 		quietAnswer.connected === false,
-	);
-	check(
-		"and is told there is nothing yet",
+		"a panel may ask before any browser exists",
+	).toBe(true);
+	expect(
 		String(quietAnswer.error).includes("no browser"),
-	);
-	check("without the CLI being asked", quiet.connections() === 0);
+		"and is told there is nothing yet",
+	).toBe(true);
+	expect(quiet.connections() === 0, "without the CLI being asked").toBe(true);
 	quiet.hub.stop();
 
 	const running = scenario(4242, { width: 1_280, height: 633 });
 	running.hub.touch();
-	check(
-		"asking alone still does not start a browser",
+	expect(
 		running.connections() === 0,
-	);
+		"asking alone still does not start a browser",
+	).toBe(true);
 
 	running.hub.markLive();
 	running.hub.touch();
 	await tick();
-	check(
-		"a tool call plus a poll is what connects",
+	expect(
 		running.connections() === 1,
-	);
-	check(
-		"and the screencast is asked for a bounded frame rate",
+		"a tool call plus a poll is what connects",
+	).toBe(true);
+	expect(
 		running.sent[0]?.includes('"maxFps"') === true,
-	);
-	check("which the answer says", running.hub.snapshot().connected === true);
+		"and the screencast is asked for a bounded frame rate",
+	).toBe(true);
+	expect(
+		running.hub.snapshot().connected === true,
+		"which the answer says",
+	).toBe(true);
 
 	running.feed({
 		type: "tabs",
 		tabs: [{ active: true, url: "http://x/", title: "X" }],
 	});
 	const addressed = running.hub.snapshot();
-	check("the address reaches the reader", addressed.url === "http://x/");
-	check("with the page's title", addressed.title === "X");
+	expect(addressed.url === "http://x/", "the address reaches the reader").toBe(
+		true,
+	);
+	expect(addressed.title === "X", "with the page's title").toBe(true);
 
 	running.frame("jpegbytes");
-	check(
-		"a frame is kept for the picture route",
+	expect(
 		running.hub.latestFrame()?.data === "jpegbytes",
-	);
-	check(
-		"and its sequence is what a reader keys on",
+		"a frame is kept for the picture route",
+	).toBe(true);
+	expect(
 		running.hub.snapshot().seq === 7,
-	);
+		"and its sequence is what a reader keys on",
+	).toBe(true);
 
 	running.feed({
 		type: "command",
@@ -326,19 +342,19 @@ test("one hub, one screencast", async () => {
 	running.feed({ type: "result", id: "r1", action: "click", duration_ms: 10 });
 	running.feed({ type: "command", id: "r2", action: "launch", params: {} });
 	const feed = running.hub.snapshot().activity;
-	check("the feed is a window, not an append", feed.length === 2);
-	check("the command leads", feed[0]?.text === "click @e2");
-	check("and its outcome follows", feed[1]?.text === "10ms");
-	check(
-		"while the CLI's own attach is left out",
+	expect(feed.length === 2, "the feed is a window, not an append").toBe(true);
+	expect(feed[0]?.text === "click @e2", "the command leads").toBe(true);
+	expect(feed[1]?.text === "10ms", "and its outcome follows").toBe(true);
+	expect(
 		feed.every((item) => !item.text.includes("launch")),
-	);
+		"while the CLI's own attach is left out",
+	).toBe(true);
 
 	await tick();
-	check(
-		"the page's own size is measured, not guessed",
+	expect(
 		running.hub.snapshot().page.height === 633,
-	);
+		"the page's own size is measured, not guessed",
+	).toBe(true);
 
 	const clicked = running.hub.sendInput({
 		type: "mouse",
@@ -348,59 +364,64 @@ test("one hub, one screencast", async () => {
 		button: "left",
 		modifiers: { alt: false, ctrl: false, meta: false, shift: false },
 	});
-	check("a person's click goes down the open connection", clicked === true);
-	check(
-		"as the press and the release the page expects",
+	expect(
+		clicked === true,
+		"a person's click goes down the open connection",
+	).toBe(true);
+	expect(
 		running.sent.some((text) => text.includes("mousePressed")) &&
 			running.sent.some((text) => text.includes("mouseReleased")),
-	);
+		"as the press and the release the page expects",
+	).toBe(true);
 	const told = String(running.hub.takeNote());
-	check(
-		"and the agent is told what it did not see",
+	expect(
 		told.includes("clicked at (10, 20)"),
-	);
-	check(
-		"with the warning that its refs may be stale",
+		"and the agent is told what it did not see",
+	).toBe(true);
+	expect(
 		told.includes("take a fresh snapshot"),
-	);
-	check(
-		"and is told once, not in every result",
+		"with the warning that its refs may be stale",
+	).toBe(true);
+	expect(
 		running.hub.takeNote() === undefined,
-	);
-	check(
-		"and is the person's own line in the feed",
+		"and is told once, not in every result",
+	).toBe(true);
+	expect(
 		running.hub
 			.snapshot()
 			.activity.some(
 				(item) => item.kind === "human" && item.text === "click 10×20",
 			),
-	);
+		"and is the person's own line in the feed",
+	).toBe(true);
 
 	running.feed({ type: "result", id: "r9", action: "click", duration_ms: 4 });
-	check(
-		"an outcome nobody saw the command for is not a line",
+	expect(
 		!running.hub.snapshot().activity.some((item) => item.text === "4ms"),
-	);
+		"an outcome nobody saw the command for is not a line",
+	).toBe(true);
 
 	running.drop("the browser went away");
 	const lost = running.hub.snapshot();
-	check(
-		"a dropped screencast is answered as not connected",
+	expect(
 		lost.connected === false,
-	);
-	check("with the reason it dropped", lost.error === "the browser went away");
-	check(
-		"and the stale picture is gone",
+		"a dropped screencast is answered as not connected",
+	).toBe(true);
+	expect(
+		lost.error === "the browser went away",
+		"with the reason it dropped",
+	).toBe(true);
+	expect(
 		running.hub.latestFrame() === undefined && lost.seq === 0,
-	);
-	check(
-		"a session that never opened a browser has nothing to show",
+		"and the stale picture is gone",
+	).toBe(true);
+	expect(
 		running.hub.state().url === "http://x/" &&
 			running.hub.state().open === true,
-	);
+		"a session that never opened a browser has nothing to show",
+	).toBe(true);
 
-	check(
-		"a click with nothing to carry it is refused",
+	expect(
 		running.hub.sendInput({
 			type: "wheel",
 			x: 1,
@@ -408,7 +429,8 @@ test("one hub, one screencast", async () => {
 			deltaX: 0,
 			deltaY: 10,
 		}) === false,
-	);
+		"a click with nothing to carry it is refused",
+	).toBe(true);
 	running.hub.stop();
 
 	const relayout = scenario(4245, [
@@ -419,17 +441,17 @@ test("one hub, one screencast", async () => {
 	relayout.hub.touch();
 	await tick();
 	await tick();
-	check(
-		"a page is measured when the view connects",
+	expect(
 		relayout.hub.snapshot().page.height === 633,
-	);
+		"a page is measured when the view connects",
+	).toBe(true);
 	relayout.frame("jpegbytes", 390, 844);
 	await tick();
 	await tick();
-	check(
-		"and again when the window it is drawn in changes",
+	expect(
 		relayout.hub.snapshot().page.height === 844,
-	);
+		"and again when the window it is drawn in changes",
+	).toBe(true);
 	relayout.hub.stop();
 
 	const closing = scenario(4243);
@@ -438,26 +460,26 @@ test("one hub, one screencast", async () => {
 	await tick();
 	closing.hub.markClosed();
 	const shutdown = closing.hub.snapshot();
-	check(
-		"a browser closed on purpose says so",
+	expect(
 		String(shutdown.error).includes("closed"),
-	);
-	check("and is not looked for again", closing.connections() === 1);
+		"a browser closed on purpose says so",
+	).toBe(true);
+	expect(closing.connections() === 1, "and is not looked for again").toBe(true);
 	closing.hub.stop();
 
 	const leaving = scenario(4244);
 	leaving.hub.markLive();
 	leaving.hub.touch();
 	await tick();
-	check(
-		"the connection is open while somebody asks",
+	expect(
 		leaving.closed() === false,
-	);
+		"the connection is open while somebody asks",
+	).toBe(true);
 	await new Promise((resolve) => setTimeout(resolve, 40));
-	check(
-		"and is dropped a while after the last poll",
+	expect(
 		leaving.closed() === true,
-	);
+		"and is dropped a while after the last poll",
+	).toBe(true);
 	leaving.hub.stop();
 
 	const unknown = scenario(undefined);
@@ -466,10 +488,12 @@ test("one hub, one screencast", async () => {
 	await tick();
 	await tick();
 	const missing = unknown.hub.snapshot();
-	check(
-		"a session whose browser is not running is told apart from one never opened",
+	expect(
 		String(missing.error).includes("no browser is running"),
+		"a session whose browser is not running is told apart from one never opened",
+	).toBe(true);
+	expect(unknown.connections() === 0, "and no connection was attempted").toBe(
+		true,
 	);
-	check("and no connection was attempted", unknown.connections() === 0);
 	unknown.hub.stop();
 });

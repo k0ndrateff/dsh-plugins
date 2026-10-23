@@ -8,8 +8,7 @@
  * `++` is content, not a file header.
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import { patchToHunks } from "../src/client/diff";
 import type { DiffFile } from "../src/shared/panel";
 
@@ -30,17 +29,15 @@ test("one hunk", async () => {
 			file("@@ -1,4 +1,4 @@\n keep\n--- old\n+++ new\n tail\n"),
 		);
 
-		check("one hunk is one entry", hunks.length === 1);
-		check(
-			"a removed line may start with --",
+		expect(hunks.length === 1, "one hunk is one entry").toBe(true);
+		expect(
 			hunks[0]?.oldText === "keep\n-- old\ntail",
-			JSON.stringify(hunks[0]?.oldText),
-		);
-		check(
-			"an added line may start with ++",
+			`a removed line may start with -- — ${JSON.stringify(hunks[0]?.oldText)}`,
+		).toBe(true);
+		expect(
 			hunks[0]?.newText === "keep\n++ new\ntail",
-			JSON.stringify(hunks[0]?.newText),
-		);
+			`an added line may start with ++ — ${JSON.stringify(hunks[0]?.newText)}`,
+		).toBe(true);
 	}
 });
 test("two hunks", async () => {
@@ -51,21 +48,18 @@ test("two hunks", async () => {
 			),
 		);
 
-		check(
-			"each @@ becomes its own entry",
+		expect(
 			hunks.length === 2,
-			String(hunks.length),
-		);
-		check(
-			"the first hunk keeps its own lines",
+			`each @@ becomes its own entry — ${String(hunks.length)}`,
+		).toBe(true);
+		expect(
 			hunks[0]?.oldText === "a\nb" && hunks[0]?.newText === "a\nB",
-			JSON.stringify(hunks[0]),
-		);
-		check(
-			"the second hunk does not absorb the first",
+			`the first hunk keeps its own lines — ${JSON.stringify(hunks[0])}`,
+		).toBe(true);
+		expect(
 			hunks[1]?.oldText === "x\ny" && hunks[1]?.newText === "x\nY",
-			JSON.stringify(hunks[1]),
-		);
+			`the second hunk does not absorb the first — ${JSON.stringify(hunks[1])}`,
+		).toBe(true);
 	}
 });
 test("what is not content", async () => {
@@ -76,21 +70,22 @@ test("what is not content", async () => {
 			),
 		);
 
-		check("metadata before the first hunk is dropped", hunks.length === 1);
-		check(
-			"and the change remains",
+		expect(
+			hunks.length === 1,
+			"metadata before the first hunk is dropped",
+		).toBe(true);
+		expect(
 			hunks[0]?.oldText === "a" && hunks[0]?.newText === "b",
-			JSON.stringify(hunks[0]),
-		);
+			`and the change remains — ${JSON.stringify(hunks[0])}`,
+		).toBe(true);
 
 		const created = patchToHunks(
 			file("@@ -0,0 +1,2 @@\n+one\n+two\n", { newFile: true }),
 		);
 
-		check(
-			"a new file has no prior text",
+		expect(
 			created[0]?.oldText === null && created[0]?.newText === "one\ntwo",
-			JSON.stringify(created[0]),
-		);
+			`a new file has no prior text — ${JSON.stringify(created[0])}`,
+		).toBe(true);
 	}
 });

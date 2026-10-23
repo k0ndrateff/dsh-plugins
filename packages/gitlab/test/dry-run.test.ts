@@ -9,9 +9,8 @@
  *   bun run test/dry-run.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
-import { check } from "../../../test/support";
 import { GitLabAccount, readAccount } from "../src/host/account";
 import type { GitLabApi } from "../src/host/api";
 import { apiRootOf, DEFAULT_ENDPOINT, resolveConfig } from "../src/host/config";
@@ -53,70 +52,65 @@ function fakeApi(answers: (path: string) => unknown): GitLabApi {
 }
 
 test("configuration", async () => {
-	check(
-		"an empty patch falls back to gitlab.com",
+	expect(
 		resolveConfig(undefined).endpoint === DEFAULT_ENDPOINT &&
 			resolveConfig(undefined).debug === false,
-		JSON.stringify(resolveConfig(undefined)),
-	);
-	check(
-		"a self-hosted instance is kept, without its trailing slash",
+		`an empty patch falls back to gitlab.com — ${JSON.stringify(resolveConfig(undefined))}`,
+	).toBe(true);
+	expect(
 		resolveConfig({ endpoint: "https://gitlab.example/" }).endpoint ===
 			"https://gitlab.example",
-		resolveConfig({ endpoint: "https://gitlab.example/" }).endpoint,
-	);
-	check(
-		"an endpoint that is not a string falls back rather than failing activation",
+		`a self-hosted instance is kept, without its trailing slash — ${resolveConfig({ endpoint: "https://gitlab.example/" }).endpoint}`,
+	).toBe(true);
+	expect(
 		resolveConfig({ endpoint: 42 }).endpoint === DEFAULT_ENDPOINT &&
 			resolveConfig({ endpoint: "   " }).endpoint === DEFAULT_ENDPOINT,
-	);
-	check(
-		"debug is off unless asked for",
+		"an endpoint that is not a string falls back rather than failing activation",
+	).toBe(true);
+	expect(
 		resolveConfig({}).debug === false &&
 			resolveConfig({ debug: true }).debug === true,
-	);
-	check(
-		"every call is made under the instance's API root",
+		"debug is off unless asked for",
+	).toBe(true);
+	expect(
 		apiRootOf(resolveConfig({ endpoint: "https://gitlab.example/" })) ===
 			"https://gitlab.example/api/v4",
-		apiRootOf(resolveConfig({ endpoint: "https://gitlab.example/" })),
-	);
+		`every call is made under the instance's API root — ${apiRootOf(resolveConfig({ endpoint: "https://gitlab.example/" }))}`,
+	).toBe(true);
 });
 test("the token record", async () => {
 	const { ctx, records } = fakeCredentials();
 	const store = new TokenStore(ctx);
 
-	check(
-		"the token lives under the plugin's own record",
+	expect(
 		TOKEN_KEY === "dsh-gitlab/token",
-		String(TOKEN_KEY),
-	);
-	check(
-		"nothing is stored before the user pastes one",
+		`the token lives under the plugin's own record — ${String(TOKEN_KEY)}`,
+	).toBe(true);
+	expect(
 		(await store.read()) === undefined,
-	);
+		"nothing is stored before the user pastes one",
+	).toBe(true);
 
 	await store.save("  glpat-abc  ");
 
-	check(
-		"a pasted token is stored, trimmed of the whitespace around it",
+	expect(
 		(await store.read()) === "glpat-abc" &&
 			(records.get(TOKEN_KEY as string) as { kind?: string } | undefined)
 				?.kind === "api-key",
-		JSON.stringify(await store.read()),
-	);
-	check(
-		"the record is an api key rather than a grant, because nothing issued it",
+		`a pasted token is stored, trimmed of the whitespace around it — ${JSON.stringify(await store.read())}`,
+	).toBe(true);
+	expect(
 		(records.get(TOKEN_KEY as string) as { kind?: string } | undefined)
 			?.kind === "api-key",
-	);
+		"the record is an api key rather than a grant, because nothing issued it",
+	).toBe(true);
 
 	await store.save("glpat-second");
 
-	check(
-		"pasting another token replaces the first",
+	expect(
 		(await store.read()) === "glpat-second",
-	);
+		"pasting another token replaces the first",
+	).toBe(true);
 
 	let refused = "";
 	try {
@@ -125,26 +119,25 @@ test("the token record", async () => {
 		refused = error instanceof Error ? error.message : String(error);
 	}
 
-	check(
-		"an empty token is refused rather than stored",
+	expect(
 		refused !== "" && (await store.read()) === "glpat-second",
-		refused,
-	);
+		`an empty token is refused rather than stored — ${refused}`,
+	).toBe(true);
 
 	await store.clear();
 
-	check(
-		"forgetting the token removes the record",
+	expect(
 		(await store.read()) === undefined,
-	);
+		"forgetting the token removes the record",
+	).toBe(true);
 
 	const wrongKind = fakeCredentials();
 	wrongKind.records.set(TOKEN_KEY as string, { kind: "grant", payload: {} });
 
-	check(
-		"a record of another kind reads as no token",
+	expect(
 		(await new TokenStore(wrongKind.ctx).read()) === undefined,
-	);
+		"a record of another kind reads as no token",
+	).toBe(true);
 });
 test("the account answer", async () => {
 	const USER = {
@@ -155,29 +148,29 @@ test("the account answer", async () => {
 		web_url: "https://gitlab.com/ada",
 	};
 
-	check(
-		"the authenticated user is read from the answer",
+	expect(
 		GitLabAccount.parse(USER).username === "ada" &&
 			GitLabAccount.parse(USER).name === "Ada Lovelace",
-	);
-	check(
-		"its profile URL is kept without the trailing slash",
+		"the authenticated user is read from the answer",
+	).toBe(true);
+	expect(
 		GitLabAccount.parse({ ...USER, web_url: "https://gitlab.com/ada/" })
 			.webUrl === "https://gitlab.com/ada",
-	);
-	check(
-		"an answer that names no user reads as empty",
+		"its profile URL is kept without the trailing slash",
+	).toBe(true);
+	expect(
 		GitLabAccount.parse({}).isEmpty && GitLabAccount.parse(undefined).isEmpty,
-	);
-	check(
-		"a known username needs nothing more learned",
+		"an answer that names no user reads as empty",
+	).toBe(true);
+	expect(
 		GitLabAccount.parse(USER).isComplete,
-	);
+		"a known username needs nothing more learned",
+	).toBe(true);
 
-	check(
-		"the account is asked for once, at /user",
+	expect(
 		(await readAccount(fakeApi(() => USER))).username === "ada",
-	);
+		"the account is asked for once, at /user",
+	).toBe(true);
 
 	let missing = "";
 	try {
@@ -186,9 +179,8 @@ test("the account answer", async () => {
 		missing = error instanceof Error ? error.message : String(error);
 	}
 
-	check(
-		"an answer that names no account is refused",
+	expect(
 		missing.includes("named no account"),
-		missing,
-	);
+		`an answer that names no account is refused — ${missing}`,
+	).toBe(true);
 });

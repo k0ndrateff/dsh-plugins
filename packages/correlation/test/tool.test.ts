@@ -9,14 +9,13 @@
  *   bun run test/tool.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type {
 	CorrelationFact,
 	CorrelationKind,
 	CorrelationRef,
 } from "dsh-integration-host/correlation";
-import { check } from "../../../test/support";
 import type { ChainResolver } from "../src/host/chain";
 import { correlateTool } from "../src/host/tool";
 import { asChainReport } from "../src/shared/meta";
@@ -132,21 +131,19 @@ const SOURCES = fakeSources([
 test("the tool", async () => {
 	const definition = correlateTool({ sources: SOURCES });
 
-	check(
-		"and asks for the integration and the object, nothing else",
+	expect(
 		JSON.stringify(Object.keys(definition.parameters.properties ?? {})) ===
 			'["provider","ref"]' &&
 			JSON.stringify(definition.parameters.required) === '["provider","ref"]',
-		JSON.stringify(definition.parameters),
-	);
+		`and asks for the integration and the object, nothing else — ${JSON.stringify(definition.parameters)}`,
+	).toBe(true);
 
 	const value = (await definition.execute(
 		{ provider: "Sentry", ref: "CHECKOUT-13P" },
 		execution(),
 	)) as { summary: string; report: Record<string, unknown> };
 
-	check(
-		"the model reads the chain, hop by hop",
+	expect(
 		value.summary.includes("1. Error · Sentry · CHECKOUT-13P") &&
 			value.summary.includes("2. Commit · GitLab · 7c50a1e5") &&
 			value.summary.includes(
@@ -154,22 +151,21 @@ test("the tool", async () => {
 			) &&
 			value.summary.includes("4. Jira issue · Atlassian · DEV-5977") &&
 			!value.summary.includes("Not followed"),
-		value.summary,
-	);
-	check(
-		"the record carries the same chain for the card",
+		`the model reads the chain, hop by hop — ${value.summary}`,
+	).toBe(true);
+	expect(
 		Array.isArray(value.report.hops) && value.report.provider === "Sentry",
-		JSON.stringify(value.report).slice(0, 200),
-	);
-	check(
-		"and the card is the record, not the text",
+		`the record carries the same chain for the card — ${JSON.stringify(value.report).slice(0, 200)}`,
+	).toBe(true);
+	expect(
 		JSON.stringify(definition.output.presentationMeta?.({}, value as never)) ===
 			JSON.stringify(value.report),
-	);
-	check(
-		"the rendered result is the summary the model was promised",
+		"and the card is the record, not the text",
+	).toBe(true);
+	expect(
 		textOf(definition, value) === value.summary,
-	);
+		"the rendered result is the summary the model was promised",
+	).toBe(true);
 
 	const missing = (await definition.execute(
 		{ provider: "Sentry", ref: "NOPE-1" },
@@ -179,18 +175,16 @@ test("the tool", async () => {
 		report: { hops: unknown[]; breaks: { reason: string }[] };
 	};
 
-	check(
-		"an id nothing answered with is an empty chain, and says why",
+	expect(
 		missing.report.hops.length === 0 &&
 			missing.report.breaks[0]?.reason === "nothing found",
-		JSON.stringify(missing.report),
-	);
-	check(
-		"the text says the same thing, in as many words",
+		`an id nothing answered with is an empty chain, and says why — ${JSON.stringify(missing.report)}`,
+	).toBe(true);
+	expect(
 		missing.summary.includes("Not followed:") &&
 			missing.summary.includes("nothing found"),
-		missing.summary,
-	);
+		`the text says the same thing, in as many words — ${missing.summary}`,
+	).toBe(true);
 
 	const unknown = await definition
 		.execute({ provider: "Datadog", ref: "1" }, execution())
@@ -199,11 +193,10 @@ test("the tool", async () => {
 			(error: unknown) => (error as Error).message,
 		);
 
-	check(
-		"naming an integration that is not installed fails the call, with the list",
+	expect(
 		unknown.includes("Datadog") && unknown.includes("GitLab"),
-		unknown,
-	);
+		`naming an integration that is not installed fails the call, with the list — ${unknown}`,
+	).toBe(true);
 
 	const refused = await definition
 		.execute({ provider: "GitLab", ref: "42" }, execution("call-3"))
@@ -212,11 +205,10 @@ test("the tool", async () => {
 			(error: unknown) => (error as Error).message,
 		);
 
-	check(
-		"a reference that is not a spelling of that kind is refused before anything is read",
+	expect(
 		refused.includes("group/project!12"),
-		refused,
-	);
+		`a reference that is not a spelling of that kind is refused before anything is read — ${refused}`,
+	).toBe(true);
 });
 
 test("reading the record back", () => {
@@ -238,20 +230,19 @@ test("reading the record back", () => {
 		breaks: [{ kind: "task", label: "Ticket", reason: "not connected" }],
 	});
 
-	check(
-		"a well-formed record is read whole",
+	expect(
 		good?.hops.length === 1 &&
 			good.hops[0]?.url === "https://acme.sentry.io/issues/CHECKOUT-13P" &&
 			good.breaks[0]?.reason === "not connected",
-		JSON.stringify(good),
-	);
+		`a well-formed record is read whole — ${JSON.stringify(good)}`,
+	).toBe(true);
 
-	check(
-		"a record from something else renders nothing",
+	expect(
 		asChainReport({ callId: "call-1", sections: [] }) === undefined &&
 			asChainReport(null) === undefined &&
 			asChainReport("a chain") === undefined,
-	);
+		"a record from something else renders nothing",
+	).toBe(true);
 
 	const partial = asChainReport({
 		callId: "call-2",
@@ -264,11 +255,10 @@ test("reading the record back", () => {
 		breaks: [{ kind: "commit", reason: "nothing found" }],
 	});
 
-	check(
-		"a hop of a kind this version cannot draw is dropped, not guessed",
+	expect(
 		partial?.hops.length === 1 &&
 			partial.hops[0]?.label === "task" &&
 			partial.breaks[0]?.label === "commit",
-		JSON.stringify(partial),
-	);
+		`a hop of a kind this version cannot draw is dropped, not guessed — ${JSON.stringify(partial)}`,
+	).toBe(true);
 });

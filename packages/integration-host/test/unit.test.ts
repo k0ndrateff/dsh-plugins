@@ -9,11 +9,10 @@
  *   bun run test/unit.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Context, Service } from "@deepseek-ai/cordis";
 import type { AuthorizationFlow, GrantStore, McpBridge } from "dsh-mcp-oauth";
-import { check } from "../../../test/support";
 import { IntegrationAuth } from "../src/auth";
 import { createIntegrationCommand } from "../src/command";
 import { resolveEndpointConfig } from "../src/config";
@@ -30,36 +29,35 @@ test("the integration host", async () => {
 
 	const DEFAULTS = { endpoint: "https://example.test/mcp", redirectPort: 8144 };
 
-	check(
-		"an empty patch falls back to the provider's own resource and port",
+	expect(
 		resolveEndpointConfig(undefined, DEFAULTS).endpoint === DEFAULTS.endpoint &&
 			resolveEndpointConfig(undefined, DEFAULTS).redirectPort ===
 				DEFAULTS.redirectPort,
-		JSON.stringify(resolveEndpointConfig(undefined, DEFAULTS)),
-	);
-	check(
-		"a malformed port falls back rather than failing activation",
+		`an empty patch falls back to the provider's own resource and port — ${JSON.stringify(resolveEndpointConfig(undefined, DEFAULTS))}`,
+	).toBe(true);
+	expect(
 		resolveEndpointConfig({ redirectPort: "eighty" }, DEFAULTS).redirectPort ===
 			DEFAULTS.redirectPort &&
 			resolveEndpointConfig({ redirectPort: -1 }, DEFAULTS).redirectPort ===
 				DEFAULTS.redirectPort &&
 			resolveEndpointConfig({ redirectPort: 70_000 }, DEFAULTS).redirectPort ===
 				DEFAULTS.redirectPort,
-	);
-	check(
-		"a configured endpoint and port are kept",
+		"a malformed port falls back rather than failing activation",
+	).toBe(true);
+	expect(
 		resolveEndpointConfig(
 			{ endpoint: "https://other.test/mcp", redirectPort: 9000 },
 			DEFAULTS,
 		).endpoint === "https://other.test/mcp" &&
 			resolveEndpointConfig({ redirectPort: 9000 }, DEFAULTS).redirectPort ===
 				9000,
-	);
-	check(
-		"debug is off unless asked for",
+		"a configured endpoint and port are kept",
+	).toBe(true);
+	expect(
 		resolveEndpointConfig({}, DEFAULTS).debug === false &&
 			resolveEndpointConfig({ debug: true }, DEFAULTS).debug === true,
-	);
+		"debug is off unless asked for",
+	).toBe(true);
 
 	/** The facts one test provider learns: a slug and a web URL. */
 	class Facts {
@@ -201,23 +199,21 @@ test("the integration host", async () => {
 
 		await auth.connect();
 
-		check(
-			"a complete stored grant is restored without asking the server",
+		expect(
 			calls.length === 0,
-			JSON.stringify(calls.map((call) => call.name)),
-		);
+			`a complete stored grant is restored without asking the server — ${JSON.stringify(calls.map((call) => call.name))}`,
+		).toBe(true);
 
 		const status = await auth.getStatus();
 
-		check(
-			"the status carries the shared fields and the provider's own",
+		expect(
 			status.connected &&
 				status.slug === "acme" &&
 				status.endpoint === DEFAULTS.endpoint &&
 				status.tools.length === 1,
-			JSON.stringify({ slug: status.slug, connected: status.connected }),
-		);
-		check("nothing was remembered again", remembered.length === 0);
+			`the status carries the shared fields and the provider's own — ${JSON.stringify({ slug: status.slug, connected: status.connected })}`,
+		).toBe(true);
+		expect(remembered.length === 0, "nothing was remembered again").toBe(true);
 	}
 
 	{
@@ -227,21 +223,18 @@ test("the integration host", async () => {
 
 		await auth.connect();
 
-		check(
-			"an unknown account is learned through the provider's own tool",
+		expect(
 			calls[0]?.name === "list_things" && state.facts?.slug === "acme",
-			JSON.stringify(calls[0]),
-		);
-		check(
-			"what was learned is remembered in the credential record",
+			`an unknown account is learned through the provider's own tool — ${JSON.stringify(calls[0])}`,
+		).toBe(true);
+		expect(
 			remembered[0]?.slug === "acme" && remembered.length === 1,
-			JSON.stringify(remembered),
-		);
-		check(
-			"a partial answer is not treated as complete",
+			`what was learned is remembered in the credential record — ${JSON.stringify(remembered)}`,
+		).toBe(true);
+		expect(
 			state.facts?.isComplete === false,
-			String(state.facts?.isComplete),
-		);
+			`a partial answer is not treated as complete — ${String(state.facts?.isComplete)}`,
+		).toBe(true);
 	}
 
 	{
@@ -252,12 +245,11 @@ test("the integration host", async () => {
 
 		await auth.connect();
 
-		check(
-			"learned facts merge into what the grant already knew",
+		expect(
 			remembered[0]?.slug === "acme" &&
 				remembered[0]?.webUrl === "https://acme.test",
-			JSON.stringify(remembered[0]),
-		);
+			`learned facts merge into what the grant already knew — ${JSON.stringify(remembered[0])}`,
+		).toBe(true);
 	}
 
 	{
@@ -265,11 +257,10 @@ test("the integration host", async () => {
 
 		await auth.connect();
 
-		check(
-			"a server that refuses the account tool leaves the plugin usable",
+		expect(
 			state.facts?.isEmpty === true,
-			JSON.stringify(state.facts),
-		);
+			`a server that refuses the account tool leaves the plugin usable — ${JSON.stringify(state.facts)}`,
+		).toBe(true);
 	}
 
 	{
@@ -280,11 +271,10 @@ test("the integration host", async () => {
 
 		await auth.connect();
 
-		check(
-			"a bridge without the account tool is not asked for it",
+		expect(
 			calls.length === 0,
-			JSON.stringify(calls.map((call) => call.name)),
-		);
+			`a bridge without the account tool is not asked for it — ${JSON.stringify(calls.map((call) => call.name))}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== the route ===");
@@ -401,52 +391,46 @@ test("the integration host", async () => {
 	{
 		const read = await call("GET", "/dsh-example/status");
 
-		check(
-			"the settings card reads the status",
+		expect(
 			read.status === 200 && (read.body as { slug?: string }).slug === "acme",
-			JSON.stringify(read.body).slice(0, 60),
-		);
+			`the settings card reads the status — ${JSON.stringify(read.body).slice(0, 60)}`,
+		).toBe(true);
 
 		const login = await call("POST", "/dsh-example/login");
 
-		check(
-			"login starts an attempt and answers with the running state",
+		expect(
 			login.status === 202 && seen.includes("signIn"),
-			`${login.status}: ${JSON.stringify(seen)}`,
-		);
+			`login starts an attempt and answers with the running state — ${`${login.status}: ${JSON.stringify(seen)}`}`,
+		).toBe(true);
 
 		const logout = await call("POST", "/dsh-example/logout");
 
-		check(
-			"logout forgets the sign-in",
+		expect(
 			logout.status === 200 && seen.includes("signOut"),
-			JSON.stringify(seen),
-		);
+			`logout forgets the sign-in — ${JSON.stringify(seen)}`,
+		).toBe(true);
 
 		const sync = await call("POST", "/dsh-example/sync");
 
-		check(
-			"sync reconnects",
+		expect(
 			sync.status === 200 && seen.includes("connect"),
-			JSON.stringify(seen),
-		);
+			`sync reconnects — ${JSON.stringify(seen)}`,
+		).toBe(true);
 
 		const thing = await call("POST", "/dsh-example/thing", { id: "abc" });
 
-		check(
-			"a provider path answers through the shared route",
+		expect(
 			thing.status === 200 && (thing.body as { id?: string }).id === "abc",
-			JSON.stringify(thing.body),
-		);
+			`a provider path answers through the shared route — ${JSON.stringify(thing.body)}`,
+		).toBe(true);
 
 		const missing = await call("POST", "/dsh-example/thing", {});
 
-		check(
-			"a write without its field is a bad request, not a gateway error",
+		expect(
 			missing.status === 400 &&
 				String((missing.body as { error?: string }).error).includes("id"),
-			`${missing.status}: ${JSON.stringify(missing.body)}`,
-		);
+			`a write without its field is a bad request, not a gateway error — ${`${missing.status}: ${JSON.stringify(missing.body)}`}`,
+		).toBe(true);
 
 		const crossOrigin = await call(
 			"POST",
@@ -457,14 +441,13 @@ test("the integration host", async () => {
 			},
 		);
 
-		check(
-			"a write from another web origin is refused",
+		expect(
 			crossOrigin.status === 403 &&
 				String((crossOrigin.body as { error?: string }).error).includes(
 					"another origin",
 				),
-			`${crossOrigin.status}: ${JSON.stringify(crossOrigin.body)}`,
-		);
+			`a write from another web origin is refused — ${`${crossOrigin.status}: ${JSON.stringify(crossOrigin.body)}`}`,
+		).toBe(true);
 
 		const untagged = await call(
 			"POST",
@@ -475,22 +458,20 @@ test("the integration host", async () => {
 			},
 		);
 
-		check(
-			"a write without the page header is refused",
+		expect(
 			untagged.status === 403 &&
 				String((untagged.body as { error?: string }).error).includes(
 					"harness page",
 				),
-			`${untagged.status}: ${JSON.stringify(untagged.body)}`,
-		);
+			`a write without the page header is refused — ${`${untagged.status}: ${JSON.stringify(untagged.body)}`}`,
+		).toBe(true);
 
 		const unknown = await call("GET", "/dsh-example/nope");
 
-		check(
-			"an unknown path is a not-found",
+		expect(
 			unknown.status === 404,
-			String(unknown.status),
-		);
+			`an unknown path is a not-found — ${String(unknown.status)}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== the command ===");
@@ -509,49 +490,44 @@ test("the integration host", async () => {
 
 		const statusAnswer = await run({ rawInput: "status" });
 
-		check(
-			"the status answer names the provider, the token and the account",
+		expect(
 			statusAnswer.kind === "success" &&
 				statusAnswer.text.startsWith("Signed in to Example.") &&
 				statusAnswer.text.includes("Account: acme.") &&
 				statusAnswer.text.includes("1 tools loaded."),
-			statusAnswer.text,
-		);
+			`the status answer names the provider, the token and the account — ${statusAnswer.text}`,
+		).toBe(true);
 
 		const login = await run({ rawInput: "login" });
 
-		check(
-			"login reports the attempt through the auth's own message",
+		expect(
 			login.kind === "success" &&
 				login.text === "Opening your browser…" &&
 				commandSeen.includes("signIn"),
-			login.text,
-		);
+			`login reports the attempt through the auth's own message — ${login.text}`,
+		).toBe(true);
 
 		const logout = await run({ rawInput: "logout" });
 
-		check(
-			"logout names the provider",
+		expect(
 			logout.text === "Signed out of Example.",
-			logout.text,
-		);
+			`logout names the provider — ${logout.text}`,
+		).toBe(true);
 
 		const sync = await run({ rawInput: "sync" });
 
-		check(
-			"sync reports how many tools are ready",
+		expect(
 			sync.kind === "success" && sync.text === "Example tools ready (1).",
-			sync.text,
-		);
+			`sync reports how many tools are ready — ${sync.text}`,
+		).toBe(true);
 
 		const unknown = await run({ rawInput: "whatever" });
 
-		check(
-			"anything unrecognized reports status",
+		expect(
 			unknown.kind === "success" &&
 				unknown.text.startsWith("Signed in to Example."),
-			unknown.text,
-		);
+			`anything unrecognized reports status — ${unknown.text}`,
+		).toBe(true);
 
 		const failing = createIntegrationCommand<TestStatus>(
 			{ name: "example", label: "Example" },
@@ -565,11 +541,10 @@ test("the integration host", async () => {
 
 		const refused = await failing({ rawInput: "sync" });
 
-		check(
-			"a failure is answered as the provider's own error",
+		expect(
 			refused.kind === "error" && refused.text === "Example: bridge is down",
-			refused.text,
-		);
+			`a failure is answered as the provider's own error — ${refused.text}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== mounting the route ===");
@@ -604,10 +579,10 @@ test("the integration host", async () => {
 			context as unknown as { get: (name: string) => unknown }
 		).get("webServer");
 
-		check(
-			"a listener that has not mounted yet is not there to read",
+		expect(
 			before === undefined,
-		);
+			"a listener that has not mounted yet is not there to read",
+		).toBe(true);
 
 		const fiber = context.plugin(FakeWebServer);
 
@@ -618,20 +593,18 @@ test("the integration host", async () => {
 			context as unknown as { get: (name: string) => FakeWebServer }
 		).get("webServer");
 
-		check(
-			"the route reaches a listener that arrives later",
+		expect(
 			server.mounted.includes("/dsh-early"),
-			server.mounted.join(", "),
-		);
+			`the route reaches a listener that arrives later — ${server.mounted.join(", ")}`,
+		).toBe(true);
 
 		await fiber.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"and leaves with it",
+		expect(
 			!server.mounted.includes("/dsh-early"),
-			server.mounted.join(", "),
-		);
+			`and leaves with it — ${server.mounted.join(", ")}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== digest sources ===");
@@ -672,12 +645,12 @@ test("the integration host", async () => {
 		await provider;
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"a provider that loads first waits instead of failing",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"digestSources",
 			) === undefined,
-		);
+			"a provider that loads first waits instead of failing",
+		).toBe(true);
 
 		let sources: DigestSources | undefined;
 		const digest = context.plugin({
@@ -689,30 +662,29 @@ test("the integration host", async () => {
 		await digest;
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"the registry arrives under its own name",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"digestSources",
 			) !== undefined,
-		);
-		check(
-			"and the waiting provider's block is now on offer",
+			"the registry arrives under its own name",
+		).toBe(true);
+		expect(
 			sources?.blocks.length === 1 &&
 				sources.blocks[0]?.provider === "Atlassian" &&
 				sources.blocks[0]?.defaultOn === true,
-			JSON.stringify(sources?.blocks),
-		);
-		check(
-			"its provider is named",
+			`and the waiting provider's block is now on offer — ${JSON.stringify(sources?.blocks)}`,
+		).toBe(true);
+		expect(
 			sources?.providers.join(",") === "Atlassian",
-		);
+			"its provider is named",
+		).toBe(true);
 
-		check(
-			"loading reaches the owning provider",
+		expect(
 			(
 				await sources?.load("jira-active", { since: new Date(0), limit: 5 })
 			)?.[0]?.id === "DEV-1",
-		);
+			"loading reaches the owning provider",
+		).toBe(true);
 
 		sources?.register({
 			provider: "Sentry",
@@ -722,12 +694,11 @@ test("the integration host", async () => {
 			load: async () => [],
 		});
 
-		check(
-			"a second provider's blocks follow the first's",
+		expect(
 			sources?.blocks.map((block) => block.id).join(",") ===
 				"jira-active,sentry-errors",
-			sources?.blocks.map((block) => block.id).join(","),
-		);
+			`a second provider's blocks follow the first's — ${sources?.blocks.map((block) => block.id).join(",")}`,
+		).toBe(true);
 
 		const clash = (() => {
 			try {
@@ -743,41 +714,38 @@ test("the integration host", async () => {
 			}
 		})();
 
-		check(
-			"a block id can only have one owner",
+		expect(
 			clash.includes("already registered"),
-			clash,
-		);
+			`a block id can only have one owner — ${clash}`,
+		).toBe(true);
 
 		const missing = await sources
 			?.load("nobody-owns-this", { since: new Date(0), limit: 5 })
 			.then(() => "")
 			.catch((error: unknown) => (error as Error).message);
 
-		check(
-			"loading an unowned block is an error",
+		expect(
 			(missing ?? "").includes("no digest source"),
-			missing ?? "",
-		);
+			`loading an unowned block is an error — ${missing ?? ""}`,
+		).toBe(true);
 
 		await provider.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"a withdrawn provider takes its block with it",
+		expect(
 			sources?.providers.join(",") === "Sentry",
-			sources?.providers.join(","),
-		);
+			`a withdrawn provider takes its block with it — ${sources?.providers.join(",")}`,
+		).toBe(true);
 
 		await digest.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"and the registry leaves with the digest plugin",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"digestSources",
 			) === undefined,
-		);
+			"and the registry leaves with the digest plugin",
+		).toBe(true);
 		void new FakeDigest(new Context());
 	}
 
@@ -821,12 +789,12 @@ test("the integration host", async () => {
 		await gitlab;
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"a provider that loads first waits instead of failing",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"correlationSources",
 			) === undefined,
-		);
+			"a provider that loads first waits instead of failing",
+		).toBe(true);
 
 		let sources: CorrelationSources | undefined;
 		const plugin = context.plugin({
@@ -838,48 +806,46 @@ test("the integration host", async () => {
 		await plugin;
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"the registry arrives under its own name",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"correlationSources",
 			) !== undefined,
-		);
-		check(
-			"and the waiting provider is on offer",
+			"the registry arrives under its own name",
+		).toBe(true);
+		expect(
 			sources?.providers[0]?.provider === "GitLab",
-			JSON.stringify(sources?.providers),
-		);
-		check(
-			"with the entry kind a chain starts from",
+			`and the waiting provider is on offer — ${JSON.stringify(sources?.providers)}`,
+		).toBe(true);
+		expect(
 			sources?.entryOf("GitLab") === "change",
-		);
-		check(
-			"a provider that is not installed has no entry kind",
+			"with the entry kind a chain starts from",
+		).toBe(true);
+		expect(
 			sources?.entryOf("Sentry") === undefined,
-		);
-		check(
-			"a kind it resolves is answerable",
+			"a provider that is not installed has no entry kind",
+		).toBe(true);
+		expect(
 			sources?.canResolve("commit") === true,
-		);
-		check(
-			"a kind nobody resolves is not",
+			"a kind it resolves is answerable",
+		).toBe(true);
+		expect(
 			sources?.canResolve("task") === false,
-		);
+			"a kind nobody resolves is not",
+		).toBe(true);
 
 		const facts = await sources?.resolve({ kind: "commit", sha: "7c50a1e5" });
 
-		check(
-			"a reference reaches the provider that resolves it",
+		expect(
 			facts?.[0]?.id === "gitlab:acme/storefront@7c50a1e5" &&
 				facts[0]?.references?.[0]?.kind === "change",
-			JSON.stringify(facts),
-		);
+			`a reference reaches the provider that resolves it — ${JSON.stringify(facts)}`,
+		).toBe(true);
 
-		check(
-			"a reference the provider does not recognize resolves to nothing",
+		expect(
 			(await sources?.resolve({ kind: "commit", sha: "0000000" }))?.length ===
 				0,
-		);
+			"a reference the provider does not recognize resolves to nothing",
+		).toBe(true);
 
 		sources?.register({
 			provider: "Otherhost",
@@ -899,27 +865,26 @@ test("the integration host", async () => {
 					: [],
 		});
 
-		check(
-			"a second source for one kind answers when the first declines",
+		expect(
 			(await sources?.resolve({ kind: "commit", sha: "0000000" }))?.[0]
 				?.provider === "Otherhost",
-		);
-		check(
-			"and the first still answers the reference it recognizes",
+			"a second source for one kind answers when the first declines",
+		).toBe(true);
+		expect(
 			(await sources?.resolve({ kind: "commit", sha: "7c50a1e5" }))?.[0]
 				?.provider === "GitLab",
-		);
+			"and the first still answers the reference it recognizes",
+		).toBe(true);
 
 		const unowned = await sources
 			?.resolve({ kind: "error", id: "CHECKOUT-13P" })
 			.then(() => "")
 			.catch((error: unknown) => (error as Error).message);
 
-		check(
-			"resolving a kind nobody handles is an error",
+		expect(
 			(unowned ?? "").includes('no correlation source resolves "error"'),
-			unowned ?? "",
-		);
+			`resolving a kind nobody handles is an error — ${unowned ?? ""}`,
+		).toBe(true);
 
 		const clash = (() => {
 			try {
@@ -936,80 +901,78 @@ test("the integration host", async () => {
 			}
 		})();
 
-		check(
-			"a provider can only be registered once",
+		expect(
 			clash.includes("already registered"),
-			clash,
-		);
+			`a provider can only be registered once — ${clash}`,
+		).toBe(true);
 
 		await gitlab.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"a withdrawn provider takes its kinds with it",
+		expect(
 			sources?.providers.map((entry) => entry.provider).join(",") ===
 				"Otherhost" && sources.canResolve("change") === false,
-			sources?.providers.map((entry) => entry.provider).join(","),
-		);
+			`a withdrawn provider takes its kinds with it — ${sources?.providers.map((entry) => entry.provider).join(",")}`,
+		).toBe(true);
 
 		await plugin.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
-		check(
-			"and the registry leaves with the correlation plugin",
+		expect(
 			(context as unknown as { get: (name: string) => unknown }).get(
 				"correlationSources",
 			) === undefined,
-		);
+			"and the registry leaves with the correlation plugin",
+		).toBe(true);
 	}
 
 	console.log("\n=== markdown ===");
 
-	check(
-		"a document without a comment is returned as it stands",
+	expect(
 		stripHtmlComments("# Title\n\nBody.") === "# Title\n\nBody.",
-	);
-	check(
-		"a comment that stood as a paragraph takes its empty lines with it",
+		"a document without a comment is returned as it stands",
+	).toBe(true);
+	expect(
 		stripHtmlComments("one\n\n<!-- note -->\n\ntwo") === "one\n\ntwo",
-	);
-	check(
-		"an inline comment leaves one space where the page renders one",
+		"a comment that stood as a paragraph takes its empty lines with it",
+	).toBe(true);
+	expect(
 		stripHtmlComments("before <!-- note -->after") === "before after",
-	);
-	check(
-		"a comment between two spaces leaves one of them",
+		"an inline comment leaves one space where the page renders one",
+	).toBe(true);
+	expect(
 		stripHtmlComments("one <!-- note --> two") === "one two",
-	);
-	check(
-		"a comment that spans lines goes whole",
+		"a comment between two spaces leaves one of them",
+	).toBe(true);
+	expect(
 		stripHtmlComments("a\n<!-- one\ntwo -->\nb") === "a\n\nb",
-	);
-	check(
-		"a fenced example of a comment is content",
+		"a comment that spans lines goes whole",
+	).toBe(true);
+	expect(
 		stripHtmlComments("```\n<!-- an example -->\n```") ===
 			"```\n<!-- an example -->\n```",
-	);
-	check(
-		"a tilde fence counts as a fence too",
+		"a fenced example of a comment is content",
+	).toBe(true);
+	expect(
 		stripHtmlComments("~~~\n<!-- kept -->\n~~~") === "~~~\n<!-- kept -->\n~~~",
-	);
-	check(
-		"two comments on one line both go",
+		"a tilde fence counts as a fence too",
+	).toBe(true);
+	expect(
 		stripHtmlComments("a<!-- one -->b<!-- two -->c") === "abc",
-	);
-	check(
-		"an unterminated comment swallows what follows it",
+		"two comments on one line both go",
+	).toBe(true);
+	expect(
 		stripHtmlComments("a\n<!-- b\nc") === "a",
-	);
-	check(
-		"a line no comment touched keeps the trailing spaces markdown reads",
+		"an unterminated comment swallows what follows it",
+	).toBe(true);
+	expect(
 		stripHtmlComments("keep my  \n<!-- drop me -->\nafter") ===
 			"keep my  \n\nafter",
-	);
-	check(
-		"blank lines inside a fence are the example's, not the document's",
+		"a line no comment touched keeps the trailing spaces markdown reads",
+	).toBe(true);
+	expect(
 		stripHtmlComments("```\na\n\n\nb\n```\n<!-- gone -->") ===
 			"```\na\n\n\nb\n```",
-	);
+		"blank lines inside a fence are the example's, not the document's",
+	).toBe(true);
 });

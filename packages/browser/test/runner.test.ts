@@ -9,14 +9,13 @@
  *   bun run test/runner.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
 import type {
 	SubprocessHandle,
 	SubprocessOutcome,
 	SubprocessSpawnSpec,
 } from "@deepseek-ai/dsh-subprocess";
-import { check } from "../../../test/support";
 import { BrowserSettings } from "../src/host/config";
 import { AgentBrowserRunner, type BrowserCommand } from "../src/host/runner";
 
@@ -124,107 +123,109 @@ test("the command line", async () => {
 	});
 	const answered = await plain.runner.run(command(["snapshot", "-i"]));
 
-	check(
-		"the executable is what was resolved",
+	expect(
 		plain.specs[0]?.argv[0] === "/opt/bin/agent-browser",
-	);
-	check(
-		"the session is named on every call",
+		"the executable is what was resolved",
+	).toBe(true);
+	expect(
 		plain.specs[0]?.argv.slice(1, 3).join(" ") === "--session dsh-test",
-	);
-	check(
-		"the command keeps its own arguments",
+		"the session is named on every call",
+	).toBe(true);
+	expect(
 		plain.specs[0]?.argv.slice(3).join(" ") === "snapshot -i --json",
-	);
-	check(
-		"the work happens in the session's directory",
+		"the command keeps its own arguments",
+	).toBe(true);
+	expect(
 		plain.specs[0]?.cwd === "/tmp/project",
+		"the work happens in the session's directory",
+	).toBe(true);
+	expect(plain.specs[0]?.stdio.stdin === "ignore", "stdin is closed").toBe(
+		true,
 	);
-	check("stdin is closed", plain.specs[0]?.stdio.stdin === "ignore");
-	check(
-		"both streams are collected",
+	expect(
 		typeof plain.specs[0]?.stdio.stdout === "object" &&
 			typeof plain.specs[0]?.stdio.stderr === "object",
-	);
-	check(
-		"the process is given time to go away",
+		"both streams are collected",
+	).toBe(true);
+	expect(
 		(plain.specs[0]?.graceMs ?? 0) > 0,
-	);
-	check("a good answer is a success", answered.ok === true);
+		"the process is given time to go away",
+	).toBe(true);
+	expect(answered.ok === true, "a good answer is a success").toBe(true);
 });
 test("the environment the CLI reads", async () => {
 	const headed = runnerFor({ stdout: '{"success":true}' }, { headed: true });
 	await headed.runner.run(command(["open", "http://x"]));
-	check(
-		"an asked-for window is passed through",
+	expect(
 		headed.specs[0]?.env?.AGENT_BROWSER_HEADED === "1",
-	);
+		"an asked-for window is passed through",
+	).toBe(true);
 
 	const bounded = runnerFor(
 		{ stdout: '{"success":true}' },
 		{ allowedDomains: ["example.com", "*.test"] },
 	);
 	await bounded.runner.run(command(["open", "http://x"]));
-	check(
-		"a domain policy is passed through as one list",
+	expect(
 		bounded.specs[0]?.env?.AGENT_BROWSER_ALLOWED_DOMAINS ===
 			"example.com,*.test",
-	);
+		"a domain policy is passed through as one list",
+	).toBe(true);
 
 	const quiet = runnerFor({ stdout: '{"success":true}' });
 	await quiet.runner.run(command(["open", "http://x"]));
-	check(
-		"a default config asks for the panel's own frame size",
+	expect(
 		quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_MAX_WIDTH === "1280" &&
 			quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_MAX_HEIGHT === "800" &&
 			quiet.specs[0]?.env?.AGENT_BROWSER_STREAM_QUALITY === "60",
-	);
-	check(
-		"and adds no window and no domain policy",
+		"a default config asks for the panel's own frame size",
+	).toBe(true);
+	expect(
 		quiet.specs[0]?.env?.AGENT_BROWSER_HEADED === undefined &&
 			quiet.specs[0]?.env?.AGENT_BROWSER_ALLOWED_DOMAINS === undefined,
-	);
+		"and adds no window and no domain policy",
+	).toBe(true);
 
 	const profiled = runnerFor(
 		{ stdout: '{"success":true}' },
 		{ chromeProfile: "Default" },
 	);
 	await profiled.runner.run(command(["open", "http://x"]));
-	check(
-		"a profile to reuse is named on every call",
+	expect(
 		profiled.specs[0]?.argv.includes("--profile") === true &&
 			profiled.specs[0]?.argv.includes("Default") === true,
-	);
-	check(
-		"and no profile means no flag",
+		"a profile to reuse is named on every call",
+	).toBe(true);
+	expect(
 		quiet.specs[0]?.argv.includes("--profile") === false,
-	);
+		"and no profile means no flag",
+	).toBe(true);
 });
 test("a CLI that is not installed", async () => {
 	const missing = runnerFor({}, undefined, false);
 	const absent = await missing.runner.run(command(["open", "http://x"]));
-	check("the call fails", absent.ok === false);
-	check(
-		"the reason says how to install it",
+	expect(absent.ok === false, "the call fails").toBe(true);
+	expect(
 		absent.ok === false &&
 			absent.error.includes("npm install -g agent-browser"),
-	);
-	check("nothing was spawned", missing.specs.length === 0);
-	check(
-		"and a status check says so by answering nothing",
+		"the reason says how to install it",
+	).toBe(true);
+	expect(missing.specs.length === 0, "nothing was spawned").toBe(true);
+	expect(
 		(await missing.runner.status({
 			session: "dsh-test",
 			cwd: "/tmp/project",
 			signal: new AbortController().signal,
 		})) === undefined,
-	);
+		"and a status check says so by answering nothing",
+	).toBe(true);
 });
 test("resolving the executable once", async () => {
 	const twice = runnerFor({ stdout: '{"success":true}' });
 	await twice.runner.run(command(["get", "url"]));
 	await twice.runner.run(command(["get", "url"]));
-	check("is enough for two calls", twice.resolutions() === 1);
-	check("and both ran", twice.specs.length === 2);
+	expect(twice.resolutions() === 1, "is enough for two calls").toBe(true);
+	expect(twice.specs.length === 2, "and both ran").toBe(true);
 });
 test("what the CLI answered", async () => {
 	const failed = runnerFor({
@@ -232,19 +233,19 @@ test("what the CLI answered", async () => {
 			'{"error":"Unknown command: frobnicate","success":false,"type":"unknown_command"}',
 	});
 	const refusal = await failed.runner.run(command(["frobnicate"]));
-	check("a refusal is a failure", refusal.ok === false);
-	check(
-		"with the CLI's own reason",
+	expect(refusal.ok === false, "a refusal is a failure").toBe(true);
+	expect(
 		refusal.ok === false && refusal.error === "Unknown command: frobnicate",
-	);
+		"with the CLI's own reason",
+	).toBe(true);
 
 	const unreadable = runnerFor({ stdout: "✓ Closed session: default" });
 	const junk = await unreadable.runner.run(command(["close"]));
-	check("an unreadable answer is a failure", junk.ok === false);
-	check(
-		"and it quotes what came back",
+	expect(junk.ok === false, "an unreadable answer is a failure").toBe(true);
+	expect(
 		junk.ok === false && junk.error.includes("✓ Closed session"),
-	);
+		"and it quotes what came back",
+	).toBe(true);
 
 	const crashed = runnerFor({
 		stdout: "",
@@ -252,39 +253,41 @@ test("what the CLI answered", async () => {
 		exitCode: 1,
 	});
 	const crash = await crashed.runner.run(command(["open", "http://x"]));
-	check("a crash is reported from stderr", crash.ok === false);
-	check(
-		"as the tail of what it printed",
+	expect(crash.ok === false, "a crash is reported from stderr").toBe(true);
+	expect(
 		crash.ok === false && crash.error.includes("Auto-launch failed"),
-	);
+		"as the tail of what it printed",
+	).toBe(true);
 
 	const rejected = runnerFor({ spawnFailure: "spawn failed: ENOENT" });
 	const never = await rejected.runner.run(command(["open", "http://x"]));
-	check("a rejected spawn is a failure", never.ok === false);
-	check(
-		"with the provider's reason",
+	expect(never.ok === false, "a rejected spawn is a failure").toBe(true);
+	expect(
 		never.ok === false && never.error.includes("ENOENT"),
-	);
+		"with the provider's reason",
+	).toBe(true);
 });
 test("bounds on one call", async () => {
 	const stuck = runnerFor({ untilAborted: true });
 	const timedOut = await stuck.runner.run(
 		command(["open", "http://x"], { timeoutMs: 20 }),
 	);
-	check("a command that never settles is stopped", timedOut.ok === false);
-	check(
-		"and says it ran out of time",
-		timedOut.ok === false && timedOut.error.includes("did not finish within"),
+	expect(timedOut.ok === false, "a command that never settles is stopped").toBe(
+		true,
 	);
+	expect(
+		timedOut.ok === false && timedOut.error.includes("did not finish within"),
+		"and says it ran out of time",
+	).toBe(true);
 
 	const cancelled = new AbortController();
 	cancelled.abort();
 	const abandoned = await runnerFor({ untilAborted: true }).runner.run(
 		command(["open", "http://x"], { signal: cancelled.signal }),
 	);
-	check("a cancelled call is a failure", abandoned.ok === false);
-	check(
-		"and is not reported as a timeout",
+	expect(abandoned.ok === false, "a cancelled call is a failure").toBe(true);
+	expect(
 		abandoned.ok === false && abandoned.error === "the call was cancelled",
-	);
+		"and is not reported as a timeout",
+	).toBe(true);
 });

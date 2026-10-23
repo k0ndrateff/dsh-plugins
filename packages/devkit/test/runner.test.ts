@@ -9,7 +9,7 @@
  *   bun run test/runner.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +21,6 @@ import type {
 	ShellExecution,
 	ShellRunResult,
 } from "@deepseek-ai/dsh-shell";
-import { check } from "../../../test/support";
 import type { Recipe } from "../src/host/config";
 import { DEFAULT_TIMEOUT_MS, RecipeRunner } from "../src/host/runner";
 
@@ -147,30 +146,26 @@ test("what the runner asks the shell for", async () => {
 			{ cwd: "/work/app" },
 		);
 
-		check(
-			"the project's command line goes through unchanged",
+		expect(
 			specs[0]?.command === "bun run typecheck",
-			specs[0]?.command,
-		);
-		check(
-			"the session's directory is the working directory",
+			`the project's command line goes through unchanged — ${specs[0]?.command}`,
+		).toBe(true);
+		expect(
 			specs[0]?.workdir === "/work/app",
-			specs[0]?.workdir,
-		);
-		check(
-			"a recipe's own deadline is used",
+			`the session's directory is the working directory — ${specs[0]?.workdir}`,
+		).toBe(true);
+		expect(
 			specs[0]?.timeoutMs === 5_000,
-			String(specs[0]?.timeoutMs),
-		);
+			`a recipe's own deadline is used — ${String(specs[0]?.timeoutMs)}`,
+		).toBe(true);
 
 		const { ctx: other, specs: defaults } = scriptedShell({});
 		await new RecipeRunner(other).run(recipe(), { cwd: "/work/app" });
 
-		check(
-			"a recipe without one gets the runner's default",
+		expect(
 			defaults[0]?.timeoutMs === DEFAULT_TIMEOUT_MS,
-			String(defaults[0]?.timeoutMs),
-		);
+			`a recipe without one gets the runner's default — ${String(defaults[0]?.timeoutMs)}`,
+		).toBe(true);
 	}
 });
 test("how a run ends", async () => {
@@ -204,21 +199,19 @@ test("how a run ends", async () => {
 				cwd: "/work",
 			});
 
-			check(
-				label,
+			expect(
 				result.status === status && result.exitCode === exitCode,
-				`${result.status}/${String(result.exitCode)}`,
-			);
+				String(label) + " — " + `${result.status}/${String(result.exitCode)}`,
+			).toBe(true);
 		}
 
 		const { ctx } = scriptedShell(new Error("no shell"));
 		const failed = await new RecipeRunner(ctx).run(recipe(), { cwd: "/work" });
 
-		check(
-			"an error says why in place of output",
+		expect(
 			failed.output === "no shell",
-			failed.output,
-		);
+			`an error says why in place of output — ${failed.output}`,
+		).toBe(true);
 	}
 });
 test("reading the two streams", async () => {
@@ -231,18 +224,16 @@ test("reading the two streams", async () => {
 			cwd: "/work",
 		});
 
-		check(
-			"stdout is what gets parsed",
+		expect(
 			parsed.status === "failed" &&
 				parsed.summary.errors === 1 &&
 				parsed.failures[0]?.file === "src/a.ts",
-			JSON.stringify(parsed.failures[0]),
-		);
-		check(
-			"a parsed run keeps no raw output",
+			`stdout is what gets parsed — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
+		expect(
 			parsed.output === undefined,
-			String(parsed.output),
-		);
+			`a parsed run keeps no raw output — ${String(parsed.output)}`,
+		).toBe(true);
 
 		const { ctx: onError } = scriptedShell({
 			exitCode: 1,
@@ -253,11 +244,10 @@ test("reading the two streams", async () => {
 			{ cwd: "/work" },
 		);
 
-		check(
-			"a tool that reports on stderr is read too",
+		expect(
 			fromStderr.failures[0]?.file === "src/b.ts",
-			JSON.stringify(fromStderr.failures[0]),
-		);
+			`a tool that reports on stderr is read too — ${JSON.stringify(fromStderr.failures[0])}`,
+		).toBe(true);
 
 		// Biome splits its report: the diagnostics on stderr, the counts on stdout.
 		const { ctx: split } = scriptedShell({
@@ -281,18 +271,16 @@ test("reading the two streams", async () => {
 			},
 		);
 
-		check(
-			"a report split across the two streams is read from both",
+		expect(
 			both.failures.length === 2 &&
 				both.failures[0]?.file === "src/a.ts" &&
 				both.failures[1]?.severity === "error",
-			JSON.stringify(both.failures),
-		);
-		check(
-			"a count a stream only repeats is not doubled",
+			`a report split across the two streams is read from both — ${JSON.stringify(both.failures)}`,
+		).toBe(true);
+		expect(
 			both.summary.errors === 2 && both.summary.warnings === 1,
-			JSON.stringify(both.summary),
-		);
+			`a count a stream only repeats is not doubled — ${JSON.stringify(both.summary)}`,
+		).toBe(true);
 
 		const { ctx: unreadable } = scriptedShell({
 			exitCode: 2,
@@ -302,12 +290,11 @@ test("reading the two streams", async () => {
 			cwd: "/work",
 		});
 
-		check(
-			"a run nothing could be read from keeps its output",
+		expect(
 			kept.status === "failed" &&
 				(kept.output ?? "").includes("everything is on fire"),
-			kept.output,
-		);
+			`a run nothing could be read from keeps its output — ${kept.output}`,
+		).toBe(true);
 
 		const { ctx: timedOut } = scriptedShell({
 			stdout: "still going\n",
@@ -318,12 +305,11 @@ test("reading the two streams", async () => {
 			cwd: "/work",
 		});
 
-		check(
-			"a timed-out run says so and keeps what it printed",
+		expect(
 			expired.status === "timedout" &&
 				(expired.output ?? "").includes("still running"),
-			expired.output,
-		);
+			`a timed-out run says so and keeps what it printed — ${expired.output}`,
+		).toBe(true);
 
 		// A tool may report on both streams at once, and each report is a finding.
 		const { ctx: onBoth } = scriptedShell({
@@ -335,13 +321,12 @@ test("reading the two streams", async () => {
 			cwd: "/work",
 		});
 
-		check(
-			"failures on both streams are all kept",
+		expect(
 			two.failures.length === 2 &&
 				two.failures[0]?.file === "src/a.ts" &&
 				two.failures[1]?.file === "src/b.ts",
-			JSON.stringify(two.failures.map((failure) => failure.file)),
-		);
+			`failures on both streams are all kept — ${JSON.stringify(two.failures.map((failure) => failure.file))}`,
+		).toBe(true);
 
 		const { ctx: twice } = scriptedShell({
 			exitCode: 1,
@@ -352,11 +337,10 @@ test("reading the two streams", async () => {
 			cwd: "/work",
 		});
 
-		check(
-			"the same failure written twice is read once",
+		expect(
 			once.failures.length === 1,
-			JSON.stringify(once.failures),
-		);
+			`the same failure written twice is read once — ${JSON.stringify(once.failures)}`,
+		).toBe(true);
 	}
 });
 test("live: real commands through a real process", async () => {
@@ -371,22 +355,20 @@ test("live: real commands through a real process", async () => {
 			{ cwd: process.cwd() },
 		);
 
-		check(
-			"a real passing command passes",
+		expect(
 			ok.status === "passed" && ok.exitCode === 0 && ok.durationMs >= 0,
-			`${ok.status}/${String(ok.exitCode)}/${ok.durationMs}ms`,
-		);
+			`a real passing command passes — ${`${ok.status}/${String(ok.exitCode)}/${ok.durationMs}ms`}`,
+		).toBe(true);
 
 		const bad = await runner.run(
 			recipe({ run: `${runtime} -e "process.exit(3)"` }),
 			{ cwd: process.cwd() },
 		);
 
-		check(
-			"a real failing command fails with its exit code",
+		expect(
 			bad.status === "failed" && bad.exitCode === 3,
-			`${bad.status}/${String(bad.exitCode)}`,
-		);
+			`a real failing command fails with its exit code — ${`${bad.status}/${String(bad.exitCode)}`}`,
+		).toBe(true);
 
 		// The fixture lives in a directory of its own, because a suite that writes
 		// into its own package leaves a file behind when it fails and cannot write at
@@ -407,19 +389,17 @@ test("live: real commands through a real process", async () => {
 				{ cwd: dir },
 			);
 
-			check(
-				"a real tsc run is parsed into a failure at the right line",
+			expect(
 				typed.status === "failed" &&
 					typed.failures[0]?.file === fixture &&
 					typed.failures[0]?.line === 1 &&
 					typed.failures[0]?.rule === "TS2322",
-				JSON.stringify(typed.failures[0]),
-			);
-			check(
-				"the compiler's error count reaches the summary",
+				`a real tsc run is parsed into a failure at the right line — ${JSON.stringify(typed.failures[0])}`,
+			).toBe(true);
+			expect(
 				typed.summary.errors === 1,
-				JSON.stringify(typed.summary),
-			);
+				`the compiler's error count reaches the summary — ${JSON.stringify(typed.summary)}`,
+			).toBe(true);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}

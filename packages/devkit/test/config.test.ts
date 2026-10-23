@@ -5,9 +5,8 @@
  *   bun run test/config.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { Context } from "@deepseek-ai/cordis";
-import { check } from "../../../test/support";
 import {
 	ALL_RECIPES,
 	CONFIG_FILE,
@@ -54,25 +53,22 @@ test("a valid book", async () => {
 	{
 		const recipes = parseRecipes(JSON.parse(BOOK), CONFIG_FILE);
 
-		check(
-			"keeps the order the project wrote",
+		expect(
 			recipes.map((recipe) => recipe.name).join(",") === "typecheck,test,build",
-			recipes.map((recipe) => recipe.name).join(","),
-		);
-		check(
-			"a recipe without a parser is read by the exit code",
+			`keeps the order the project wrote — ${recipes.map((recipe) => recipe.name).join(",")}`,
+		).toBe(true);
+		expect(
 			recipes[2]?.parser === "generic",
-			recipes[2]?.parser,
-		);
-		check(
-			"a recipe's own deadline is kept",
+			`a recipe without a parser is read by the exit code — ${recipes[2]?.parser}`,
+		).toBe(true);
+		expect(
 			recipes[1]?.timeoutMs === 120_000,
-			String(recipes[1]?.timeoutMs),
-		);
-		check(
-			"a recipe without a deadline has none",
+			`a recipe's own deadline is kept — ${String(recipes[1]?.timeoutMs)}`,
+		).toBe(true);
+		expect(
 			recipes[0]?.timeoutMs === undefined,
-		);
+			"a recipe without a deadline has none",
+		).toBe(true);
 	}
 });
 test("a book that is not one", async () => {
@@ -99,15 +95,15 @@ test("a book that is not one", async () => {
 				message = error instanceof Error ? error.message : String(error);
 			}
 
-			check(
-				`${what} is refused with a message that names the file`,
+			expect(
 				message.includes(CONFIG_FILE),
-				message,
-			);
+				String(`${what} is refused with a message that names the file`) +
+					" — " +
+					message,
+			).toBe(true);
 		}
 
-		check(
-			"an unknown parser lists the known ones",
+		expect(
 			(() => {
 				try {
 					parseRecipes(
@@ -120,89 +116,84 @@ test("a book that is not one", async () => {
 					return String(error).includes("vitest");
 				}
 			})(),
-		);
+			"an unknown parser lists the known ones",
+		).toBe(true);
 	}
 });
 test("reading the book", async () => {
 	{
 		const book = await RecipeBook.read(project({ [CONFIG_FILE]: BOOK }));
 
-		check(
-			"the project's names come back in order",
+		expect(
 			book.names.join(",") === "typecheck,test,build",
-			book.names.join(","),
-		);
-		check(
-			"asking for all runs every recipe",
+			`the project's names come back in order — ${book.names.join(",")}`,
+		).toBe(true);
+		expect(
 			book.select(ALL_RECIPES).length === 3 &&
 				book.select(undefined).length === 3,
-		);
-		check(
-			"asking for one runs one",
+			"asking for all runs every recipe",
+		).toBe(true);
+		expect(
 			book
 				.select("test")
 				.map((recipe) => recipe.name)
 				.join(",") === "test",
-		);
+			"asking for one runs one",
+		).toBe(true);
 
 		const unknown = await refusal(async () => book.select("nope"));
 
-		check(
-			"an unknown recipe is refused with the ones that exist",
+		expect(
 			unknown.includes("nope") && unknown.includes("typecheck"),
-			unknown,
-		);
+			`an unknown recipe is refused with the ones that exist — ${unknown}`,
+		).toBe(true);
 
 		const missing = await refusal(async () =>
 			RecipeBook.read(project({ "package.json": "{}" })),
 		);
 
-		check(
-			"a project without a book says how to get one",
+		expect(
 			missing.includes(CONFIG_FILE) && missing.includes("/checks init"),
-			missing,
-		);
+			`a project without a book says how to get one — ${missing}`,
+		).toBe(true);
 
 		const broken = await refusal(async () =>
 			RecipeBook.read(project({ [CONFIG_FILE]: "{ not json" })),
 		);
 
-		check(
-			"a book that is not JSON is refused as such",
+		expect(
 			broken.includes("not valid JSON"),
-			broken,
-		);
+			`a book that is not JSON is refused as such — ${broken}`,
+		).toBe(true);
 	}
 });
 test("the /checks init draft", async () => {
 	{
-		check(
-			"a script that runs a known tool is read by that tool's parser",
+		expect(
 			parserFor("verify", "bunx vitest run") === "vitest" &&
 				parserFor("verify", "jest") === "jest" &&
 				parserFor("verify", "pytest -q") === "pytest" &&
 				parserFor("verify", "tsc --noEmit") === "tsc" &&
 				parserFor("verify", "biome check") === "biome" &&
 				parserFor("verify", "eslint .") === "eslint",
-			[
+			`a script that runs a known tool is read by that tool's parser — ${[
 				parserFor("verify", "bunx vitest run"),
 				parserFor("verify", "jest"),
 				parserFor("verify", "pytest -q"),
-			].join(","),
-		);
-		check(
-			"a name that sounds like a check is a fallback, not a guess",
+			].join(",")}`,
+		).toBe(true);
+		expect(
 			parserFor("typecheck", "node scripts/types.mjs") === "tsc" &&
 				parserFor("lint", "node scripts/style.mjs") === "biome" &&
 				parserFor("build", "node scripts/build.mjs") === "generic",
-			parserFor("build", "node scripts/build.mjs"),
-		);
-		check(
-			"the lockfile decides how the project runs its scripts",
+			`a name that sounds like a check is a fallback, not a guess — ${parserFor("build", "node scripts/build.mjs")}`,
+		).toBe(true);
+		expect(
 			(await runnerFor(async (name) => name === "pnpm-lock.yaml")) === "pnpm" &&
 				(await runnerFor(async (name) => name === "bun.lock")) === "bun" &&
 				(await runnerFor(async () => false)) === "npm",
-		);
+			"the lockfile decides how the project runs its scripts",
+		).toBe(true);
 
 		const draft = draftRecipes(
 			{
@@ -217,26 +208,23 @@ test("the /checks init draft", async () => {
 			"bun",
 		);
 
-		check(
-			"only the check-shaped scripts are drafted",
+		expect(
 			Object.keys(draft?.checks ?? {}).join(",") === "typecheck,test,lint",
-			Object.keys(draft?.checks ?? {}).join(","),
-		);
-		check(
-			"a drafted recipe runs the project's own script",
+			`only the check-shaped scripts are drafted — ${Object.keys(draft?.checks ?? {}).join(",")}`,
+		).toBe(true);
+		expect(
 			draft?.checks.typecheck?.run === "bun run typecheck",
-			draft?.checks.typecheck?.run,
-		);
-		check(
-			"a drafted recipe names the parser it guessed",
+			`a drafted recipe runs the project's own script — ${draft?.checks.typecheck?.run}`,
+		).toBe(true);
+		expect(
 			draft?.checks.test?.parse === "vitest",
-			draft?.checks.test?.parse,
-		);
-		check(
-			"a manifest with nothing to check drafts nothing",
+			`a drafted recipe names the parser it guessed — ${draft?.checks.test?.parse}`,
+		).toBe(true);
+		expect(
 			draftRecipes({ scripts: { dev: "vite" } }, "npm") === undefined &&
 				draftRecipes({}, "npm") === undefined &&
 				draftRecipes(null, "npm") === undefined,
-		);
+			"a manifest with nothing to check drafts nothing",
+		).toBe(true);
 	}
 });

@@ -11,8 +11,7 @@
  *   bun run test/readers.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import {
 	parseCodeConnectMap,
 	parseMetadata,
@@ -27,46 +26,48 @@ const textResult = (text: string): unknown => ({
 });
 
 test("a node reference", async () => {
-	check("an id is read as itself", parseNodeRef("1:2")?.nodeId === "1:2");
-	check(
-		"the dash form becomes Figma's own",
+	expect(parseNodeRef("1:2")?.nodeId === "1:2", "an id is read as itself").toBe(
+		true,
+	);
+	expect(
 		parseNodeRef("960-6938")?.nodeId === "960:6938",
-	);
-	check(
-		"an instance child id keeps its segments",
+		"the dash form becomes Figma's own",
+	).toBe(true);
+	expect(
 		parseNodeRef("I123-456;789-12")?.nodeId === "I123:456;789:12",
-	);
-	check(
-		"a design link is read as its node and file",
+		"an instance child id keeps its segments",
+	).toBe(true);
+	expect(
 		parseNodeRef(
 			"https://www.figma.com/design/AbC123/Storefront?node-id=12-34&t=x",
 		)?.nodeId === "12:34" &&
 			parseNodeRef(
 				"https://www.figma.com/design/AbC123/Storefront?node-id=12-34&t=x",
 			)?.fileKey === "AbC123",
-	);
-	check(
-		"a branch link is read as the branch's key",
+		"a design link is read as its node and file",
+	).toBe(true);
+	expect(
 		parseNodeRef(
 			"https://www.figma.com/design/AbC123/branch/BrAnCh9/Storefront?node-id=1-2",
 		)?.fileKey === "BrAnCh9",
-	);
-	check(
-		"a board link is read the same way",
+		"a branch link is read as the branch's key",
+	).toBe(true);
+	expect(
 		parseNodeRef("https://www.figma.com/board/BoArD1/Flow?node-id=5-6")
 			?.nodeId === "5:6",
-	);
-	check(
-		"a link without a node names no node",
+		"a board link is read the same way",
+	).toBe(true);
+	expect(
 		parseNodeRef("https://www.figma.com/design/AbC123/Storefront") ===
 			undefined,
-	);
-	check(
-		"anything else is not a node",
+		"a link without a node names no node",
+	).toBe(true);
+	expect(
 		parseNodeRef("Menu Items") === undefined &&
 			parseNodeRef("") === undefined &&
 			parseNodeRef("1:2:3") === undefined,
-	);
+		"anything else is not a node",
+	).toBe(true);
 });
 test("the metadata XML", async () => {
 	const METADATA = textResult(
@@ -82,42 +83,48 @@ IMPORTANT: After you call this tool, you MUST call get_design_context if trying 
 
 	const metadata = parseMetadata(METADATA);
 
-	check(
-		"the root is the element that was asked about",
+	expect(
 		metadata?.root.id === "960:6938",
-	);
-	check("its type is the element's own name", metadata?.root.type === "frame");
-	check(
-		"its size is read as numbers",
+		"the root is the element that was asked about",
+	).toBe(true);
+	expect(
+		metadata?.root.type === "frame",
+		"its type is the element's own name",
+	).toBe(true);
+	expect(
 		metadata?.root.width === 260 && metadata.root.height === 502,
-	);
-	check(
-		"its position is read too",
+		"its size is read as numbers",
+	).toBe(true);
+	expect(
 		metadata?.root.x === 14096 && metadata.root.y === 2243,
-	);
-	check(
-		"an escaped name is decoded",
+		"its position is read too",
+	).toBe(true);
+	expect(
 		metadata?.root.name === "Menu Items & more",
-	);
-	check("only direct children are listed", metadata?.children.length === 3);
-	check(
-		"a child keeps its own facts",
+		"an escaped name is decoded",
+	).toBe(true);
+	expect(
+		metadata?.children.length === 3,
+		"only direct children are listed",
+	).toBe(true);
+	expect(
 		metadata?.children[0]?.id === "960:6939" &&
 			metadata.children[0]?.type === "symbol" &&
 			metadata.children[0]?.width === 75,
-	);
-	check(
-		"a grandchild is not a child",
+		"a child keeps its own facts",
+	).toBe(true);
+	expect(
 		metadata?.children.some((child) => child.id === "960:6942") === false,
-	);
-	check(
-		"every layer is counted, grandchildren included",
+		"a grandchild is not a child",
+	).toBe(true);
+	expect(
 		metadata?.layers === 5,
-	);
-	check(
-		"the server's advice after the root is not part of the document",
+		"every layer is counted, grandchildren included",
+	).toBe(true);
+	expect(
 		metadata?.children.length === 3,
-	);
+		"the server's advice after the root is not part of the document",
+	).toBe(true);
 
 	const PAGE = textResult(
 		`<canvas id="0:1" name="🐋 Components" x="0" y="0" width="0" height="0">
@@ -125,20 +132,20 @@ IMPORTANT: After you call this tool, you MUST call get_design_context if trying 
 </canvas>`,
 	);
 
-	check(
-		"a page is read like any other element",
+	expect(
 		parseMetadata(PAGE)?.root.type === "canvas" &&
 			parseMetadata(PAGE)?.children.length === 1,
-	);
+		"a page is read like any other element",
+	).toBe(true);
 
-	check(
-		"prose is not a document",
+	expect(
 		parseMetadata(
 			textResult(
 				"No nodeId was provided. Listing the top-level pages of the document.",
 			),
 		) === undefined,
-	);
+		"prose is not a document",
+	).toBe(true);
 
 	const SELECTED = textResult(
 		`Currently selected nodes:
@@ -150,20 +157,19 @@ IMPORTANT: After you call this tool, you MUST call get_design_context if trying 
 IMPORTANT: After you call this tool, you MUST call get_design_context.`,
 	);
 
-	check(
-		"a document that opens with the selection notice is still read",
+	expect(
 		parseMetadata(SELECTED)?.root.id === "5343:22245" &&
 			parseMetadata(SELECTED)?.children.length === 1,
-		String(parseMetadata(SELECTED)?.root.id),
-	);
+		`a document that opens with the selection notice is still read — ${String(parseMetadata(SELECTED)?.root.id)}`,
+	).toBe(true);
 
-	check(
-		"an error answer is not a document either",
+	expect(
 		parseMetadata({
 			content: [{ type: "text", text: "Nothing is selected" }],
 			isError: true,
 		}) === undefined,
-	);
+		"an error answer is not a document either",
+	).toBe(true);
 });
 test("the variables a node uses", async () => {
 	const VARIABLES = textResult(
@@ -178,24 +184,29 @@ test("the variables a node uses", async () => {
 
 	const tokens = parseVariableDefs(VARIABLES);
 
-	check("every variable is kept, in the server's order", tokens.length === 4);
-	check(
-		"a name and its value are both text",
+	expect(
+		tokens.length === 4,
+		"every variable is kept, in the server's order",
+	).toBe(true);
+	expect(
 		tokens[0]?.name === "8" && tokens[0]?.value === "8",
+		"a name and its value are both text",
+	).toBe(true);
+	expect(tokens[1]?.value === "16", "a numeric value is rendered as text").toBe(
+		true,
 	);
-	check("a numeric value is rendered as text", tokens[1]?.value === "16");
-	check(
-		"a font shorthand survives as one value",
+	expect(
 		tokens[3]?.value.startsWith("Font(family:") === true,
-	);
-	check(
-		"prose names no variables",
+		"a font shorthand survives as one value",
+	).toBe(true);
+	expect(
 		parseVariableDefs(textResult("Nothing is selected")).length === 0,
-	);
-	check(
-		"an empty answer names none either",
+		"prose names no variables",
+	).toBe(true);
+	expect(
 		parseVariableDefs(textResult("{}")).length === 0,
-	);
+		"an empty answer names none either",
+	).toBe(true);
 });
 test("the Code Connect map", async () => {
 	const MAPPED = textResult(
@@ -209,13 +220,15 @@ test("the Code Connect map", async () => {
 
 	const mappings = parseCodeConnectMap(MAPPED, "960:6939");
 
-	check("a mapped node is read", mappings.length === 1);
-	check(
-		"the component and its source are kept",
+	expect(mappings.length === 1, "a mapped node is read").toBe(true);
+	expect(
 		mappings[0]?.component === "MenuItem" &&
 			mappings[0]?.source === "src/components/menu-item.tsx",
+		"the component and its source are kept",
+	).toBe(true);
+	expect(mappings[0]?.nodeId === "960:6939", "the mapping names its node").toBe(
+		true,
 	);
-	check("the mapping names its node", mappings[0]?.nodeId === "960:6939");
 
 	const SINGLE = textResult(
 		JSON.stringify({
@@ -224,21 +237,21 @@ test("the Code Connect map", async () => {
 		}),
 	);
 
-	check(
-		"a single mapping answers for the node that was asked about",
+	expect(
 		parseCodeConnectMap(SINGLE, "12:34")[0]?.nodeId === "12:34",
-	);
-	check(
-		"an unmapped node maps to nothing",
+		"a single mapping answers for the node that was asked about",
+	).toBe(true);
+	expect(
 		parseCodeConnectMap(textResult("{}"), "960:6939").length === 0,
-	);
-	check(
-		"a mapping without a source is not a mapping",
+		"an unmapped node maps to nothing",
+	).toBe(true);
+	expect(
 		parseCodeConnectMap(
 			textResult(JSON.stringify({ "1:2": { codeConnectName: "Button" } })),
 			"1:2",
 		).length === 0,
-	);
+		"a mapping without a source is not a mapping",
+	).toBe(true);
 });
 test("the screenshot", async () => {
 	const shot = parseScreenshot({
@@ -252,18 +265,20 @@ test("the screenshot", async () => {
 		],
 	});
 
-	check("the image block is found", shot?.contentType === "image/png");
-	check(
-		"its bytes are decoded",
+	expect(shot?.contentType === "image/png", "the image block is found").toBe(
+		true,
+	);
+	expect(
 		Buffer.from(shot?.bytes ?? []).toString("utf8") === "PNG!",
-	);
-	check(
-		"an answer with no image has none",
+		"its bytes are decoded",
+	).toBe(true);
+	expect(
 		parseScreenshot(textResult("Nothing is selected")) === undefined,
-	);
-	check(
-		"an image without a media type is still a picture",
+		"an answer with no image has none",
+	).toBe(true);
+	expect(
 		parseScreenshot({ content: [{ type: "image", data: "UE5H" }] })
 			?.contentType === "image/png",
-	);
+		"an image without a media type is still a picture",
+	).toBe(true);
 });

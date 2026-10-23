@@ -9,9 +9,8 @@
  *   bun run test/unit.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { parseCredentialKey } from "@deepseek-ai/dsh-credentials";
-import { check } from "../../../test/support";
 import {
 	credentialKeyFor,
 	DEFAULT_INSTANCE,
@@ -76,45 +75,43 @@ function local(scope: string): NoAuthProviderProfile {
 }
 
 test("accounts", async () => {
-	check(
-		"the default account keeps the record id it has always had",
+	expect(
 		credentialKeyFor("dsh-atlassian") === "dsh-atlassian/mcp",
-		credentialKeyFor("dsh-atlassian"),
-	);
-	check(
-		"a named account gets its own record",
+		`the default account keeps the record id it has always had — ${credentialKeyFor("dsh-atlassian")}`,
+	).toBe(true);
+	expect(
 		credentialKeyFor("dsh-gitlab", "work") === "dsh-gitlab/mcp-work",
-		credentialKeyFor("dsh-gitlab", "work"),
-	);
-	check(
-		"an explicit default account is the same record as an omitted one",
+		`a named account gets its own record — ${credentialKeyFor("dsh-gitlab", "work")}`,
+	).toBe(true);
+	expect(
 		credentialKeyFor("dsh-gitlab", DEFAULT_INSTANCE) ===
 			credentialKeyFor("dsh-gitlab"),
-	);
-	check(
-		"a hyphenated account name round-trips",
+		"an explicit default account is the same record as an omitted one",
+	).toBe(true);
+	expect(
 		instanceOfKey(
 			"dsh-gitlab",
 			credentialKeyFor("dsh-gitlab", "side-project"),
 		) === "side-project",
-	);
-	check(
-		"an account may be called mcp",
+		"a hyphenated account name round-trips",
+	).toBe(true);
+	expect(
 		instanceOfKey("dsh-gitlab", credentialKeyFor("dsh-gitlab", "mcp")) ===
 			"mcp",
-	);
-	check(
-		"the default record reads back as the default account",
+		"an account may be called mcp",
+	).toBe(true);
+	expect(
 		instanceOfKey("dsh-gitlab", "dsh-gitlab/mcp") === DEFAULT_INSTANCE,
-	);
-	check(
-		"another plugin's record is not this plugin's account",
+		"the default record reads back as the default account",
+	).toBe(true);
+	expect(
 		instanceOfKey("dsh-gitlab", "dsh-sentry/mcp") === undefined,
-	);
-	check(
-		"an id this plugin never wrote names no account",
+		"another plugin's record is not this plugin's account",
+	).toBe(true);
+	expect(
 		instanceOfKey("dsh-gitlab", "dsh-gitlab/whatever") === undefined,
-	);
+		"an id this plugin never wrote names no account",
+	).toBe(true);
 
 	let rejected = "";
 	try {
@@ -122,7 +119,10 @@ test("accounts", async () => {
 	} catch (error) {
 		rejected = error instanceof Error ? error.message : String(error);
 	}
-	check("an account name outside the key grammar is refused", rejected !== "");
+	expect(
+		rejected !== "",
+		"an account name outside the key grammar is refused",
+	).toBe(true);
 
 	let rejectedScope = "";
 	try {
@@ -130,11 +130,10 @@ test("accounts", async () => {
 	} catch (error) {
 		rejectedScope = error instanceof Error ? error.message : String(error);
 	}
-	check(
-		"a scope outside the key grammar is refused too",
+	expect(
 		rejectedScope !== "",
-		rejectedScope,
-	);
+		`a scope outside the key grammar is refused too — ${rejectedScope}`,
+	).toBe(true);
 
 	const records = [
 		{ key: parseCredentialKey("dsh-sentry/mcp"), kind: "grant" as const },
@@ -149,103 +148,105 @@ test("accounts", async () => {
 		},
 		{ key: parseCredentialKey("dsh-gitlab/foreign"), kind: "grant" as const },
 	];
-	check(
-		"listing accounts keeps the store's order and drops what is not an account",
+	expect(
 		JSON.stringify(instancesOf("dsh-gitlab", records)) ===
 			JSON.stringify([DEFAULT_INSTANCE, "work"]),
-		JSON.stringify(instancesOf("dsh-gitlab", records)),
-	);
-	check(
-		"a plugin with no records has no accounts",
+		`listing accounts keeps the store's order and drops what is not an account — ${JSON.stringify(instancesOf("dsh-gitlab", records))}`,
+	).toBe(true);
+	expect(
 		instancesOf("dsh-figma", records).length === 0,
-	);
+		"a plugin with no records has no accounts",
+	).toBe(true);
 
-	check(
-		"the record key comes from the profile",
+	expect(
 		credentialKeyOf(profile("dsh-gitlab", "work")) === "dsh-gitlab/mcp-work",
-	);
-	check(
-		"a default account logs under the plugin name",
+		"the record key comes from the profile",
+	).toBe(true);
+	expect(
 		accountLabel(profile("dsh-atlassian")) === "dsh-atlassian",
-	);
-	check(
-		"a named account logs under its own name",
+		"a default account logs under the plugin name",
+	).toBe(true);
+	expect(
 		accountLabel(profile("dsh-gitlab", "work")) === "dsh-gitlab/work",
-	);
-	check("an OAuth profile is recognized", needsOAuth(profile("dsh-gitlab")));
-	check(
-		"a profile without OAuth facts is a no-auth server",
+		"a named account logs under its own name",
+	).toBe(true);
+	expect(
+		needsOAuth(profile("dsh-gitlab")),
+		"an OAuth profile is recognized",
+	).toBe(true);
+	expect(
 		!needsOAuth(local("figma-local")),
-	);
+		"a profile without OAuth facts is a no-auth server",
+	).toBe(true);
 });
 test("client authentication", async () => {
-	check(
-		"a public client is preferred when the server allows one",
+	expect(
 		chooseTokenAuthMethod([
 			"client_secret_basic",
 			"client_secret_post",
 			"none",
 		]) === "none",
-	);
-	check(
-		"a server without `none` gets a secret in the body",
+		"a public client is preferred when the server allows one",
+	).toBe(true);
+	expect(
 		chooseTokenAuthMethod(["client_secret_basic", "client_secret_post"]) ===
 			"client_secret_post",
-	);
-	check(
-		"a server that only understands basic gets basic",
+		"a server without `none` gets a secret in the body",
+	).toBe(true);
+	expect(
 		chooseTokenAuthMethod(["client_secret_basic"]) === "client_secret_basic",
-	);
-	check(
-		"a silent server is asked for a public client",
+		"a server that only understands basic gets basic",
+	).toBe(true);
+	expect(
 		chooseTokenAuthMethod(undefined) === "none",
-	);
-	check(
-		"a server advertising nothing we know still gets a registration attempt",
+		"a silent server is asked for a public client",
+	).toBe(true);
+	expect(
 		chooseTokenAuthMethod(["private_key_jwt"]) === "none",
-	);
+		"a server advertising nothing we know still gets a registration attempt",
+	).toBe(true);
 
-	check(
-		"a stored grant without a method and without a secret is public",
+	expect(
 		authMethodOf({}) === "none",
-	);
-	check(
-		"a stored grant with a secret predates the field and posts it",
+		"a stored grant without a method and without a secret is public",
+	).toBe(true);
+	expect(
 		authMethodOf({ clientSecret: "s" }) === "client_secret_post",
-	);
-	check(
-		"an explicit method wins over the presence of a secret",
+		"a stored grant with a secret predates the field and posts it",
+	).toBe(true);
+	expect(
 		authMethodOf({ clientSecret: "s", tokenAuthMethod: "none" }) === "none",
-	);
+		"an explicit method wins over the presence of a secret",
+	).toBe(true);
 });
 test("reading a tool result", async () => {
-	check(
-		"the JSON inside a text block is read",
+	expect(
 		mcpJson({ content: [{ type: "text", text: '{"a":1}' }] }).length === 1,
-	);
-	check(
-		"structuredContent is read even when no block carries it",
+		"the JSON inside a text block is read",
+	).toBe(true);
+	expect(
 		(
 			mcpJson({
 				content: [{ type: "text", text: "prose" }],
 				structuredContent: { a: 1 },
 			}).at(0) as { a?: number } | undefined
 		)?.a === 1,
-	);
-	check(
-		"structuredContent comes before the text that renders it",
+		"structuredContent is read even when no block carries it",
+	).toBe(true);
+	expect(
 		(
 			mcpJson({
 				content: [{ type: "text", text: '{"from":"text"}' }],
 				structuredContent: { from: "structured" },
 			})[0] as { from?: string } | undefined
 		)?.from === "structured",
-	);
-	check(
-		"prose alone yields nothing to walk",
+		"structuredContent comes before the text that renders it",
+	).toBe(true);
+	expect(
 		mcpJson({ content: [{ type: "text", text: "# Heading\n\nprose" }] })
 			.length === 0 && mcpJson(undefined).length === 0,
-	);
+		"prose alone yields nothing to walk",
+	).toBe(true);
 });
 test("the stored grant", async () => {
 	const rehydrated = Grant.from({
@@ -256,10 +257,10 @@ test("the stored grant", async () => {
 		accessToken: "token",
 	});
 
-	check(
-		"a grant keeps the client authentication it was stored with",
+	expect(
 		rehydrated?.tokenAuthMethod === "client_secret_basic",
-	);
+		"a grant keeps the client authentication it was stored with",
+	).toBe(true);
 
 	const oauth = new OAuthServer({
 		issuer: "https://example.test",
@@ -276,45 +277,44 @@ test("the stored grant", async () => {
 		{ refreshToken: "kept", tokenType: "Bearer", scope: "mcp" },
 	);
 
-	check(
-		"a new access token replaces the old one",
+	expect(
 		refreshed.accessToken === "next",
-	);
-	check(
-		"a refresh token the response omits is kept",
+		"a new access token replaces the old one",
+	).toBe(true);
+	expect(
 		refreshed.refreshToken === "kept",
-	);
-	check(
-		"the response's scope is kept when it names none",
+		"a refresh token the response omits is kept",
+	).toBe(true);
+	expect(
 		refreshed.scope === "mcp",
-	);
-	check(
-		"expiry comes from the response",
+		"the response's scope is kept when it names none",
+	).toBe(true);
+	expect(
 		(refreshed.expiresAt ?? 0) > Date.now() + 60_000,
-	);
-	check(
-		"a response without a lifetime still expires",
+		"expiry comes from the response",
+	).toBe(true);
+	expect(
 		oauth.toTokenFields({ access_token: "x" }, {}).expiresAt !== undefined,
-	);
-	check(
-		"an empty access token does not erase the working one",
+		"a response without a lifetime still expires",
+	).toBe(true);
+	expect(
 		oauth.toTokenFields({ access_token: "" }, { accessToken: "kept" })
 			.accessToken === "kept",
-	);
-	check(
-		"an empty refresh token does not erase the working one",
+		"an empty access token does not erase the working one",
+	).toBe(true);
+	expect(
 		oauth.toTokenFields({ refresh_token: "" }, { refreshToken: "kept" })
 			.refreshToken === "kept",
-	);
+		"an empty refresh token does not erase the working one",
+	).toBe(true);
 
 	const carried = jsonSafe({ keep: 1, drop: undefined }) as Record<
 		string,
 		unknown
 	>;
 
-	check(
-		"a payload JSON cannot carry is refused by the store",
+	expect(
 		carried.keep === 1 && !("drop" in carried),
-		JSON.stringify(carried),
-	);
+		`a payload JSON cannot carry is refused by the store — ${JSON.stringify(carried)}`,
+	).toBe(true);
 });

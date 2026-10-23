@@ -10,7 +10,7 @@
  *   bun run test/dry-run.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { execFileSync, spawn as spawnProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -24,7 +24,6 @@ import type {
 	SubprocessSpawnSpec,
 } from "@deepseek-ai/dsh-subprocess";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { check } from "../../../test/support";
 import { BrowserSettings } from "../src/host/config";
 import { AgentBrowserRunner } from "../src/host/runner";
 import { SessionScope } from "../src/host/session";
@@ -288,102 +287,96 @@ setTimeout(() => { throw new Error('fixture: thrown on purpose'); }, 10);
 			process.exit(0);
 		}
 
-		check(
-			"the CLI answers doctor",
+		expect(
 			status.version !== undefined,
-			status.version,
-		);
-		check(
-			"Chrome is there",
+			`the CLI answers doctor — ${status.version}`,
+		).toBe(true);
+		expect(
 			status.chrome !== undefined,
-			status.chrome?.slice(0, 40),
-		);
+			`Chrome is there — ${status.chrome?.slice(0, 40)}`,
+		).toBe(true);
 	});
 	test("a real page in a real browser", async () => {
 		const fixture = await serve();
 
 		try {
 			const opened = await call(openTool.create(deps), { url: fixture.url });
-			check("the page opened", opened.url === fixture.url, String(opened.url));
-			check(
-				"with its own title",
+			expect(
+				opened.url === fixture.url,
+				`the page opened — ${String(opened.url)}`,
+			).toBe(true);
+			expect(
 				String(opened.title).includes("dry-run"),
-				String(opened.title),
-			);
+				`with its own title — ${String(opened.title)}`,
+			).toBe(true);
 
 			const tree = await call(snapshotTool.create(deps), {});
 			const snapshot = String(tree.snapshot);
-			check("the tree names the button", snapshot.includes("Poke me"));
-			check(
-				"and counts what it handed out",
-				Number(tree.elements) > 0,
-				String(tree.elements),
+			expect(snapshot.includes("Poke me"), "the tree names the button").toBe(
+				true,
 			);
+			expect(
+				Number(tree.elements) > 0,
+				`and counts what it handed out — ${String(tree.elements)}`,
+			).toBe(true);
 
 			const ref = /"Poke me" \[ref=(e\d+)\]/u.exec(snapshot)?.[1];
-			check("with a reference to click", ref !== undefined, ref);
+			expect(ref !== undefined, `with a reference to click — ${ref}`).toBe(
+				true,
+			);
 
 			const clicked = await call(actTool.create(deps), {
 				action: "click",
 				target: `@${ref ?? "e1"}`,
 			});
-			check("the click went through", clicked.action === "click");
+			expect(clicked.action === "click", "the click went through").toBe(true);
 
 			const heading = await call(runTool.create(deps), {
 				args: ["get", "text", "#h"],
 			});
-			check(
-				"and the page changed",
+			expect(
 				String(heading.answer).includes("clicked"),
-				String(heading.answer).slice(0, 60),
-			);
+				`and the page changed — ${String(heading.answer).slice(0, 60)}`,
+			).toBe(true);
 
 			const logged = await call(readTool.create(deps), { what: "console" });
-			check(
-				"the console is read",
+			expect(
 				Number(logged.count) > 0,
-				String(logged.text).slice(0, 60),
-			);
+				`the console is read — ${String(logged.text).slice(0, 60)}`,
+			).toBe(true);
 
 			const thrown = await call(readTool.create(deps), { what: "errors" });
-			check(
-				"the page's own error is read",
+			expect(
 				Number(thrown.count) > 0,
-				String(thrown.text).slice(0, 60),
-			);
+				`the page's own error is read — ${String(thrown.text).slice(0, 60)}`,
+			).toBe(true);
 			const watched = await watchOnce("dsh-dryrun");
-			check(
-				"the screencast was found and joined",
+			expect(
 				watched.connected,
-				watched.why,
-			);
-			check(
-				"a frame arrived with a picture in it",
+				`the screencast was found and joined — ${watched.why}`,
+			).toBe(true);
+			expect(
 				(watched.frame ?? 0) > 100,
-				`${String(watched.frame ?? 0)} base64 bytes`,
-			);
-			check(
-				"the frame names the viewport it was taken in",
+				`a frame arrived with a picture in it — ${`${String(watched.frame ?? 0)} base64 bytes`}`,
+			).toBe(true);
+			expect(
 				(watched.viewport?.width ?? 0) > 0 &&
 					(watched.viewport?.height ?? 0) > 0,
-				`${String(watched.viewport?.width)}x${String(watched.viewport?.height)}`,
-			);
-			check(
-				"and the address followed the page",
+				`the frame names the viewport it was taken in — ${`${String(watched.viewport?.width)}x${String(watched.viewport?.height)}`}`,
+			).toBe(true);
+			expect(
 				watched.url === fixture.url,
-				watched.url,
-			);
-			check(
-				"the feed shows what the agent did",
+				`and the address followed the page — ${watched.url}`,
+			).toBe(true);
+			expect(
 				watched.activity >= 6,
-				`${watched.activity} lines`,
-			);
+				`the feed shows what the agent did — ${`${watched.activity} lines`}`,
+			).toBe(true);
 		} catch (error) {
-			check(
-				"the live run finished",
+			expect(
 				false,
-				error instanceof Error ? error.message : String(error),
-			);
+				`the live run finished — ${error instanceof Error ? error.message : String(error)}`,
+			).toBe(true);
 		} finally {
 			fixture.close();
 			await runner.run({

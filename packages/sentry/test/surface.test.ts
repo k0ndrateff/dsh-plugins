@@ -9,12 +9,11 @@
  *   bun run test/surface.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { RuntimeState } from "dsh-integration-host";
 import type { McpBridge } from "dsh-mcp-oauth";
-import { check } from "../../../test/support";
 import { PanelApi } from "../src/host/panels/panel";
 import { OrganizationFacts } from "../src/host/store/organization";
 import { createApiHandler, ROUTE_PREFIX } from "../src/host/surface/http";
@@ -128,66 +127,59 @@ Found **2** issues:
 		const panel = new PanelApi({ bridge, state: signedIn() });
 		const loaded = await panel.issue("CHECKOUT-13P");
 
-		check(
-			"loading an issue reads it through the resource tool",
+		expect(
 			calls[0]?.name === "get_sentry_resource" &&
 				calls[0]?.args.resourceType === "issue" &&
 				calls[0]?.args.resourceId === "CHECKOUT-13P" &&
 				calls[0]?.args.organizationSlug === "acme",
-			JSON.stringify(calls[0]),
-		);
-		check(
-			"the panel answers with the issue and the organization its actions need",
+			`loading an issue reads it through the resource tool — ${JSON.stringify(calls[0])}`,
+		).toBe(true);
+		expect(
 			loaded.issue.id === "CHECKOUT-13P" &&
 				loaded.issue.occurrences === 35 &&
 				loaded.organization === "acme",
-			`${loaded.issue.id}/${String(loaded.organization)}`,
-		);
-		check(
-			"the suspect commit reaches the panel",
+			`the panel answers with the issue and the organization its actions need — ${`${loaded.issue.id}/${String(loaded.organization)}`}`,
+		).toBe(true);
+		expect(
 			loaded.issue.suspect?.issueKey === "DEV-5977",
-			JSON.stringify(loaded.issue.suspect),
-		);
+			`the suspect commit reaches the panel — ${JSON.stringify(loaded.issue.suspect)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await panel.setStatus("CHECKOUT-13P", "resolved");
 
-		check(
-			"resolving writes the status and then reloads",
+		expect(
 			calls[0]?.name === "update_issue" &&
 				calls[0]?.args.status === "resolved" &&
 				calls[0]?.args.issueId === "CHECKOUT-13P" &&
 				calls[1]?.name === "get_sentry_resource",
-			JSON.stringify(calls.map((call) => call.name)),
-		);
+			`resolving writes the status and then reloads — ${JSON.stringify(calls.map((call) => call.name))}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await panel.setStatus("CHECKOUT-13P", "ignored", "untilEscalating");
 
-		check(
-			"ignoring carries its mode",
+		expect(
 			calls[0]?.args.ignoreMode === "untilEscalating" &&
 				calls[0]?.args.status === "ignored",
-			JSON.stringify(calls[0]?.args),
-		);
+			`ignoring carries its mode — ${JSON.stringify(calls[0]?.args)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await panel.assign("CHECKOUT-13P", "user:123456");
 
-		check(
-			"assigning sends Sentry's own assignee format",
+		expect(
 			calls[0]?.args.assignedTo === "user:123456",
-			JSON.stringify(calls[0]?.args),
-		);
+			`assigning sends Sentry's own assignee format — ${JSON.stringify(calls[0]?.args)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await panel.assign("CHECKOUT-13P", null);
 
-		check(
-			"unassigning sends null rather than an empty string",
+		expect(
 			calls[0]?.args.assignedTo === null,
-			JSON.stringify(calls[0]?.args),
-		);
+			`unassigning sends null rather than an empty string — ${JSON.stringify(calls[0]?.args)}`,
+		).toBe(true);
 
 		const anonymous = new PanelApi({
 			bridge: fakeBridge(() => text(ISSUE_DOC)).bridge,
@@ -201,11 +193,10 @@ Found **2** issues:
 			refusal = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"an unknown organization is refused with what to do about it",
+		expect(
 			refusal.includes("organization") && refusal.includes("/sentry sync"),
-			refusal,
-		);
+			`an unknown organization is refused with what to do about it — ${refusal}`,
+		).toBe(true);
 
 		const empty = new PanelApi({
 			bridge: fakeBridge(() => text("no document here")).bridge,
@@ -219,11 +210,10 @@ Found **2** issues:
 			emptyRefusal = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"an answer that carries no issue is refused",
+		expect(
 			emptyRefusal.includes("CHECKOUT-13P"),
-			emptyRefusal,
-		);
+			`an answer that carries no issue is refused — ${emptyRefusal}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== the card tool ===");
@@ -242,35 +232,32 @@ Found **2** issues:
 			presentation: { issues: unknown[]; query?: string; layout: string };
 		};
 
-		check(
-			"a search call reaches the search tool with the query",
+		expect(
 			calls[0]?.name === "search_issues" &&
 				calls[0]?.args.query === "unresolved errors" &&
 				calls[0]?.args.organizationSlug === "acme",
-			JSON.stringify(calls[0]?.args),
-		);
-		check(
-			"the card carries the rows the search answered with",
+			`a search call reaches the search tool with the query — ${JSON.stringify(calls[0]?.args)}`,
+		).toBe(true);
+		expect(
 			value.shown === 2 &&
 				value.presentation.issues.length === 2 &&
 				value.presentation.layout === "compact",
-			`${String(value.shown)}/${value.presentation.layout}`,
-		);
-		check(
-			"the text tells the model what the card shows",
+			`the card carries the rows the search answered with — ${`${String(value.shown)}/${value.presentation.layout}`}`,
+		).toBe(true);
+		expect(
 			value.summary.startsWith('Shown as a card titled "Ошибки": 2 issues.') &&
 				value.summary.includes("CHECKOUT-13P") &&
 				value.summary.includes("16 events"),
-			value.summary.split("\n")[0],
-		);
-		check(
-			"the model's text is what the render returns",
+			`the text tells the model what the card shows — ${value.summary.split("\n")[0]}`,
+		).toBe(true);
+		expect(
 			textOf(definition, value) === value.summary,
-		);
-		check(
-			"the card payload is the one the browser half validates",
+			"the model's text is what the render returns",
+		).toBe(true);
+		expect(
 			value.presentation !== undefined && value.failed.length === 0,
-		);
+			"the card payload is the one the browser half validates",
+		).toBe(true);
 
 		calls.length = 0;
 		const byId = (await definition.execute(
@@ -282,17 +269,15 @@ Found **2** issues:
 			presentation: { suspect?: unknown };
 		};
 
-		check(
-			"an id is resolved through the resource tool",
+		expect(
 			calls[0]?.name === "get_sentry_resource" &&
 				calls[0]?.args.resourceId === "CHECKOUT-13P",
-			JSON.stringify(calls[0]?.args),
-		);
-		check(
-			"an id the server refuses is reported, not thrown",
+			`an id is resolved through the resource tool — ${JSON.stringify(calls[0]?.args)}`,
+		).toBe(true);
+		expect(
 			byId.failed.length === 0 && byId.shown === 2,
-			`${byId.shown} shown, ${byId.failed.length} failed`,
-		);
+			`an id the server refuses is reported, not thrown — ${`${byId.shown} shown, ${byId.failed.length} failed`}`,
+		).toBe(true);
 
 		const { bridge: failing } = fakeBridge((call) => {
 			if (call.args.resourceId === "NOPE-1") throw new Error("not found");
@@ -307,16 +292,14 @@ Found **2** issues:
 			summary: string;
 		};
 
-		check(
-			"a refused id is listed as unresolved",
+		expect(
 			partial.failed.join(",") === "NOPE-1" && partial.shown === 1,
-			JSON.stringify(partial.failed),
-		);
-		check(
-			"the text says what could not be resolved",
+			`a refused id is listed as unresolved — ${JSON.stringify(partial.failed)}`,
+		).toBe(true);
+		expect(
 			partial.summary.includes("Could not resolve: NOPE-1"),
-			partial.summary.split("\n").at(-1),
-		);
+			`the text says what could not be resolved — ${partial.summary.split("\n").at(-1)}`,
+		).toBe(true);
 
 		let nothing = "";
 		try {
@@ -325,11 +308,10 @@ Found **2** issues:
 			nothing = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a call with neither query nor ids is refused",
+		expect(
 			nothing.includes("nothing to show"),
-			nothing,
-		);
+			`a call with neither query nor ids is refused — ${nothing}`,
+		).toBe(true);
 
 		const { bridge: emptyBridge } = fakeBridge(() =>
 			text("No issues found matching your search criteria"),
@@ -341,11 +323,10 @@ Found **2** issues:
 			summary: string;
 		};
 
-		check(
-			"a search that matched nothing is an answer",
+		expect(
 			empty.shown === 0 && empty.summary.includes("No issues matched"),
-			empty.summary,
-		);
+			`a search that matched nothing is an answer — ${empty.summary}`,
+		).toBe(true);
 	}
 
 	console.log("\n=== the route ===");
@@ -424,60 +405,55 @@ Found **2** issues:
 
 		const read = await call("GET", `${ROUTE_PREFIX}/status`);
 
-		check(
-			"the settings card reads the status",
+		expect(
 			read.status === 200 &&
 				(read.body as { organization?: string }).organization === "acme",
-			JSON.stringify(read.body).slice(0, 80),
-		);
+			`the settings card reads the status — ${JSON.stringify(read.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const loaded = await call("GET", `${ROUTE_PREFIX}/issue?id=CHECKOUT-13P`);
 
-		check(
-			"the panel loads an issue by id",
+		expect(
 			loaded.status === 200 &&
 				(loaded.body as { issue?: { id?: string } }).issue?.id ===
 					"CHECKOUT-13P",
-			JSON.stringify(loaded.body).slice(0, 80),
-		);
+			`the panel loads an issue by id — ${JSON.stringify(loaded.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const resolved = await call("POST", `${ROUTE_PREFIX}/issue/status`, {
 			id: "CHECKOUT-13P",
 			status: "resolved",
 		});
 
-		check(
-			"the panel resolves an issue",
+		expect(
 			resolved.status === 200 &&
 				(resolved.body as { issue?: { id?: string } }).issue?.id ===
 					"CHECKOUT-13P",
-			JSON.stringify(resolved.body).slice(0, 80),
-		);
+			`the panel resolves an issue — ${JSON.stringify(resolved.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const assigned = await call("POST", `${ROUTE_PREFIX}/issue/assign`, {
 			id: "CHECKOUT-13P",
 			assignedTo: null,
 		});
 
-		check("the panel unassigns an issue", assigned.status === 200);
+		expect(assigned.status === 200, "the panel unassigns an issue").toBe(true);
 
 		const missing = await call("POST", `${ROUTE_PREFIX}/issue/status`, {
 			id: "CHECKOUT-13P",
 		});
 
-		check(
-			"a write without its field is a bad request, not a gateway error",
+		expect(
 			missing.status === 400 &&
 				String((missing.body as { error?: string }).error).includes("status"),
-			`${missing.status}: ${JSON.stringify(missing.body)}`,
-		);
+			`a write without its field is a bad request, not a gateway error — ${`${missing.status}: ${JSON.stringify(missing.body)}`}`,
+		).toBe(true);
 
 		const unknown = await call("GET", `${ROUTE_PREFIX}/nope`);
 
-		check(
-			"an unknown path is a not-found",
+		expect(
 			unknown.status === 404,
-			String(unknown.status),
-		);
+			`an unknown path is a not-found — ${String(unknown.status)}`,
+		).toBe(true);
 	}
 });

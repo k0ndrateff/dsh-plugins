@@ -9,9 +9,8 @@
  *   bun run test/wire.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { Duplex } from "node:stream";
-import { check } from "../../../test/support";
 import {
 	closePayload,
 	encodeFrame,
@@ -87,40 +86,49 @@ const medium = encodeFrame(OPCODE.text, Buffer.alloc(300), false);
 const large = encodeFrame(OPCODE.text, Buffer.alloc(70_000), false);
 
 test("one frame, as bytes", async () => {
-	check("a short frame is two bytes of header", small.length === 4);
-	check("and says it is final text", small[0] === 0x81);
-	check("with its length in the second byte", small[1] === 2);
+	expect(small.length === 4, "a short frame is two bytes of header").toBe(true);
+	expect(small[0] === 0x81, "and says it is final text").toBe(true);
+	expect(small[1] === 2, "with its length in the second byte").toBe(true);
 
-	check("a medium frame widens its length", medium[1] === 126);
-	check("and carries two length bytes", medium.readUInt16BE(2) === 300);
+	expect(medium[1] === 126, "a medium frame widens its length").toBe(true);
+	expect(medium.readUInt16BE(2) === 300, "and carries two length bytes").toBe(
+		true,
+	);
 
-	check("a large frame widens it further", large[1] === 127);
-	check("and carries eight length bytes", large.readBigUInt64BE(2) === 70_000n);
+	expect(large[1] === 127, "a large frame widens it further").toBe(true);
+	expect(
+		large.readBigUInt64BE(2) === 70_000n,
+		"and carries eight length bytes",
+	).toBe(true);
 
-	check(
-		"a medium frame survives the round trip",
+	expect(
 		readFrames(medium, "unmasked").frames[0]?.payload.length === 300,
-	);
-	check(
-		"and so does a large one",
+		"a medium frame survives the round trip",
+	).toBe(true);
+	expect(
 		readFrames(large, "unmasked").frames[0]?.payload.length === 70_000,
-	);
+		"and so does a large one",
+	).toBe(true);
 });
 test("reading frames back", async () => {
 	const read = readFrames(small, "unmasked");
-	check("a whole frame is read", read.frames.length === 1);
-	check("with its opcode", read.frames[0]?.opcode === OPCODE.text);
-	check("with its payload", read.frames[0]?.payload.toString() === "hi");
-	check("and nothing left over", read.rest.length === 0);
+	expect(read.frames.length === 1, "a whole frame is read").toBe(true);
+	expect(read.frames[0]?.opcode === OPCODE.text, "with its opcode").toBe(true);
+	expect(read.frames[0]?.payload.toString() === "hi", "with its payload").toBe(
+		true,
+	);
+	expect(read.rest.length === 0, "and nothing left over").toBe(true);
 
 	const masked = encodeFrame(OPCODE.text, Buffer.from("secret"), true);
-	check("a masked frame is longer by its key", masked.length === 2 + 4 + 6);
-	check(
-		"and is unreadable without unmasking",
+	expect(
+		masked.length === 2 + 4 + 6,
+		"a masked frame is longer by its key",
+	).toBe(true);
+	expect(
 		readFrames(masked, "masked").frames[0]?.payload.toString() === "secret",
-	);
-	check(
-		"the client's masking is required, not tolerated",
+		"and is unreadable without unmasking",
+	).toBe(true);
+	expect(
 		(() => {
 			try {
 				readFrames(masked, "unmasked");
@@ -129,9 +137,9 @@ test("reading frames back", async () => {
 				return error instanceof WireProtocolError;
 			}
 		})(),
-	);
-	check(
-		"and so is the server's",
+		"the client's masking is required, not tolerated",
+	).toBe(true);
+	expect(
 		(() => {
 			try {
 				readFrames(small, "masked");
@@ -140,35 +148,40 @@ test("reading frames back", async () => {
 				return error instanceof WireProtocolError;
 			}
 		})(),
-	);
+		"and so is the server's",
+	).toBe(true);
 });
 test("a frame in two pieces", async () => {
 	const whole = encodeFrame(OPCODE.text, Buffer.from("split me"), false);
 	const firstHalf = readFrames(whole.subarray(0, 4), "unmasked");
-	check("a partial frame reads as nothing", firstHalf.frames.length === 0);
-	check("and is kept whole", firstHalf.rest.length === 4);
+	expect(
+		firstHalf.frames.length === 0,
+		"a partial frame reads as nothing",
+	).toBe(true);
+	expect(firstHalf.rest.length === 4, "and is kept whole").toBe(true);
 	const secondHalf = readFrames(
 		Buffer.concat([firstHalf.rest, whole.subarray(4)]),
 		"unmasked",
 	);
-	check("which the next read completes", secondHalf.frames.length === 1);
-	check(
-		"with the payload intact",
-		secondHalf.frames[0]?.payload.toString() === "split me",
+	expect(secondHalf.frames.length === 1, "which the next read completes").toBe(
+		true,
 	);
+	expect(
+		secondHalf.frames[0]?.payload.toString() === "split me",
+		"with the payload intact",
+	).toBe(true);
 
 	const two = Buffer.concat([
 		encodeFrame(OPCODE.text, Buffer.from("one"), false),
 		encodeFrame(OPCODE.text, Buffer.from("two"), false),
 	]);
-	check(
-		"two frames in one read",
+	expect(
 		readFrames(two, "unmasked").frames.length === 2,
-	);
+		"two frames in one read",
+	).toBe(true);
 });
 test("what the protocol will not carry", async () => {
-	check(
-		"an opcode nobody speaks is refused",
+	expect(
 		(() => {
 			try {
 				readFrames(Buffer.from([0x83, 0x00]), "unmasked");
@@ -177,7 +190,8 @@ test("what the protocol will not carry", async () => {
 				return error instanceof WireProtocolError;
 			}
 		})(),
-	);
+		"an opcode nobody speaks is refused",
+	).toBe(true);
 });
 test("one peer over an echoing socket", async () => {
 	/** Let what was written come back through the socket. */
@@ -189,103 +203,103 @@ test("one peer over an echoing socket", async () => {
 	const echoing = peerOn("client");
 	echoing.peer.send("hello");
 	await tick();
-	check(
-		"what a client sends comes back unmasked",
+	expect(
 		echoing.messages[0] === "hello",
-	);
+		"what a client sends comes back unmasked",
+	).toBe(true);
 
 	const serving = peerOn("server");
 	serving.peer.send("hello");
 	await tick();
-	check("and so does a server's", serving.messages[0] === "hello");
+	expect(serving.messages[0] === "hello", "and so does a server's").toBe(true);
 
 	const fragmented = peerOn("client");
 	fragmented.peer.send("ignored");
 	await tick();
 	const socket = (fragmented.peer as unknown as { socket: Duplex }).socket;
-	check("the peer holds a socket", socket instanceof Duplex);
+	expect(socket instanceof Duplex, "the peer holds a socket").toBe(true);
 	socket.write(encodeFrame(OPCODE.text, Buffer.from("one "), true, false));
 	socket.write(encodeFrame(OPCODE.continuation, Buffer.from("message"), true));
 	await tick();
-	check(
-		"a message split across frames arrives as one",
+	expect(
 		fragmented.messages[1] === "one message",
-	);
+		"a message split across frames arrives as one",
+	).toBe(true);
 
 	const binary = peerOn("client");
 	(binary.peer as unknown as { socket: Duplex }).socket.write(
 		encodeFrame(OPCODE.binary, Buffer.from([1, 2, 3]), true),
 	);
 	await tick();
-	check("a binary frame ends the peer", binary.closes.length === 1);
-	check("saying why", binary.closes[0]?.includes("text") === true);
+	expect(binary.closes.length === 1, "a binary frame ends the peer").toBe(true);
+	expect(binary.closes[0]?.includes("text") === true, "saying why").toBe(true);
 
 	const pong = peerOn("server");
 	(pong.peer as unknown as { socket: Duplex }).socket.write(
 		encodeFrame(OPCODE.ping, Buffer.from("beat"), false),
 	);
 	await tick();
-	check("a ping is answered", pong.messages.length === 0);
-	check("without becoming a message", pong.closes.length === 0);
+	expect(pong.messages.length === 0, "a ping is answered").toBe(true);
+	expect(pong.closes.length === 0, "without becoming a message").toBe(true);
 
 	const said = peerOn("client");
 	(said.peer as unknown as { socket: Duplex }).socket.write(
 		encodeFrame(OPCODE.close, closePayload(1000, "bye"), true),
 	);
 	await tick();
-	check("a close is reported once", said.closes.length === 1);
-	check(
-		"with the peer's own words",
+	expect(said.closes.length === 1, "a close is reported once").toBe(true);
+	expect(
 		said.closes[0] === "the peer said goodbye",
-	);
+		"with the peer's own words",
+	).toBe(true);
 	said.peer.close("again");
-	check("and closing again adds nothing", said.closes.length === 1);
+	expect(said.closes.length === 1, "and closing again adds nothing").toBe(true);
 });
 test("the upgrade's own arithmetic", async () => {
-	check(
-		"the accept key is the protocol's own example",
+	expect(
 		acceptKey("dGhlIHNhbXBsZSBub25jZQ==") === "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
-	);
-	check(
-		"a plain GET is not an upgrade",
+		"the accept key is the protocol's own example",
+	).toBe(true);
+	expect(
 		!isUpgradeRequest("GET", { upgrade: "websocket" }),
-	);
-	check(
-		"an upgrade without a key is not one",
+		"a plain GET is not an upgrade",
+	).toBe(true);
+	expect(
 		!isUpgradeRequest("GET", {
 			upgrade: "websocket",
 			connection: "Upgrade",
 			"sec-websocket-key": "",
 		}),
-	);
-	check(
-		"the panel's own request is one",
+		"an upgrade without a key is not one",
+	).toBe(true);
+	expect(
 		isUpgradeRequest("GET", {
 			upgrade: "websocket",
 			connection: "keep-alive, Upgrade",
 			"sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
 		}),
-	);
-	check(
-		"a POST is never one",
+		"the panel's own request is one",
+	).toBe(true);
+	expect(
 		!isUpgradeRequest("POST", {
 			upgrade: "websocket",
 			connection: "Upgrade",
 			"sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
 		}),
-	);
+		"a POST is never one",
+	).toBe(true);
 
 	const refused = refusalResponse(403, "this peer may not watch the browser");
-	check(
-		"a refusal is a real answer",
+	expect(
 		refused.startsWith("HTTP/1.1 403 Forbidden"),
-	);
-	check(
-		"with a readable reason",
+		"a refusal is a real answer",
+	).toBe(true);
+	expect(
 		refused.includes("may not watch the browser"),
-	);
-	check(
-		"and a length the reader can trust",
+		"with a readable reason",
+	).toBe(true);
+	expect(
 		refused.includes("Content-Length: "),
-	);
+		"and a length the reader can trust",
+	).toBe(true);
 });

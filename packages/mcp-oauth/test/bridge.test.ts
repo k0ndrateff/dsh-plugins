@@ -10,10 +10,9 @@
  *   bun run test/bridge.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import { createServer, type Server } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
-import { check } from "../../../test/support";
 import { DEFAULT_INSTANCE } from "../src/account";
 import { McpBridge } from "../src/bridge";
 import { GrantStore } from "../src/grant";
@@ -285,23 +284,21 @@ test("a server that needs no credentials", async () => {
 		clientInfo: CLIENT_INFO,
 	});
 
-	check("the bridge connects", (await local.ensure(ctx)) === true);
-	check(
-		"the server's tools are published under the plugin's namespace",
+	expect((await local.ensure(ctx)) === true, "the bridge connects").toBe(true);
+	expect(
 		local.toolNames.join() === "mcp__local__ping",
-		local.toolNames.join(),
-	);
-	check(
-		"the connection was made without an Authorization header",
+		`the server's tools are published under the plugin's namespace — ${local.toolNames.join()}`,
+	).toBe(true);
+	expect(
 		server.seen.length > 0 &&
 			server.seen.every((request) => request.authorization === undefined),
-		String(server.seen[0]?.authorization),
-	);
-	check("the bridge reports itself connected", local.isConnected);
-	check(
-		"the published tools are the ones registered",
+		`the connection was made without an Authorization header — ${String(server.seen[0]?.authorization)}`,
+	).toBe(true);
+	expect(local.isConnected, "the bridge reports itself connected").toBe(true);
+	expect(
 		published.join() === "mcp__local__ping",
-	);
+		"the published tools are the ones registered",
+	).toBe(true);
 
 	await local.drop();
 });
@@ -314,38 +311,38 @@ test("a server reached through OAuth", async () => {
 
 	const beforeConnect = server.seen.length;
 
-	check("a signed-in account connects", (await remote.ensure(ctx)) === true);
-	check(
-		"the stored access token is sent as a bearer token",
+	expect(
+		(await remote.ensure(ctx)) === true,
+		"a signed-in account connects",
+	).toBe(true);
+	expect(
 		server.seen
 			.slice(beforeConnect)
 			.some((request) => request.authorization === "Bearer token-one"),
-		server.seen.at(-1)?.authorization,
-	);
+		`the stored access token is sent as a bearer token — ${server.seen.at(-1)?.authorization}`,
+	).toBe(true);
 
 	records.set(key, grant("token-two"));
 
 	const beforeRotation = server.seen.length;
 
-	check(
-		"a reconnect with a rotated token succeeds",
+	expect(
 		(await remote.ensure(ctx)) === true,
-	);
-	check(
-		"the new token is used without a reconnect",
+		"a reconnect with a rotated token succeeds",
+	).toBe(true);
+	expect(
 		server.seen
 			.slice(beforeRotation)
 			.some((request) => request.authorization === "Bearer token-two"),
-		server.seen.at(-1)?.authorization,
-	);
+		`the new token is used without a reconnect — ${server.seen.at(-1)?.authorization}`,
+	).toBe(true);
 
 	const called = await remote.callTool("ping", {});
 
-	check(
-		"a tool call reaches the server",
+	expect(
 		JSON.stringify(called.content).includes("pong"),
-		JSON.stringify(called.content),
-	);
+		`a tool call reaches the server — ${JSON.stringify(called.content)}`,
+	).toBe(true);
 
 	await remote.drop();
 });
@@ -358,15 +355,14 @@ test("an account that is not signed in", async () => {
 
 	const beforeEmpty = server.seen.length;
 
-	check(
-		"a bridge without a grant is not usable",
+	expect(
 		(await empty.ensure(ctx)) === false,
-	);
-	check(
-		"it never reaches the server",
+		"a bridge without a grant is not usable",
+	).toBe(true);
+	expect(
 		server.seen.length === beforeEmpty,
-		String(server.seen.length - beforeEmpty),
-	);
+		`it never reaches the server — ${String(server.seen.length - beforeEmpty)}`,
+	).toBe(true);
 
 	let refused = "";
 	try {
@@ -378,10 +374,10 @@ test("an account that is not signed in", async () => {
 		refused = errorText(error);
 	}
 
-	check(
-		"an OAuth profile without a grant store is refused at construction",
+	expect(
 		refused !== "",
-	);
+		"an OAuth profile without a grant store is refused at construction",
+	).toBe(true);
 });
 test("a server that refuses the connection", async () => {
 	const refusing = await startRefusingServer();
@@ -390,15 +386,14 @@ test("a server that refuses the connection", async () => {
 		clientInfo: CLIENT_INFO,
 	});
 
-	check(
-		"a refused connection is not usable",
+	expect(
 		(await blocked.ensure(ctx)) === false,
-	);
-	check(
-		"the reason the server gave is kept for the settings card",
+		"a refused connection is not usable",
+	).toBe(true);
+	expect(
 		blocked.lastFailure?.includes("403 Forbidden") === true,
-		String(blocked.lastFailure),
-	);
+		`the reason the server gave is kept for the settings card — ${String(blocked.lastFailure)}`,
+	).toBe(true);
 	await refusing.close();
 	await server.close();
 });

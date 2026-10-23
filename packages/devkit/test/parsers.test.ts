@@ -10,8 +10,7 @@
  *   bun run test/parsers.ts
  */
 
-import { test } from "bun:test";
-import { check } from "../../../test/support";
+import { expect, test } from "bun:test";
 import { parserNamed } from "../src/host/parsers/index";
 import { isParserName, PARSER_NAMES } from "../src/shared/checks";
 
@@ -151,208 +150,193 @@ test("tsc", async () => {
 	{
 		const parsed = parserNamed("tsc")(TSC_ERRORS);
 
-		check(
-			"counts errors and warnings separately",
+		expect(
 			parsed.summary.errors === 2 && parsed.summary.warnings === 1,
-			JSON.stringify(parsed.summary),
-		);
-		check("reads one failure per diagnostic", parsed.failures.length === 3);
-		check(
-			"a located diagnostic carries file, line, column and code",
+			`counts errors and warnings separately — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
+			parsed.failures.length === 3,
+			"reads one failure per diagnostic",
+		).toBe(true);
+		expect(
 			parsed.failures[0]?.file === ".scratch/broken.ts" &&
 				parsed.failures[0]?.line === 1 &&
 				parsed.failures[0]?.column === 7 &&
 				parsed.failures[0]?.rule === "TS2322",
-			JSON.stringify(parsed.failures[0]),
-		);
-		check(
-			"a warning keeps its severity",
+			`a located diagnostic carries file, line, column and code — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
+		expect(
 			parsed.failures[1]?.severity === "warning",
-		);
-		check(
-			"a diagnostic with no file keeps its message",
+			"a warning keeps its severity",
+		).toBe(true);
+		expect(
 			parsed.failures[2]?.file === undefined &&
 				(parsed.failures[2]?.message ?? "").includes("nope.ts"),
-			JSON.stringify(parsed.failures[2]),
-		);
-		check(
-			"the compiler's own summary line is not a diagnostic",
+			`a diagnostic with no file keeps its message — ${JSON.stringify(parsed.failures[2])}`,
+		).toBe(true);
+		expect(
 			parsed.failures.every((failure) => !failure.message.startsWith("Found")),
-		);
+			"the compiler's own summary line is not a diagnostic",
+		).toBe(true);
 	}
 });
 test("biome", async () => {
 	{
 		const parsed = parserNamed("biome")(BIOME_JSON);
 
-		check(
-			"the JSON reporter's own summary is read",
+		expect(
 			parsed.summary.warnings === 1 && parsed.summary.errors === 0,
-			JSON.stringify(parsed.summary),
-		);
-		check(
-			"its diagnostic carries path, position, rule and message",
+			`the JSON reporter's own summary is read — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
 			parsed.failures[0]?.file === ".scratch/broken.ts" &&
 				parsed.failures[0]?.line === 2 &&
 				parsed.failures[0]?.column === 1 &&
 				parsed.failures[0]?.rule === "lint/style/useConst" &&
 				(parsed.failures[0]?.message ?? "").startsWith("This let declares"),
-			JSON.stringify(parsed.failures[0]),
-		);
+			`its diagnostic carries path, position, rule and message — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
 
 		const errors = parserNamed("biome")(BIOME_PRETTY_ERRORS);
 
-		check(
-			"the pretty reporter's errors are counted",
+		expect(
 			errors.summary.errors === 2,
-			JSON.stringify(errors.summary),
-		);
-		check(
-			"each pretty header becomes a failure with its rule and wording",
+			`the pretty reporter's errors are counted — ${JSON.stringify(errors.summary)}`,
+		).toBe(true);
+		expect(
 			errors.failures.length === 2 &&
 				errors.failures[0]?.rule === "lint/suspicious/noDebugger" &&
 				(errors.failures[0]?.message ?? "").includes("debugger"),
-			JSON.stringify(errors.failures[0]),
-		);
-		check(
-			"the × marker means error and the ! marker means warning",
+			`each pretty header becomes a failure with its rule and wording — ${JSON.stringify(errors.failures[0])}`,
+		).toBe(true);
+		expect(
 			errors.failures.every((failure) => failure.severity === "error") &&
 				parserNamed("biome")(BIOME_PRETTY_WARNING).failures[0]?.severity ===
 					"warning",
-			JSON.stringify(parserNamed("biome")(BIOME_PRETTY_WARNING).failures[0]),
-		);
-		check(
-			"a pretty run counts what its summary line says",
+			`the × marker means error and the ! marker means warning — ${JSON.stringify(parserNamed("biome")(BIOME_PRETTY_WARNING).failures[0])}`,
+		).toBe(true);
+		expect(
 			parserNamed("biome")(BIOME_PRETTY_WARNING).summary.warnings === 1,
-		);
+			"a pretty run counts what its summary line says",
+		).toBe(true);
 
 		const formatted = parserNamed("biome")(BIOME_PRETTY_FORMAT);
 
-		check(
-			"a formatter diagnostic, whose header names no position, is still read",
+		expect(
 			formatted.failures.length === 1 &&
 				formatted.failures[0]?.file === ".dsh-checks.json" &&
 				formatted.failures[0]?.rule === "format" &&
 				(formatted.failures[0]?.message ?? "").startsWith("Formatter would"),
-			JSON.stringify(formatted.failures[0]),
-		);
-		check(
-			"a formatter diagnostic keeps no line it does not have",
+			`a formatter diagnostic, whose header names no position, is still read — ${JSON.stringify(formatted.failures[0])}`,
+		).toBe(true);
+		expect(
 			formatted.failures[0]?.line === undefined &&
 				formatted.summary.errors === 1,
-			JSON.stringify(formatted.summary),
-		);
+			`a formatter diagnostic keeps no line it does not have — ${JSON.stringify(formatted.summary)}`,
+		).toBe(true);
 	}
 });
 test("eslint", async () => {
 	{
 		const parsed = parserNamed("eslint")(ESLINT_STYLISH);
 
-		check(
-			"counts one error and one warning",
+		expect(
 			parsed.summary.errors === 1 && parsed.summary.warnings === 1,
-			JSON.stringify(parsed.summary),
-		);
-		check(
-			"each problem carries its file, position and rule",
+			`counts one error and one warning — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
 			parsed.failures.length === 2 &&
 				parsed.failures[0]?.file === "/Users/me/app/src/sum.js" &&
 				parsed.failures[0]?.line === 12 &&
 				parsed.failures[0]?.column === 5 &&
 				parsed.failures[0]?.rule === "no-unused-vars",
-			JSON.stringify(parsed.failures[0]),
-		);
-		check(
-			"the message keeps its own words",
+			`each problem carries its file, position and rule — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
+		expect(
 			(parsed.failures[0]?.message ?? "") ===
 				"'total' is assigned a value but never used",
-			parsed.failures[0]?.message,
-		);
-		check(
-			"the summary line is not read as a problem",
+			`the message keeps its own words — ${parsed.failures[0]?.message}`,
+		).toBe(true);
+		expect(
 			parsed.failures.every((failure) => failure.rule !== "option."),
-		);
+			"the summary line is not read as a problem",
+		).toBe(true);
 	}
 });
 test("vitest", async () => {
 	{
 		const parsed = parserNamed("vitest")(VITEST_FAILED);
 
-		check(
-			"counts the tests the summary line names",
+		expect(
 			parsed.summary.testsPassed === 1 && parsed.summary.testsFailed === 1,
-			JSON.stringify(parsed.summary),
-		);
-		check(
-			"the failing test carries its file",
+			`counts the tests the summary line names — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
 			parsed.failures[0]?.file === "test/sum.test.ts",
-			JSON.stringify(parsed.failures[0]),
-		);
-		check(
-			"the assertion under it becomes the message",
+			`the failing test carries its file — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
+		expect(
 			(parsed.failures[0]?.message ?? "").includes("expected 3 to be 4"),
-			parsed.failures[0]?.message,
-		);
+			`the assertion under it becomes the message — ${parsed.failures[0]?.message}`,
+		).toBe(true);
 	}
 });
 test("jest", async () => {
 	{
 		const parsed = parserNamed("jest")(JEST_FAILED);
 
-		check(
-			"counts the tests the summary line names",
+		expect(
 			parsed.summary.testsPassed === 2 && parsed.summary.testsFailed === 1,
-			JSON.stringify(parsed.summary),
-		);
-		check(
-			"the failing test carries its file and name",
+			`counts the tests the summary line names — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
 			parsed.failures[0]?.file === "src/sum.test.js" &&
 				parsed.failures[0]?.message === "adds 1 + 2",
-			JSON.stringify(parsed.failures[0]),
-		);
+			`the failing test carries its file and name — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
 	}
 });
 test("pytest", async () => {
 	{
 		const parsed = parserNamed("pytest")(PYTEST_FAILED);
 
-		check(
-			"counts failures, passes and skips",
+		expect(
 			parsed.summary.testsFailed === 2 &&
 				parsed.summary.testsPassed === 1 &&
 				parsed.summary.testsSkipped === 1,
-			JSON.stringify(parsed.summary),
-		);
-		check(
-			"the short summary names both failures",
+			`counts failures, passes and skips — ${JSON.stringify(parsed.summary)}`,
+		).toBe(true);
+		expect(
 			parsed.failures.length === 2 &&
 				parsed.failures[0]?.message === "test_add — assert 3 == 4",
-			JSON.stringify(parsed.failures[0]),
-		);
-		check(
-			"each failure gets the line of its own traceback frame",
+			`the short summary names both failures — ${JSON.stringify(parsed.failures[0])}`,
+		).toBe(true);
+		expect(
 			parsed.failures[0]?.line === 9 && parsed.failures[1]?.line === 23,
-			`${parsed.failures[0]?.line}, ${parsed.failures[1]?.line}`,
-		);
-		check(
-			"a failing test names its file",
+			`each failure gets the line of its own traceback frame — ${`${parsed.failures[0]?.line}, ${parsed.failures[1]?.line}`}`,
+		).toBe(true);
+		expect(
 			parsed.failures.every((failure) => failure.file === "tests/test_math.py"),
-		);
+			"a failing test names its file",
+		).toBe(true);
 	}
 });
 test("generic and the registry", async () => {
 	{
 		const parsed = parserNamed("generic")("anything at all\n");
 
-		check(
-			"the fallback reads no counts and no failures",
+		expect(
 			parsed.failures.length === 0 &&
 				Object.values(parsed.summary).every((count) => count === 0),
-		);
-		check(
-			"every name in the vocabulary has a parser",
+			"the fallback reads no counts and no failures",
+		).toBe(true);
+		expect(
 			PARSER_NAMES.every((name) => typeof parserNamed(name) === "function"),
-		);
-		check("a name outside the vocabulary is refused", !isParserName("mocha"));
+			"every name in the vocabulary has a parser",
+		).toBe(true);
+		expect(
+			!isParserName("mocha"),
+			"a name outside the vocabulary is refused",
+		).toBe(true);
 	}
 });

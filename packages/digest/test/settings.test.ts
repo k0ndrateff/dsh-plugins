@@ -9,11 +9,10 @@
  * that refuses to start is worse than one running on defaults.
  */
 
-import { afterAll, beforeAll, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { check } from "../../../test/support";
 import {
 	DigestSettingsStore,
 	defaultDigestSettings,
@@ -32,29 +31,29 @@ afterAll(async () => {
 });
 
 test("a time and a zone", async () => {
-	check("accepts a 24-hour time", isDigestTime("09:30"));
-	check("accepts midnight", isDigestTime("00:00"));
-	check("refuses 24:00", !isDigestTime("24:00"));
-	check("refuses a bare hour", !isDigestTime("9:30"));
-	check("refuses nonsense", !isDigestTime("soon"));
-	check("accepts an IANA zone", isTimeZone("Europe/Moscow"));
-	check("accepts UTC", isTimeZone("UTC"));
-	check("refuses an invented zone", !isTimeZone("Mars/Olympus"));
-	check("refuses an empty zone", !isTimeZone(""));
+	expect(isDigestTime("09:30"), "accepts a 24-hour time").toBe(true);
+	expect(isDigestTime("00:00"), "accepts midnight").toBe(true);
+	expect(!isDigestTime("24:00"), "refuses 24:00").toBe(true);
+	expect(!isDigestTime("9:30"), "refuses a bare hour").toBe(true);
+	expect(!isDigestTime("soon"), "refuses nonsense").toBe(true);
+	expect(isTimeZone("Europe/Moscow"), "accepts an IANA zone").toBe(true);
+	expect(isTimeZone("UTC"), "accepts UTC").toBe(true);
+	expect(!isTimeZone("Mars/Olympus"), "refuses an invented zone").toBe(true);
+	expect(!isTimeZone(""), "refuses an empty zone").toBe(true);
 });
 test("what a stored document may say", async () => {
 	{
 		const defaults = defaultDigestSettings();
 
-		check(
-			"anything at all falls back to the defaults",
+		expect(
 			JSON.stringify(normalizeDigestSettings(undefined)) ===
 				JSON.stringify(defaults) &&
 				JSON.stringify(normalizeDigestSettings("nope")) ===
 					JSON.stringify(defaults) &&
 				JSON.stringify(normalizeDigestSettings([1, 2])) ===
 					JSON.stringify(defaults),
-		);
+			"anything at all falls back to the defaults",
+		).toBe(true);
 
 		const kept = normalizeDigestSettings({
 			time: "07:15",
@@ -64,21 +63,21 @@ test("what a stored document may say", async () => {
 			limit: 25,
 		});
 
-		check("keeps a valid time", kept.time === "07:15", kept.time);
-		check(
-			"keeps in-range days once each, in order",
-			kept.days.join(",") === "1,3",
-			kept.days.join(","),
+		expect(kept.time === "07:15", `keeps a valid time — ${kept.time}`).toBe(
+			true,
 		);
-		check("keeps a valid zone", kept.timeZone === "Europe/Berlin");
-		check(
-			"keeps boolean switches and drops the rest",
+		expect(
+			kept.days.join(",") === "1,3",
+			`keeps in-range days once each, in order — ${kept.days.join(",")}`,
+		).toBe(true);
+		expect(kept.timeZone === "Europe/Berlin", "keeps a valid zone").toBe(true);
+		expect(
 			kept.blocks["jira-active"] === false &&
 				kept.blocks["gitlab-mine"] === true &&
 				kept.blocks.bad === undefined,
-			JSON.stringify(kept.blocks),
-		);
-		check("keeps a limit the card offers", kept.limit === 25);
+			`keeps boolean switches and drops the rest — ${JSON.stringify(kept.blocks)}`,
+		).toBe(true);
+		expect(kept.limit === 25, "keeps a limit the card offers").toBe(true);
 
 		const broken = normalizeDigestSettings({
 			time: "25:00",
@@ -87,18 +86,22 @@ test("what a stored document may say", async () => {
 			limit: 7,
 		});
 
-		check("a bad time falls back", broken.time === defaults.time, broken.time);
-		check(
-			"an empty week falls back rather than never delivering",
+		expect(
+			broken.time === defaults.time,
+			`a bad time falls back — ${broken.time}`,
+		).toBe(true);
+		expect(
 			broken.days.join(",") === defaults.days.join(","),
-			broken.days.join(","),
-		);
-		check(
-			"a bad zone falls back",
+			`an empty week falls back rather than never delivering — ${broken.days.join(",")}`,
+		).toBe(true);
+		expect(
 			broken.timeZone === defaults.timeZone,
-			broken.timeZone,
-		);
-		check("an unlisted limit falls back", broken.limit === defaults.limit);
+			`a bad zone falls back — ${broken.timeZone}`,
+		).toBe(true);
+		expect(
+			broken.limit === defaults.limit,
+			"an unlisted limit falls back",
+		).toBe(true);
 	}
 });
 test("the document on disk", async () => {
@@ -106,39 +109,39 @@ test("the document on disk", async () => {
 		const file = join(workdir, "digest", "settings.json");
 		const store = new DigestSettingsStore(file);
 
-		check(
-			"a missing file answers the defaults",
+		expect(
 			(await store.ensure()).time === "09:00",
-		);
+			"a missing file answers the defaults",
+		).toBe(true);
 
 		await store.save({ time: "06:45", days: [0, 6], limit: 5 });
 
-		check("the write lands", (await store.get()).time === "06:45");
-		check(
-			"the document is valid JSON with the chosen fields",
+		expect((await store.get()).time === "06:45", "the write lands").toBe(true);
+		expect(
 			JSON.parse(await readFile(file, "utf8")).days.join(",") === "0,6",
-		);
+			"the document is valid JSON with the chosen fields",
+		).toBe(true);
 
 		const reread = new DigestSettingsStore(file);
 
-		check(
-			"a fresh instance reads it back",
+		expect(
 			(await reread.ensure()).limit === 5,
-		);
+			"a fresh instance reads it back",
+		).toBe(true);
 
 		await writeFile(file, "{ not json", "utf8");
 
-		check(
-			"a corrupt file falls back instead of throwing",
+		expect(
 			(await new DigestSettingsStore(file).ensure()).time === "09:00",
-		);
+			"a corrupt file falls back instead of throwing",
+		).toBe(true);
 
 		await store.save({ time: "06:45" });
 
-		check(
-			"a save after corruption merges onto the last value held in memory",
+		expect(
 			(await store.get()).time === "06:45",
-		);
+			"a save after corruption merges onto the last value held in memory",
+		).toBe(true);
 	}
 });
 test("a save after the first read", async () => {
@@ -149,13 +152,12 @@ test("a save after the first read", async () => {
 		await store.ensure();
 		const saved = await store.save({ time: "07:00", limit: 25 });
 
-		check("the save answers what it wrote", saved.time === "07:00");
-		check(
-			"a later ensure answers the saved value, not the first read",
+		expect(saved.time === "07:00", "the save answers what it wrote").toBe(true);
+		expect(
 			(await store.ensure()).time === "07:00" &&
 				(await store.ensure()).limit === 25,
-			`${(await store.ensure()).time}/${(await store.ensure()).limit}`,
-		);
+			`a later ensure answers the saved value, not the first read — ${`${(await store.ensure()).time}/${(await store.ensure()).limit}`}`,
+		).toBe(true);
 	}
 });
 test("two saves at once", async () => {
@@ -175,13 +177,12 @@ test("two saves at once", async () => {
 			days?: number[];
 		};
 
-		check(
-			"each edit survives the others",
+		expect(
 			stored.time === "07:00" &&
 				stored.limit === 25 &&
 				stored.days?.join(",") === "0,6",
-			JSON.stringify(stored),
-		);
+			`each edit survives the others — ${JSON.stringify(stored)}`,
+		).toBe(true);
 	}
 });
 test("a save that arrives before any read", async () => {
@@ -197,16 +198,15 @@ test("a save that arrives before any read", async () => {
 
 		await writer.save({ limit: 25 });
 
-		check(
-			"the stored value survives",
+		expect(
 			writer.get().time === "05:00",
-			writer.get().time,
-		);
-		check("and the new one is applied", writer.get().limit === 25);
-		check(
-			"the document on disk holds both",
+			`the stored value survives — ${writer.get().time}`,
+		).toBe(true);
+		expect(writer.get().limit === 25, "and the new one is applied").toBe(true);
+		expect(
 			JSON.parse(await readFile(file, "utf8")).time === "05:00",
-		);
+			"the document on disk holds both",
+		).toBe(true);
 	}
 });
 test("the switches in force", async () => {
@@ -221,11 +221,14 @@ test("the switches in force", async () => {
 			{ id: "coderabbit", defaultOn: false },
 		]);
 
-		check("a saved switch wins", switches["jira-active"] === false);
-		check(
-			"an unsaved block keeps its default",
+		expect(switches["jira-active"] === false, "a saved switch wins").toBe(true);
+		expect(
 			switches["sentry-errors"] === true,
-		);
-		check("an off-by-default block stays off", switches.coderabbit === false);
+			"an unsaved block keeps its default",
+		).toBe(true);
+		expect(
+			switches.coderabbit === false,
+			"an off-by-default block stays off",
+		).toBe(true);
 	}
 });

@@ -11,13 +11,12 @@
  *   bun run test/surface.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { IntegrationAuthFace } from "dsh-integration-host";
 import type { McpBridge } from "dsh-mcp-oauth";
-import { check } from "../../../test/support";
 import { PanelApi } from "../src/host/panels/panel";
 import { createApiHandler, ROUTE_PREFIX } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
@@ -138,38 +137,38 @@ test("the panel's document", async () => {
 		const panel = new PanelApi({ bridge, ctx: context });
 		const document = await panel.node({ node: "960:6938" });
 
-		check(
-			"the node is read by the id it was opened on",
+		expect(
 			document.node.id === "960:6938",
-		);
-		check(
-			"its facts come from the metadata",
+			"the node is read by the id it was opened on",
+		).toBe(true);
+		expect(
 			document.node.type === "frame" && document.node.width === 260,
+			"its facts come from the metadata",
+		).toBe(true);
+		expect(document.children.length === 2, "its children come with it").toBe(
+			true,
 		);
-		check("its children come with it", document.children.length === 2);
-		check(
-			"its variables come from the variables tool",
+		expect(
 			document.tokens.length === 2 &&
 				document.tokens.some((token) => token.name === "text/primary"),
-		);
-		check(
-			"its mapping comes from the Code Connect tool",
+			"its variables come from the variables tool",
+		).toBe(true);
+		expect(
 			document.mappings[0]?.component === "MenuItems",
-		);
-		check(
-			"the picture is a route of this plugin's own",
+			"its mapping comes from the Code Connect tool",
+		).toBe(true);
+		expect(
 			document.screenshot?.startsWith(
 				`${ROUTE_PREFIX}/screenshot?node=960%3A6938`,
 			) === true,
-			String(document.screenshot),
-		);
-		check(
-			"every read names the same node",
+			`the picture is a route of this plugin's own — ${String(document.screenshot)}`,
+		).toBe(true);
+		expect(
 			calls
 				.filter((call) => call.name !== "get_screenshot")
 				.every((call) => call.args.nodeId === "960:6938"),
-			JSON.stringify(calls.map((call) => [call.name, call.args])),
-		);
+			`every read names the same node — ${JSON.stringify(calls.map((call) => [call.name, call.args]))}`,
+		).toBe(true);
 	}
 
 	{
@@ -177,12 +176,12 @@ test("the panel's document", async () => {
 		const panel = new PanelApi({ bridge, ctx: context });
 		const document = await panel.node({});
 
-		check(
-			"a target with no node reads the current selection",
+		expect(
 			document.node.id === "960:6938" &&
 				calls[0]?.name === "get_metadata" &&
 				calls[0]?.args.nodeId === undefined,
-		);
+			"a target with no node reads the current selection",
+		).toBe(true);
 	}
 
 	{
@@ -199,11 +198,10 @@ test("the panel's document", async () => {
 			message = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"nothing selected is answered as an instruction, not as an empty panel",
+		expect(
 			message.includes("Select a frame"),
-			message,
-		);
+			`nothing selected is answered as an instruction, not as an empty panel — ${message}`,
+		).toBe(true);
 	}
 
 	{
@@ -221,11 +219,10 @@ test("the panel's document", async () => {
 			message = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a node the server cannot describe fails the panel",
+		expect(
 			message.includes("no metadata for node 1:2"),
-			message,
-		);
+			`a node the server cannot describe fails the panel — ${message}`,
+		).toBe(true);
 	}
 
 	{
@@ -241,10 +238,10 @@ test("the panel's document", async () => {
 		const panel = new PanelApi({ bridge, ctx: context });
 		const document = await panel.node({ node: "960:6938" });
 
-		check(
-			"a node with no variables and no mapping still opens",
+		expect(
 			document.tokens.length === 0 && document.mappings.length === 0,
-		);
+			"a node with no variables and no mapping still opens",
+		).toBe(true);
 	}
 });
 test("the picture", async () => {
@@ -253,11 +250,14 @@ test("the picture", async () => {
 		const panel = new PanelApi({ bridge, ctx: context });
 		const shot = await panel.screenshot("960:6938");
 
-		check(
-			"the picture is the bytes the server sent",
+		expect(
 			Buffer.from(shot.bytes).toString("utf8") === "PNG-BYTES",
-		);
-		check("its media type comes with it", shot.contentType === "image/png");
+			"the picture is the bytes the server sent",
+		).toBe(true);
+		expect(
+			shot.contentType === "image/png",
+			"its media type comes with it",
+		).toBe(true);
 	}
 
 	{
@@ -273,11 +273,10 @@ test("the picture", async () => {
 			message = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a node with no picture is a failure",
+		expect(
 			message.includes("no picture"),
-			message,
-		);
+			`a node with no picture is a failure — ${message}`,
+		).toBe(true);
 	}
 });
 test("the tool", async () => {
@@ -294,40 +293,47 @@ test("the tool", async () => {
 		);
 		const summary = textOf(definition, value);
 
-		check(
-			"the tool names the node it showed",
+		expect(
 			summary.includes('"Menu Items" (960:6938)'),
-		);
-		check("it reports the size", summary.includes("260×502"));
-		check("it lists the variables", summary.includes("text/primary = #ffffff"));
-		check(
-			"it names the component",
+			"the tool names the node it showed",
+		).toBe(true);
+		expect(summary.includes("260×502"), "it reports the size").toBe(true);
+		expect(
+			summary.includes("text/primary = #ffffff"),
+			"it lists the variables",
+		).toBe(true);
+		expect(
 			summary.includes("MenuItems (src/components/menu-items.tsx)"),
-		);
-		check(
-			"it tells the model how to look at the design itself",
+			"it names the component",
+		).toBe(true);
+		expect(
 			summary.includes("mcp__figma__get_screenshot"),
-		);
-		check(
-			"the picture never reaches the model",
+			"it tells the model how to look at the design itself",
+		).toBe(true);
+		expect(
 			(
 				definition.output.render({}, value as never) as { type: string }[]
 			).every((block) => block.type === "text"),
-		);
+			"the picture never reaches the model",
+		).toBe(true);
 
 		const meta = metaOf(definition, value);
 
-		check("the card is keyed by the call", meta.callId === "call-7");
-		check(
-			"the card carries the node's facts",
+		expect(meta.callId === "call-7", "the card is keyed by the call").toBe(
+			true,
+		);
+		expect(
 			(meta.node as { tokenCount?: number })?.tokenCount === 2 &&
 				(meta.node as { childCount?: number })?.childCount === 2,
-		);
-		check(
-			"the card carries the mapping when there is one",
+			"the card carries the node's facts",
+		).toBe(true);
+		expect(
 			(meta.node as { component?: string })?.component === "MenuItems",
+			"the card carries the mapping when there is one",
+		).toBe(true);
+		expect(meta.layout === "single", "one node is a single-row card").toBe(
+			true,
 		);
-		check("one node is a single-row card", meta.layout === "single");
 	}
 
 	{
@@ -339,10 +345,10 @@ test("the tool", async () => {
 		});
 		const value = await definition.execute({}, execution("call-8"));
 
-		check(
-			"a call with no node shows the selection",
+		expect(
 			(value as { nodeId: string }).nodeId === "960:6938",
-		);
+			"a call with no node shows the selection",
+		).toBe(true);
 	}
 });
 test("the route", async () => {
@@ -423,76 +429,70 @@ test("the route", async () => {
 
 		const read = await call("GET", `${ROUTE_PREFIX}/status`);
 
-		check(
-			"the settings card reads the status",
+		expect(
 			read.status === 200 &&
 				(read.body as { connected?: boolean }).connected === true,
-		);
+			"the settings card reads the status",
+		).toBe(true);
 
 		const document = await call("GET", `${ROUTE_PREFIX}/node?node=960%3A6938`);
 
-		check(
-			"the panel reads one node",
+		expect(
 			document.status === 200 &&
 				(document.body as { node?: { id?: string } }).node?.id === "960:6938",
-			JSON.stringify(document.body).slice(0, 80),
-		);
+			`the panel reads one node — ${JSON.stringify(document.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const selection = await call("GET", `${ROUTE_PREFIX}/node`);
 
-		check(
-			"a panel opened with no node reads the selection",
+		expect(
 			selection.status === 200 &&
 				calls.some((entry) => entry.args.nodeId === undefined),
-		);
+			"a panel opened with no node reads the selection",
+		).toBe(true);
 
 		const section = await call(
 			"GET",
 			`${ROUTE_PREFIX}/node?node=1%3A2&section=tokens`,
 		);
 
-		check(
-			"a named section is carried into the target",
+		expect(
 			section.status === 200,
-			`${section.status}: ${JSON.stringify(section.body).slice(0, 80)}`,
-		);
+			`a named section is carried into the target — ${`${section.status}: ${JSON.stringify(section.body).slice(0, 80)}`}`,
+		).toBe(true);
 
 		const badSection = await call("GET", `${ROUTE_PREFIX}/node?section=layers`);
 
-		check(
-			"a section that is not one of the three is a bad request",
+		expect(
 			badSection.status === 400,
-			String(badSection.status),
-		);
+			`a section that is not one of the three is a bad request — ${String(badSection.status)}`,
+		).toBe(true);
 
 		const badNode = await call("GET", `${ROUTE_PREFIX}/node?node=Menu%20Items`);
 
-		check(
-			"a node the server could not read is a bad request, not a bad gateway",
+		expect(
 			badNode.status === 400,
-			String(badNode.status),
-		);
+			`a node the server could not read is a bad request, not a bad gateway — ${String(badNode.status)}`,
+		).toBe(true);
 
 		const picture = await call(
 			"GET",
 			`${ROUTE_PREFIX}/screenshot?node=960%3A6938`,
 		);
 
-		check(
-			"the picture is answered as bytes",
+		expect(
 			picture.status === 200 &&
 				picture.type === "image/png" &&
 				picture.bytes === "PNG-BYTES",
-			`${picture.status} ${picture.type} ${picture.bytes.slice(0, 120)}`,
-		);
+			`the picture is answered as bytes — ${`${picture.status} ${picture.type} ${picture.bytes.slice(0, 120)}`}`,
+		).toBe(true);
 
 		const noNode = await call("GET", `${ROUTE_PREFIX}/screenshot`);
 
-		check(
-			"a picture request with no node is a bad request",
+		expect(
 			noNode.status === 400,
-			String(noNode.status),
-		);
+			`a picture request with no node is a bad request — ${String(noNode.status)}`,
+		).toBe(true);
 
 		const refused = createApiHandler({
 			auth,
@@ -528,20 +528,18 @@ test("the route", async () => {
 			response,
 		);
 
-		check(
-			"a picture the server cannot give is a bad gateway, with its reason",
+		expect(
 			code === 502 &&
 				type.startsWith("application/json") &&
 				payload.includes("no picture"),
-			`${code} ${payload.slice(0, 60)}`,
-		);
+			`a picture the server cannot give is a bad gateway, with its reason — ${`${code} ${payload.slice(0, 60)}`}`,
+		).toBe(true);
 
 		const unknown = await call("GET", `${ROUTE_PREFIX}/nothing`);
 
-		check(
-			"an unknown path is not found",
+		expect(
 			unknown.status === 404,
-			String(unknown.status),
-		);
+			`an unknown path is not found — ${String(unknown.status)}`,
+		).toBe(true);
 	}
 });

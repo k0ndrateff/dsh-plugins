@@ -10,11 +10,10 @@
  *   bun run test/surface.ts
  */
 
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { RuntimeState } from "dsh-integration-host";
-import { check } from "../../../test/support";
 import { GitLabAccount } from "../src/host/account";
 import type { GitLabApi } from "../src/host/api";
 import { PanelApi } from "../src/host/panels/panel";
@@ -202,66 +201,57 @@ test("the panel", async () => {
 		const panel = new PanelApi({ api, state: signedIn() });
 		const loaded = await panel.mergeRequest("acme/storefront", 12);
 
-		check(
-			"opening a merge request reads it first, with the project path encoded",
+		expect(
 			calls[0]?.path === "/projects/acme%2Fstorefront/merge_requests/12",
-			String(calls[0]?.path),
-		);
-		check(
-			"the diff is a second read",
+			`opening a merge request reads it first, with the project path encoded — ${String(calls[0]?.path)}`,
+		).toBe(true);
+		expect(
 			calls[1]?.path.endsWith("/diffs") === true,
-			String(calls[1]?.path),
-		);
-		check(
-			"the discussions are a third read",
+			`the diff is a second read — ${String(calls[1]?.path)}`,
+		).toBe(true);
+		expect(
 			calls[2]?.path.endsWith("/discussions") === true,
-			String(calls[2]?.path),
-		);
-		check(
-			"the panel answers with the merge request, its files and its threads",
+			`the discussions are a third read — ${String(calls[2]?.path)}`,
+		).toBe(true);
+		expect(
 			loaded.mr.iid === 12 &&
 				loaded.diffs.length === 1 &&
 				loaded.discussions.length === 2,
-			`${loaded.diffs.length}/${loaded.discussions.length}`,
-		);
-		check(
-			"the panel does not read the pipeline until it is asked for",
+			`the panel answers with the merge request, its files and its threads — ${`${loaded.diffs.length}/${loaded.discussions.length}`}`,
+		).toBe(true);
+		expect(
 			calls.length === 3,
-			String(calls.length),
-		);
+			`the panel does not read the pipeline until it is asked for — ${String(calls.length)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const pipeline = await panel.pipeline("acme/storefront", 12);
 
-		check(
-			"the pipeline is read with its jobs",
+		expect(
 			calls[0]?.path.endsWith("/pipelines") === true &&
 				calls[1]?.path === "/projects/acme%2Fstorefront/pipelines/9001/jobs",
-			JSON.stringify(calls.map((call) => call.path)),
-		);
-		check(
-			"its jobs are read out of the answer",
+			`the pipeline is read with its jobs — ${JSON.stringify(calls.map((call) => call.path))}`,
+		).toBe(true);
+		expect(
 			pipeline.pipeline?.jobs.length === 2 &&
 				pipeline.pipeline?.jobs[0]?.name === "rspec",
-			String(pipeline.pipeline?.jobs.length),
-		);
+			`its jobs are read out of the answer — ${String(pipeline.pipeline?.jobs.length)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const log = await panel.jobLog("acme/storefront", 88);
 
-		check(
-			"one job is read, then its trace as text",
+		expect(
 			calls[0]?.path === "/projects/acme%2Fstorefront/jobs/88" &&
 				calls[1]?.path === "/projects/acme%2Fstorefront/jobs/88/trace" &&
 				log.log.startsWith("Running job") &&
 				log.job.name === "rspec",
-			JSON.stringify(calls.map((call) => call.path)),
-		);
-		check(
-			"a trace that fits is not marked as cut",
+			`one job is read, then its trace as text — ${JSON.stringify(calls.map((call) => call.path))}`,
+		).toBe(true);
+		expect(
 			log.truncated === false,
-			String(log.truncated),
-		);
+			`a trace that fits is not marked as cut — ${String(log.truncated)}`,
+		).toBe(true);
 
 		const { api: longApi } = fakeApi((call) =>
 			call.path.endsWith("/trace") ? "x".repeat(200_000) : JOB,
@@ -271,11 +261,10 @@ test("the panel", async () => {
 			88,
 		);
 
-		check(
-			"a long trace is cut to its end, where the failure is",
+		expect(
 			long.truncated === true && long.log.length === 64 * 1024,
-			`${long.log.length} chars`,
-		);
+			`a long trace is cut to its end, where the failure is — ${`${long.log.length} chars`}`,
+		).toBe(true);
 
 		const { api: emptyApi } = fakeApi(() => ({}));
 		let refusal = "";
@@ -288,11 +277,10 @@ test("the panel", async () => {
 			refusal = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"an answer with no merge request is refused by name",
+		expect(
 			refusal.includes("acme/storefront!12"),
-			refusal,
-		);
+			`an answer with no merge request is refused by name — ${refusal}`,
+		).toBe(true);
 	}
 });
 test("the confirmation gate", async () => {
@@ -308,35 +296,31 @@ test("the confirmation gate", async () => {
 
 		const pending = await review.submit(request, false);
 
-		check(
-			"an unconfirmed action sends nothing",
+		expect(
 			pending.performed === false && calls.length === 0,
-			String(calls.length),
-		);
-		check(
-			"its draft carries the exact text that would be posted",
+			`an unconfirmed action sends nothing — ${String(calls.length)}`,
+		).toBe(true);
+		expect(
 			pending.draft.body === request.body &&
 				pending.draft.subject === "acme/storefront!12" &&
 				pending.draft.action === "comment",
-			JSON.stringify(pending.draft),
-		);
+			`its draft carries the exact text that would be posted — ${JSON.stringify(pending.draft)}`,
+		).toBe(true);
 
 		const sent = await review.submit(request, true);
 
-		check(
-			"a confirmed comment is posted as a note",
+		expect(
 			calls[0]?.method === "POST" &&
 				calls[0]?.path ===
 					"/projects/acme%2Fstorefront/merge_requests/12/notes" &&
 				(calls[0]?.body as { body?: string } | undefined)?.body ===
 					request.body,
-			JSON.stringify(calls[0]),
-		);
-		check(
-			"the answer names the note GitLab created",
+			`a confirmed comment is posted as a note — ${JSON.stringify(calls[0])}`,
+		).toBe(true);
+		expect(
 			sent.performed === true && sent.result === "Note posted (id 501).",
-			String(sent.result),
-		);
+			`the answer names the note GitLab created — ${String(sent.result)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await review.submit(
@@ -350,12 +334,11 @@ test("the confirmation gate", async () => {
 			true,
 		);
 
-		check(
-			"a reply is posted into the thread it answers",
+		expect(
 			calls[0]?.path ===
 				"/projects/acme%2Fstorefront/merge_requests/12/discussions/6a9c1b2d/notes",
-			String(calls[0]?.path),
-		);
+			`a reply is posted into the thread it answers — ${String(calls[0]?.path)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await review.submit(
@@ -368,15 +351,14 @@ test("the confirmation gate", async () => {
 			true,
 		);
 
-		check(
-			"resolving replaces the thread's resolved flag",
+		expect(
 			calls[0]?.method === "PUT" &&
 				calls[0]?.path ===
 					"/projects/acme%2Fstorefront/merge_requests/12/discussions/6a9c1b2d" &&
 				(calls[0]?.body as { resolved?: boolean } | undefined)?.resolved ===
 					true,
-			JSON.stringify(calls[0]),
-		);
+			`resolving replaces the thread's resolved flag — ${JSON.stringify(calls[0])}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await review.submit(
@@ -389,13 +371,12 @@ test("the confirmation gate", async () => {
 			true,
 		);
 
-		check(
-			"reopening replaces it the other way",
+		expect(
 			calls[0]?.method === "PUT" &&
 				(calls[0]?.body as { resolved?: boolean } | undefined)?.resolved ===
 					false,
-			JSON.stringify(calls[0]?.body),
-		);
+			`reopening replaces it the other way — ${JSON.stringify(calls[0]?.body)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await review.submit(
@@ -403,13 +384,12 @@ test("the confirmation gate", async () => {
 			true,
 		);
 
-		check(
-			"approving posts to the approval path",
+		expect(
 			calls[0]?.method === "POST" &&
 				calls[0]?.path ===
 					"/projects/acme%2Fstorefront/merge_requests/12/approve",
-			String(calls[0]?.path),
-		);
+			`approving posts to the approval path — ${String(calls[0]?.path)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		await review.submit(
@@ -417,12 +397,11 @@ test("the confirmation gate", async () => {
 			true,
 		);
 
-		check(
-			"removing an approval posts to its own path",
+		expect(
 			calls[0]?.path ===
 				"/projects/acme%2Fstorefront/merge_requests/12/unapprove",
-			String(calls[0]?.path),
-		);
+			`removing an approval posts to its own path — ${String(calls[0]?.path)}`,
+		).toBe(true);
 
 		const refusals: Array<[string, () => void]> = [
 			[
@@ -458,7 +437,10 @@ test("the confirmation gate", async () => {
 				thrown = error instanceof ReviewRefusal ? error.message : "wrong error";
 			}
 
-			check(label, thrown !== "" && thrown !== "wrong error", thrown);
+			expect(
+				thrown !== "" && thrown !== "wrong error",
+				String(label) + " — " + thrown,
+			).toBe(true);
 		}
 	}
 });
@@ -484,33 +466,30 @@ test("the present tool", async () => {
 			presentation: { items: unknown[]; layout: string; total?: number };
 		};
 
-		check(
-			"waiting for my review is asked for as a reviewer filter on open requests",
+		expect(
 			calls[0]?.path === "/merge_requests" &&
 				calls[0]?.params?.reviewer_username === "ada" &&
 				calls[0]?.params?.state === "opened" &&
 				calls[0]?.params?.per_page === 10,
-			JSON.stringify(calls[0]?.params),
-		);
-		check(
-			"the card carries the rows the list answered with, and the count behind it",
+			`waiting for my review is asked for as a reviewer filter on open requests — ${JSON.stringify(calls[0]?.params)}`,
+		).toBe(true);
+		expect(
 			scoped.shown === 1 &&
 				scoped.presentation.items.length === 1 &&
 				scoped.presentation.layout === "single" &&
 				scoped.presentation.total === 2,
-			`${scoped.shown}/${scoped.presentation.layout}/${String(scoped.presentation.total)}`,
-		);
-		check(
-			"the text tells the model what the card shows",
+			`the card carries the rows the list answered with, and the count behind it — ${`${scoped.shown}/${scoped.presentation.layout}/${String(scoped.presentation.total)}`}`,
+		).toBe(true);
+		expect(
 			scoped.summary.startsWith(
 				'Shown as a card titled "Ждут моего ревью": 1 item.',
 			) && scoped.summary.includes("acme/storefront!12"),
-			scoped.summary.split("\n")[0],
-		);
-		check(
-			"the model's text is what the render returns",
+			`the text tells the model what the card shows — ${scoped.summary.split("\n")[0]}`,
+		).toBe(true);
+		expect(
 			textOf(definition, scoped) === scoped.summary,
-		);
+			"the model's text is what the render returns",
+		).toBe(true);
 
 		calls.length = 0;
 		const assigned = (await definition.execute(
@@ -518,13 +497,12 @@ test("the present tool", async () => {
 			execution(),
 		)) as { shown: number };
 
-		check(
-			"a project scope is read from the project's own path",
+		expect(
 			calls[0]?.path === "/projects/acme%2Fstorefront/merge_requests" &&
 				calls[0]?.params?.scope === "assigned_to_me" &&
 				assigned.shown === 1,
-			`${calls[0]?.path} ${JSON.stringify(calls[0]?.params)}`,
-		);
+			`a project scope is read from the project's own path — ${`${calls[0]?.path} ${JSON.stringify(calls[0]?.params)}`}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const findings = (await definition.execute(
@@ -535,18 +513,16 @@ test("the present tool", async () => {
 			presentation: { items: Array<{ kind: string }>; subject?: string };
 		};
 
-		check(
-			"findings read the merge request's discussions",
+		expect(
 			calls[0]?.path.endsWith("/discussions") === true,
-			String(calls[0]?.path),
-		);
-		check(
-			"only the threads that ask for something become rows",
+			`findings read the merge request's discussions — ${String(calls[0]?.path)}`,
+		).toBe(true);
+		expect(
 			findings.shown === 1 &&
 				findings.presentation.items[0]?.kind === "finding" &&
 				findings.presentation.subject === "acme/storefront!12",
-			JSON.stringify(findings.presentation.items),
-		);
+			`only the threads that ask for something become rows — ${JSON.stringify(findings.presentation.items)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const jobs = (await definition.execute(
@@ -554,18 +530,16 @@ test("the present tool", async () => {
 			execution(),
 		)) as { shown: number; presentation: { items: Array<{ kind: string }> } };
 
-		check(
-			"failed jobs are read from the newest pipeline",
+		expect(
 			calls[0]?.path.endsWith("/pipelines") === true &&
 				calls[1]?.path === "/projects/acme%2Fstorefront/pipelines/9001/jobs" &&
 				calls[1]?.params?.scope === "failed",
-			JSON.stringify(calls.map((call) => call.path)),
-		);
-		check(
-			"every job GitLab called failed becomes a row",
+			`failed jobs are read from the newest pipeline — ${JSON.stringify(calls.map((call) => call.path))}`,
+		).toBe(true);
+		expect(
 			jobs.shown === 1 && jobs.presentation.items[0]?.kind === "job",
-			String(jobs.shown),
-		);
+			`every job GitLab called failed becomes a row — ${String(jobs.shown)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const byReference = (await definition.execute(
@@ -573,13 +547,12 @@ test("the present tool", async () => {
 			execution(),
 		)) as { shown: number; failed: string[] };
 
-		check(
-			"a reference is resolved through the merge request's own path",
+		expect(
 			calls[0]?.path === "/projects/acme%2Fstorefront/merge_requests/12" &&
 				byReference.shown === 1 &&
 				byReference.failed.length === 0,
-			String(calls[0]?.path),
-		);
+			`a reference is resolved through the merge request's own path — ${String(calls[0]?.path)}`,
+		).toBe(true);
 
 		const { api: failing } = fakeApi((call) => {
 			if (call.path.includes("nope%2Fmissing")) throw new Error("not found");
@@ -593,16 +566,14 @@ test("the present tool", async () => {
 				execution(),
 			)) as { shown: number; failed: string[]; summary: string };
 
-		check(
-			"a reference that cannot be resolved is reported, not thrown",
+		expect(
 			partial.shown === 1 && partial.failed.join(",") === "nope/missing!1,junk",
-			JSON.stringify(partial.failed),
-		);
-		check(
-			"the text says what could not be resolved",
+			`a reference that cannot be resolved is reported, not thrown — ${JSON.stringify(partial.failed)}`,
+		).toBe(true);
+		expect(
 			partial.summary.includes("Could not resolve: nope/missing!1, junk"),
-			partial.summary.split("\n").at(-1),
-		);
+			`the text says what could not be resolved — ${partial.summary.split("\n").at(-1)}`,
+		).toBe(true);
 
 		const anonymous = presentTool.create({
 			api: fakeApi(() => [MR]).api,
@@ -616,11 +587,10 @@ test("the present tool", async () => {
 			unknown = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a scoped list without a known account says what to run",
+		expect(
 			unknown.includes("/gitlab sync"),
-			unknown,
-		);
+			`a scoped list without a known account says what to run — ${unknown}`,
+		).toBe(true);
 
 		let nothing = "";
 		try {
@@ -629,11 +599,10 @@ test("the present tool", async () => {
 			nothing = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a call with nothing to show is refused",
+		expect(
 			nothing.includes("nothing to show"),
-			nothing,
-		);
+			`a call with nothing to show is refused — ${nothing}`,
+		).toBe(true);
 
 		const empty = (await presentTool
 			.create({ api: fakeApi(() => []).api, state: signedIn() })
@@ -642,12 +611,11 @@ test("the present tool", async () => {
 			summary: string;
 		};
 
-		check(
-			"an empty list is an answer, not a failed call",
+		expect(
 			empty.shown === 0 &&
 				empty.summary.includes("No merge requests, findings or jobs matched"),
-			empty.summary,
-		);
+			`an empty list is an answer, not a failed call — ${empty.summary}`,
+		).toBe(true);
 	}
 });
 test("the review tool", async () => {
@@ -664,18 +632,16 @@ test("the review tool", async () => {
 			execution(),
 		)) as { performed: boolean; summary: string };
 
-		check(
-			"an unconfirmed call performs nothing",
+		expect(
 			pending.performed === false && calls.length === 0,
-			String(calls.length),
-		);
-		check(
-			"it answers with the exact text and the instruction to ask",
+			`an unconfirmed call performs nothing — ${String(calls.length)}`,
+		).toBe(true);
+		expect(
 			pending.summary.includes("Not sent yet.") &&
 				pending.summary.includes("Looks good to me.") &&
 				pending.summary.includes("confirm: true"),
-			pending.summary.split("\n")[0],
-		);
+			`it answers with the exact text and the instruction to ask — ${pending.summary.split("\n")[0]}`,
+		).toBe(true);
 
 		const confirmed = (await definition.execute(
 			{
@@ -687,16 +653,14 @@ test("the review tool", async () => {
 			execution(),
 		)) as { performed: boolean; summary: string };
 
-		check(
-			"a confirmed call sends it once",
+		expect(
 			confirmed.performed === true && calls.length === 1,
-			String(calls.length),
-		);
-		check(
-			"and says what GitLab answered",
+			`a confirmed call sends it once — ${String(calls.length)}`,
+		).toBe(true);
+		expect(
 			confirmed.summary.includes("Note posted (id 501)."),
-			confirmed.summary,
-		);
+			`and says what GitLab answered — ${confirmed.summary}`,
+		).toBe(true);
 
 		let bad = "";
 		try {
@@ -708,11 +672,10 @@ test("the review tool", async () => {
 			bad = error instanceof Error ? error.message : String(error);
 		}
 
-		check(
-			"a reference the tool cannot read is refused by example",
+		expect(
 			bad.includes("group/project!12"),
-			bad,
-		);
+			`a reference the tool cannot read is refused by example — ${bad}`,
+		).toBe(true);
 	}
 });
 test("the route", async () => {
@@ -802,71 +765,65 @@ test("the route", async () => {
 
 		const read = await call("GET", `${ROUTE_PREFIX}/status`);
 
-		check(
-			"the settings card reads the status",
+		expect(
 			read.status === 200 &&
 				(read.body as { username?: string }).username === "ada",
-			JSON.stringify(read.body).slice(0, 80),
-		);
+			`the settings card reads the status — ${JSON.stringify(read.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const saved = await call("POST", `${ROUTE_PREFIX}/token`, {
 			token: "glpat-pasted",
 		});
 
-		check(
-			"a pasted token is handed to the host and answered with the status",
+		expect(
 			saved.status === 200 &&
 				(saved.body as { signedIn?: boolean }).signedIn === true &&
 				calls.some(
 					(entry) => entry.method === "TOKEN" && entry.path === "glpat-pasted",
 				),
-			JSON.stringify(saved.body).slice(0, 60),
-		);
+			`a pasted token is handed to the host and answered with the status — ${JSON.stringify(saved.body).slice(0, 60)}`,
+		).toBe(true);
 
 		const noToken = await call("POST", `${ROUTE_PREFIX}/token`, {});
 
-		check(
-			"a token request with no token is a bad request",
+		expect(
 			noToken.status === 400 &&
 				String((noToken.body as { error?: string }).error).includes("token"),
-			`${noToken.status}: ${JSON.stringify(noToken.body)}`,
-		);
+			`a token request with no token is a bad request — ${`${noToken.status}: ${JSON.stringify(noToken.body)}`}`,
+		).toBe(true);
 
 		const loaded = await call(
 			"GET",
 			`${ROUTE_PREFIX}/mr?project=acme%2Fstorefront&iid=12`,
 		);
 
-		check(
-			"the panel loads a merge request by reference",
+		expect(
 			loaded.status === 200 &&
 				(loaded.body as { mr?: { iid?: number } }).mr?.iid === 12,
-			JSON.stringify(loaded.body).slice(0, 80),
-		);
+			`the panel loads a merge request by reference — ${JSON.stringify(loaded.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const pipeline = await call(
 			"GET",
 			`${ROUTE_PREFIX}/mr/pipeline?project=acme%2Fstorefront&iid=12`,
 		);
 
-		check(
-			"the panel loads the pipeline on demand",
+		expect(
 			pipeline.status === 200 &&
 				(pipeline.body as { pipeline?: { id?: number } }).pipeline?.id === 9001,
-			JSON.stringify(pipeline.body).slice(0, 80),
-		);
+			`the panel loads the pipeline on demand — ${JSON.stringify(pipeline.body).slice(0, 80)}`,
+		).toBe(true);
 
 		const job = await call(
 			"GET",
 			`${ROUTE_PREFIX}/mr/job?project=acme%2Fstorefront&id=88`,
 		);
 
-		check(
-			"the panel loads one job's log",
+		expect(
 			job.status === 200 &&
 				String((job.body as { log?: string }).log).startsWith("Running job"),
-			JSON.stringify(job.body).slice(0, 80),
-		);
+			`the panel loads one job's log — ${JSON.stringify(job.body).slice(0, 80)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const draft = await call("POST", `${ROUTE_PREFIX}/mr/review`, {
@@ -876,14 +833,13 @@ test("the route", async () => {
 			body: "Looks good to me.",
 		});
 
-		check(
-			"an unconfirmed write answers with the draft and sends nothing",
+		expect(
 			draft.status === 200 &&
 				(draft.body as { draft?: { body?: string } }).draft?.body ===
 					"Looks good to me." &&
 				calls.length === 0,
-			JSON.stringify(draft.body),
-		);
+			`an unconfirmed write answers with the draft and sends nothing — ${JSON.stringify(draft.body)}`,
+		).toBe(true);
 
 		calls.length = 0;
 		const sent = await call("POST", `${ROUTE_PREFIX}/mr/review`, {
@@ -894,15 +850,14 @@ test("the route", async () => {
 			confirm: true,
 		});
 
-		check(
-			"a confirmed write sends it and answers with the fresh document",
+		expect(
 			sent.status === 200 &&
 				(sent.body as { kind?: string }).kind === "merge_request" &&
 				calls.some(
 					(entry) => entry.method === "POST" && entry.path.endsWith("/notes"),
 				),
-			JSON.stringify(calls.map((entry) => entry.path)),
-		);
+			`a confirmed write sends it and answers with the fresh document — ${JSON.stringify(calls.map((entry) => entry.path))}`,
+		).toBe(true);
 
 		const badAction = await call("POST", `${ROUTE_PREFIX}/mr/review`, {
 			project: "acme/storefront",
@@ -910,12 +865,11 @@ test("the route", async () => {
 			action: "merge",
 		});
 
-		check(
-			"an action this integration does not perform is a bad request",
+		expect(
 			badAction.status === 400 &&
 				String((badAction.body as { error?: string }).error).includes("merge"),
-			`${badAction.status}: ${JSON.stringify(badAction.body)}`,
-		);
+			`an action this integration does not perform is a bad request — ${`${badAction.status}: ${JSON.stringify(badAction.body)}`}`,
+		).toBe(true);
 
 		const noBody = await call("POST", `${ROUTE_PREFIX}/mr/review`, {
 			project: "acme/storefront",
@@ -923,29 +877,26 @@ test("the route", async () => {
 			action: "comment",
 		});
 
-		check(
-			"a comment with no text is a bad request, not a gateway error",
+		expect(
 			noBody.status === 400 &&
 				String((noBody.body as { error?: string }).error).includes(
 					"needs its text",
 				),
-			`${noBody.status}: ${JSON.stringify(noBody.body)}`,
-		);
+			`a comment with no text is a bad request, not a gateway error — ${`${noBody.status}: ${JSON.stringify(noBody.body)}`}`,
+		).toBe(true);
 
 		const missing = await call("GET", `${ROUTE_PREFIX}/mr`);
 
-		check(
-			"a read without its reference is a bad request",
+		expect(
 			missing.status === 400,
-			String(missing.status),
-		);
+			`a read without its reference is a bad request — ${String(missing.status)}`,
+		).toBe(true);
 
 		const unknown = await call("GET", `${ROUTE_PREFIX}/nope`);
 
-		check(
-			"an unknown path is a not-found",
+		expect(
 			unknown.status === 404,
-			String(unknown.status),
-		);
+			`an unknown path is a not-found — ${String(unknown.status)}`,
+		).toBe(true);
 	}
 });
