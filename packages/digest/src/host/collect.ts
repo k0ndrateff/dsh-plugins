@@ -21,6 +21,7 @@ import type {
 	DigestReport,
 	DigestSection,
 } from "../shared/digest";
+import { digestTitle } from "../shared/digest";
 import type { DigestSettingsStore } from "./settings";
 
 /** How far back a block that reports recent work looks. */
@@ -59,9 +60,10 @@ export class DigestCollector {
 	 * @returns the report, and the text the model reads.
 	 */
 	async collect(callId: string, now: Date): Promise<DigestCollected> {
+		const settings = await this.deps.settings.ensure();
 		const report: DigestReport = {
 			callId,
-			title: "Daily digest",
+			title: digestTitle(settings.days),
 			generatedAt: now.toISOString(),
 			sections: await this.sections(now),
 		};

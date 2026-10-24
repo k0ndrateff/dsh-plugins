@@ -34,15 +34,32 @@ const sanitize = (value: string): string =>
 		.replace(/-{2,}/gu, "-")
 		.replace(/^[-.]+|[-.]+$/gu, "");
 
+/** A short stable fingerprint, so two long ids that share a prefix stay apart. */
+const fingerprint = (value: string): string => {
+	let hash = 2166136261;
+
+	for (const character of value) {
+		hash ^= character.codePointAt(0) ?? 0;
+		hash = Math.imul(hash, 16777619);
+	}
+
+	return (hash >>> 0).toString(36).padStart(6, "0").slice(0, 6);
+};
+
 /**
  * The browser one harness session owns.
  * @param sessionId - the calling session's id, when there is one.
  */
 export const sessionNameOf = (sessionId: string | undefined): string => {
 	const cleaned = sanitize(sessionId ?? "");
+	const name = cleaned === "" ? NO_SESSION : cleaned;
 	const room = MAX_SESSION_NAME - SESSION_PREFIX.length;
 
-	return `${SESSION_PREFIX}${(cleaned === "" ? NO_SESSION : cleaned).slice(0, room)}`;
+	if (name.length <= room) return `${SESSION_PREFIX}${name}`;
+
+	// A plain prefix cut would map every long id with the same head to one
+	// browser; the fingerprint keeps them apart without breaking the length cap.
+	return `${SESSION_PREFIX}${name.slice(0, room - 7)}-${fingerprint(name)}`;
 };
 
 /**

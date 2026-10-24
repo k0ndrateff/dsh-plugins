@@ -10,11 +10,14 @@
  */
 
 import { boolean, object, required, string } from "dsh-integration-host/shape";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type PanelState, stateUrl } from "../../shared/panel";
 
-/** How often the chip asks. */
+/** How often the chip asks while a browser is open. */
 export const STATE_POLL_MS = 4_000;
+
+/** How often it checks for one when the last answer said there is none. */
+const CLOSED_POLL_MS = 15_000;
 
 /** What the chip knows before the first answer: nothing yet. */
 const CLOSED: PanelState = { open: false, url: "", title: "" };
@@ -40,8 +43,16 @@ export const asPanelState = object<PanelState>({
  */
 export const useBrowserState = (session: string | undefined): PanelState => {
 	const [state, setState] = useState<PanelState>(CLOSED);
+	const openRef = useRef(false);
 
 	useEffect(() => {
+		openRef.current = state.open;
+	}, [state.open]);
+
+	useEffect(() => {
+		setState(CLOSED);
+		openRef.current = false;
+
 		setState(CLOSED);
 
 		if (session === undefined) return;
@@ -53,7 +64,10 @@ export const useBrowserState = (session: string | undefined): PanelState => {
 		const schedule = (): void => {
 			if (stopped || document.hidden) return;
 
-			timer = window.setTimeout(() => void ask(), STATE_POLL_MS);
+			timer = window.setTimeout(
+				() => void ask(),
+				openRef.current ? STATE_POLL_MS : CLOSED_POLL_MS,
+			);
 		};
 
 		const ask = async (): Promise<void> => {

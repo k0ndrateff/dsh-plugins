@@ -35,6 +35,7 @@ export {
 	type PanelTypeSpec,
 } from "./panel/definition";
 export {
+	createLazyPanelOpener,
 	createPanelOpener,
 	type PanelOpener,
 	wantsBrowser,

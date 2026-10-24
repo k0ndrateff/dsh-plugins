@@ -1,5 +1,16 @@
 # dsh-gitlab-plugin
 
+## 0.2.2
+
+### Patch Changes
+
+- Close the P2 UX and reliability findings: human GitLab state/status labels, a
+  readable Sentry assignee menu, the Atlassian site on its settings card, a
+  schedule-aware digest title, a cached lazy panel opener, a bounded browser chip
+  poll, long-session fingerprints, a truthful `browser_read` count, the browser
+  namespace, Figma numeric entities, and the removal of unused Atlassian meta text
+  and the GitLab MCP client dependency.
+
 ## 0.2.1
 
 ### Patch Changes

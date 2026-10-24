@@ -57,6 +57,15 @@ export interface DigestReport {
 	readonly sections: readonly DigestSection[];
 }
 
+/**
+ * What to call a digest with this delivery schedule.
+ *
+ * "Daily" is a lie for a Monday/Wednesday/Friday digest; the card and the
+ * reminder use this one rule.
+ */
+export const digestTitle = (days: readonly number[] | undefined): string =>
+	days?.length === 7 ? "Daily digest" : "Digest";
+
 /** How many rows one block may contribute. */
 export const DIGEST_LIMITS = [5, 10, 15, 25] as const;
 
@@ -199,8 +208,7 @@ const readSection: Reader<DigestSection> = (value) =>
 	isRecord(value) && Array.isArray(value.items) ? section(value) : undefined;
 
 /** A title always exists; the default is the card's own heading. */
-const title: Reader<string> = (value) =>
-	nonEmptyString(value) ?? "Daily digest";
+const title: Reader<string> = (value) => nonEmptyString(value) ?? "Digest";
 
 const report = object<DigestReport>({
 	callId: required(nonEmptyString),

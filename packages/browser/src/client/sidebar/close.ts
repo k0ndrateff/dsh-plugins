@@ -14,6 +14,7 @@ import {
 	CLIENT_REQUEST_VALUE,
 } from "dsh-integration-host/status";
 import { CLOSE_PATH } from "../../shared/panel";
+import { hostWord, parseAnswer } from "./answer";
 
 /** What the host said about a close, and whether it says the close did not happen. */
 export interface CloseAnswer {
@@ -22,26 +23,6 @@ export interface CloseAnswer {
 	/** Whether the host refused, or answered with a failure status. */
 	readonly isError: boolean;
 }
-
-const parse = (text: string): unknown => {
-	try {
-		return JSON.parse(text) as unknown;
-	} catch {
-		return undefined;
-	}
-};
-
-/** The sentence inside a host answer, whether it reports a success or a refusal. */
-const hostWord = (value: unknown): string | undefined => {
-	if (!isRecord(value)) return undefined;
-
-	for (const key of ["error", "message"]) {
-		const text = value[key];
-		if (typeof text === "string" && text !== "") return text;
-	}
-
-	return undefined;
-};
 
 /** Whether the host's own answer is a refusal, whatever status carried it. */
 const isRefusal = (value: unknown): boolean => {
@@ -77,7 +58,7 @@ export const closeBrowser = async (session: string): Promise<CloseAnswer> => {
 	);
 
 	const body = (await response.text()).trim();
-	const parsed = parse(body);
+	const parsed = parseAnswer(body);
 	const closed =
 		isRecord(parsed) && parsed.closed === true
 			? "The browser was closed."

@@ -518,7 +518,13 @@ class PresentTool {
 				? "Shown as a card"
 				: `Shown as a card titled "${presentation.title}"`;
 		const count = presentation.items.length;
-		const lines = [`${heading}: ${count} item${count === 1 ? "" : "s"}.`];
+		const total =
+			presentation.total !== undefined && presentation.total > count
+				? presentation.total
+				: undefined;
+		const lines = [
+			`${heading}: ${total === undefined ? count : `${count} of ${total}`} item${(total ?? count) === 1 ? "" : "s"}.`,
+		];
 
 		for (const item of presentation.items) {
 			if (item.kind === "merge_request") {

@@ -22,6 +22,35 @@ export interface PanelOpener<K extends string> {
 	open(params: NonNullable<SidebarRightTabParamsFor<K>>): boolean;
 }
 
+/** An opener bound lazily when the plugin's client half is applied. */
+export interface LazyPanelOpener<K extends string> {
+	/** Remember the context the panel navigates through. */
+	install(ctx: Context): void;
+	/** Show one item in the harness's own right panel. */
+	open(params: NonNullable<SidebarRightTabParamsFor<K>>): boolean;
+}
+
+/**
+ * Build one lazy opener for a plugin's tab kind.
+ *
+ * The cards do not hold the client context, so the opener is installed once at
+ * apply time and every click goes through it. One factory keeps the five
+ * integrations from repeating that module-level `let`.
+ * @param kind - the tab kind the plugin registered.
+ */
+export const createLazyPanelOpener = <K extends string>(
+	kind: K,
+): LazyPanelOpener<K> => {
+	let opener: PanelOpener<K> | undefined;
+
+	return {
+		install: (ctx) => {
+			opener = createPanelOpener(ctx, kind);
+		},
+		open: (params) => opener?.open(params) ?? false,
+	};
+};
+
 /**
  * Build the opener for one integration's tab kind.
  * @param ctx - the plugin's client context.

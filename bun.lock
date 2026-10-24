@@ -40,7 +40,7 @@
     },
     "packages/atlassian": {
       "name": "dsh-atlassian-plugin",
-      "version": "0.4.0",
+      "version": "0.4.2",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -65,7 +65,7 @@
     },
     "packages/browser": {
       "name": "dsh-browser-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -85,7 +85,7 @@
     },
     "packages/correlation": {
       "name": "dsh-correlation-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -101,7 +101,7 @@
     },
     "packages/devkit": {
       "name": "dsh-devkit-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -120,7 +120,7 @@
     },
     "packages/digest": {
       "name": "dsh-digest-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
       },
@@ -139,7 +139,7 @@
     },
     "packages/figma": {
       "name": "dsh-figma-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
@@ -158,16 +158,15 @@
     },
     "packages/gitlab": {
       "name": "dsh-gitlab-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
-        "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",
       },
       "devDependencies": {
-        "dsh-integration-host": "^0.1.4",
-        "dsh-integration-ui": "^0.1.4",
-        "dsh-mcp-oauth": "^0.1.4",
-        "dsh-plugin-build": "^0.1.4",
+        "dsh-integration-host": "^0.3.0",
+        "dsh-integration-ui": "^0.2.1",
+        "dsh-mcp-oauth": "^0.2.0",
+        "dsh-plugin-build": "^0.2.0",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "~4.0.5",
@@ -179,9 +178,9 @@
     },
     "packages/integration-host": {
       "name": "dsh-integration-host",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "dsh-mcp-oauth": "^0.1.4",
+        "dsh-mcp-oauth": "^0.2.0",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "~4.0.5",
@@ -190,10 +189,10 @@
     },
     "packages/integration-ui": {
       "name": "dsh-integration-ui",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@vanilla-extract/css": "^1.21.3",
-        "dsh-integration-host": "^0.1.4",
+        "dsh-integration-host": "^0.3.0",
       },
       "devDependencies": {
         "@deepseek-ai/dsh-client-ui-chat": "0.2.1-rc.2",
@@ -251,7 +250,7 @@
     },
     "packages/sentry": {
       "name": "dsh-sentry-plugin",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@modelcontextprotocol/client": "2.2.0",
         "@vanilla-extract/css": "^1.21.3",

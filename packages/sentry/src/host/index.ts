@@ -31,6 +31,7 @@ import {
 	loggerOf,
 	McpBridge,
 } from "dsh-mcp-oauth";
+import pkg from "../../package.json";
 import type { SentryStatus } from "../shared/status";
 import { sentryAuthSpec } from "./auth";
 import {
@@ -56,7 +57,7 @@ export const inject = ["tools", "credentials", "commands", "authorization"];
 const OAUTH_METHOD = "oauth";
 
 /** How Sentry's server sees this client. */
-const CLIENT_INFO = { name: "dsh-sentry", version: "0.1.0" };
+const CLIENT_INFO = { name: "dsh-sentry", version: pkg.version };
 
 /**
  * @param ctx - host context carrying tools, credentials, commands, and authorization.

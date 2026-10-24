@@ -35,6 +35,6 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 
 /** One `digest` call, as a single line. */
 export const DigestToolRow = createToolRow({
-	displayName: () => "Daily digest",
+	displayName: () => "Digest",
 	summarize,
 });

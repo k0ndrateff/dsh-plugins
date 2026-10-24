@@ -124,11 +124,18 @@ class ReadTool {
 			if (!outcome.ok) throw new Error(outcome.error);
 
 			const lines = this.lines(args.what, modelData(outcome.data));
+			const whole = lines.join("\n");
+			const text = bound(whole, deps.config.maxOutputBytes);
 
 			return {
 				what: args.what,
-				text: bound(lines.join("\n"), deps.config.maxOutputBytes),
-				count: lines.length,
+				text,
+				// The count names the lines the model can actually read, not the
+				// ones the cut dropped.
+				count:
+					text === whole
+						? lines.length
+						: Math.max(0, text.split("\n").length - 1),
 			};
 		},
 	});

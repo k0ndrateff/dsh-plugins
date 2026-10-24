@@ -323,6 +323,7 @@ export class AgentBrowserRunner {
 	 */
 	private environment(): NodeJS.ProcessEnv {
 		const env: Record<string, string> = {
+			AGENT_BROWSER_NAMESPACE: "dsh",
 			AGENT_BROWSER_STREAM_QUALITY: String(this.deps.config.streamQuality),
 			AGENT_BROWSER_STREAM_MAX_WIDTH: String(this.deps.config.streamMaxWidth),
 			AGENT_BROWSER_STREAM_MAX_HEIGHT: String(this.deps.config.streamMaxHeight),

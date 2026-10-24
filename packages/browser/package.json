@@ -1,6 +1,6 @@
 {
 	"name": "dsh-browser-plugin",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"type": "module",
 	"description": "A real browser for DeepSeek Harness: the agent opens, inspects and pokes a page in one browser per session, live in the side panel as it works",
 	"license": "MIT",
@@ -57,7 +57,7 @@
 	"devDependencies": {
 		"@deepseek-ai/schemastery": "^3.18.5",
 		"dsh-integration-host": "^0.3.0",
-		"dsh-integration-ui": "^0.2.1",
+		"dsh-integration-ui": "^0.2.2",
 		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {

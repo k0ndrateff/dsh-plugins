@@ -35,6 +35,7 @@ import {
 	type DigestSection,
 	type DigestSettings,
 	type DigestSettingsView,
+	digestTitle,
 	isDigestTime,
 	isTimeZone,
 } from "../../shared/digest";
@@ -209,7 +210,7 @@ export const DigestSettingsSection = (): ReactNode => {
 			<section className={styles.section}>
 				<div className={styles.card}>
 					<div className={styles.head}>
-						<span className={styles.title}>Daily digest</span>
+						<span className={styles.title}>Digest</span>
 					</div>
 
 					<div className={styles.caption}>
@@ -246,7 +247,7 @@ export const DigestSettingsSection = (): ReactNode => {
 		<section className={styles.section}>
 			<div className={styles.card}>
 				<div className={styles.head}>
-					<span className={styles.title}>Daily digest</span>
+					<span className={styles.title}>{digestTitle(draft.days)}</span>
 
 					<span className={styles.state}>
 						<StateDot state={on === 0 ? "idle" : "done"} />

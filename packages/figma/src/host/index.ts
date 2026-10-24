@@ -24,6 +24,7 @@ import type {} from "@deepseek-ai/dsh-commands";
 import type {} from "@deepseek-ai/dsh-tools";
 import { mountIntegrationRoute, RuntimeState } from "dsh-integration-host";
 import { loggerOf, McpBridge, publicToolName } from "dsh-mcp-oauth";
+import pkg from "../../package.json";
 import { FigmaAuth } from "./auth";
 import { type ConfigInput, PLUGIN_NAME, resolveConfig } from "./config";
 import { PanelApi } from "./panels/panel";
@@ -38,7 +39,7 @@ export const name = PLUGIN_NAME;
 export const inject = ["tools", "commands"];
 
 /** How the Dev Mode server sees this client. */
-const CLIENT_INFO = { name: "dsh-figma", version: "0.1.0" };
+const CLIENT_INFO = { name: "dsh-figma", version: pkg.version };
 
 /**
  * @param ctx - host context carrying tools and commands.

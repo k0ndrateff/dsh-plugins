@@ -67,7 +67,6 @@ export type AtlassianMeta = {
 	readonly total?: number;
 	issues: IssueCard[];
 	pages: PageCard[];
-	readonly text: string;
 };
 
 /** Narrow an unknown `meta` value from the wire to this contract. */
@@ -97,6 +96,5 @@ export const asAtlassianMeta = (value: unknown): AtlassianMeta | undefined => {
 		pages: Array.isArray(candidate.pages)
 			? (candidate.pages as PageCard[])
 			: [],
-		text: typeof candidate.text === "string" ? candidate.text : "",
 	};
 };

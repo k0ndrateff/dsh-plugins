@@ -10,7 +10,7 @@ import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Chip, Facts } from "dsh-integration-ui";
 import type { ReactNode } from "react";
 import type { MergeRequestDetail } from "../../shared/panel";
-import { mrStateTone } from "../../shared/tone";
+import { mergeStatusLabel, mrStateLabel, mrStateTone } from "../../shared/tone";
 import type { ReviewState } from "../sidebar/review";
 import * as styles from "../styles/styles.css";
 import { Prose, peopleText, Section, whenText } from "./blocks";
@@ -50,12 +50,12 @@ export const MrOverview = ({ mr, review }: Props): ReactNode => {
 	return (
 		<>
 			<div className={styles.badges}>
-				<Chip tone={mrStateTone(mr.state)} value={mr.state ?? "unknown"} />
+				<Chip tone={mrStateTone(mr.state)} value={mrStateLabel(mr.state)} />
 
 				{mr.draft ? <Chip tone="warning" value="Draft" /> : null}
 				{mr.hasConflicts ? <Chip tone="danger" value="Conflicts" /> : null}
 				{mr.mergeStatus === undefined ? null : (
-					<Chip tone="neutral" value={mr.mergeStatus} />
+					<Chip tone="neutral" value={mergeStatusLabel(mr.mergeStatus)} />
 				)}
 			</div>
 

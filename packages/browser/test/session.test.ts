@@ -54,4 +54,8 @@ test("a name that fits", async () => {
 	const long = sessionNameOf("x".repeat(200));
 	expect(long.length === MAX_SESSION_NAME, "is capped").toBe(true);
 	expect(long.startsWith(SESSION_PREFIX), "keeps its prefix").toBe(true);
+	expect(
+		sessionNameOf("a".repeat(200)) !== sessionNameOf("b".repeat(200)),
+		"two long ids do not collapse into one browser",
+	).toBe(true);
 });

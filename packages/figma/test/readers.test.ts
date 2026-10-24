@@ -40,17 +40,8 @@ test("a node reference", async () => {
 	expect(
 		parseNodeRef(
 			"https://www.figma.com/design/AbC123/Storefront?node-id=12-34&t=x",
-		)?.nodeId === "12:34" &&
-			parseNodeRef(
-				"https://www.figma.com/design/AbC123/Storefront?node-id=12-34&t=x",
-			)?.fileKey === "AbC123",
-		"a design link is read as its node and file",
-	).toBe(true);
-	expect(
-		parseNodeRef(
-			"https://www.figma.com/design/AbC123/branch/BrAnCh9/Storefront?node-id=1-2",
-		)?.fileKey === "BrAnCh9",
-		"a branch link is read as the branch's key",
+		)?.nodeId === "12:34",
+		"a design link is read as its node",
 	).toBe(true);
 	expect(
 		parseNodeRef("https://www.figma.com/board/BoArD1/Flow?node-id=5-6")

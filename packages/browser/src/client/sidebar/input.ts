@@ -23,6 +23,7 @@ import {
 	type PanelModifiers,
 	type PanelPage,
 } from "../../shared/panel";
+import { hostWord, parseAnswer } from "./answer";
 
 /** What the host said about one act, and whether it says the act did not happen. */
 export interface InputAnswer {
@@ -31,26 +32,6 @@ export interface InputAnswer {
 	/** Whether the host refused, or answered with a failure status. */
 	readonly ok: boolean;
 }
-
-const parse = (text: string): unknown => {
-	try {
-		return JSON.parse(text) as unknown;
-	} catch {
-		return undefined;
-	}
-};
-
-/** The sentence inside a host answer, when it carries one. */
-const hostWord = (value: unknown): string | undefined => {
-	if (!isRecord(value)) return undefined;
-
-	for (const key of ["error", "message"]) {
-		const text = value[key];
-		if (typeof text === "string" && text !== "") return text;
-	}
-
-	return undefined;
-};
 
 /** Whether the host's own answer is a refusal, whatever status carried it. */
 const isRefusal = (value: unknown): boolean =>
@@ -80,7 +61,7 @@ export const sendInput = async (
 	});
 
 	const body = (await response.text()).trim();
-	const parsed = parse(body);
+	const parsed = parseAnswer(body);
 
 	return {
 		text: hostWord(parsed) ?? (body === "" ? undefined : body),

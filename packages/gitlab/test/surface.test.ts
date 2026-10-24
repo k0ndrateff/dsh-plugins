@@ -482,7 +482,7 @@ test("the present tool", async () => {
 		).toBe(true);
 		expect(
 			scoped.summary.startsWith(
-				'Shown as a card titled "Ждут моего ревью": 1 item.',
+				'Shown as a card titled "Ждут моего ревью": 1 of 2 items.',
 			) && scoped.summary.includes("acme/storefront!12"),
 			`the text tells the model what the card shows — ${scoped.summary.split("\n")[0]}`,
 		).toBe(true);

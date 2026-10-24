@@ -29,7 +29,7 @@ import {
 export const PROMPT_MARKER = "[dsh-digest]";
 
 /** The title every digest reminder carries, as the harness UI shows it. */
-export const TASK_TITLE = "Daily work digest";
+export const TASK_TITLE = "Work digest";
 
 /** What a digest reminder tells the model when it fires. */
 export const TASK_PROMPT = `${PROMPT_MARKER} Assemble today's digest with the digest tool and present it. This is a read-only run: do not write to any external system.`;

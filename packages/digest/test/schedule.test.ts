@@ -19,7 +19,11 @@ import {
 	type ScheduleCreateRequest,
 } from "../src/host/schedule";
 import { defaultDigestSettings } from "../src/host/settings";
-import { canonicalTimeZone, toScheduleTime } from "../src/shared/digest";
+import {
+	canonicalTimeZone,
+	digestTitle,
+	toScheduleTime,
+} from "../src/shared/digest";
 
 /** One reminder the fake service holds. */
 interface Held {
@@ -128,6 +132,12 @@ test("a configuration becomes a recurrence", async () => {
 		).toBe(true);
 		void everyDay;
 	}
+});
+test("a weekly schedule is not called daily", async () => {
+	expect(
+		digestTitle([1, 2, 3, 4, 5]) === "Digest" &&
+			digestTitle([1, 2, 3, 4, 5, 6, 0]) === "Daily digest",
+	).toBe(true);
 });
 test("what counts as this plugin's reminder", async () => {
 	expect(

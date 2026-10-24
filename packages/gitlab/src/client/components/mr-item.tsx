@@ -8,6 +8,7 @@
 
 import { Chip, Facts } from "dsh-integration-ui";
 import type { MergeRequestCard } from "../../shared/meta";
+import { mrStateLabel } from "../../shared/tone";
 import * as styles from "../styles/styles.css";
 import { openTarget, RowLink } from "./row-link";
 
@@ -38,7 +39,7 @@ export const MergeRequestItem = ({ mergeRequest }: Props) => (
 		<Facts
 			layout="inline"
 			items={[
-				{ label: "State", value: mergeRequest.state },
+				{ label: "State", value: mrStateLabel(mergeRequest.state) },
 				{ label: "Author", value: mergeRequest.author },
 				{
 					label: "Reviewers",

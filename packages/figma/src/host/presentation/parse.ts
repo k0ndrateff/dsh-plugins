@@ -47,10 +47,21 @@ const ENTITIES: Record<string, string> = {
 };
 
 const decode = (value: string): string =>
-	value.replace(
-		/&(?:amp|lt|gt|quot|apos);/gu,
-		(entity) => ENTITIES[entity] ?? entity,
-	);
+	value
+		.replace(
+			/&(?:amp|lt|gt|quot|apos);/gu,
+			(entity) => ENTITIES[entity] ?? entity,
+		)
+		.replace(/&#(x[0-9a-f]+|\d+);/giu, (_entity, code: string) => {
+			const point =
+				code.startsWith("x") || code.startsWith("X")
+					? Number.parseInt(code.slice(1), 16)
+					: Number(code);
+
+			return Number.isFinite(point) && point >= 0 && point <= 0x10ffff
+				? String.fromCodePoint(point)
+				: "";
+		});
 
 /** One attribute's number, or undefined when it is absent or not a number. */
 const numberOf = (
@@ -280,12 +291,10 @@ export function parseScreenshot(value: unknown): Screenshot | undefined {
  * Figma's own "Copy link to selection" puts on the clipboard, which carries the
  * id in `node-id` and the file in its path.
  * @param value - the text the caller passed, trimmed by this reader.
- * @returns the node id in Figma's own spelling, and the file when the text was a
- *   URL, or undefined when the text names no node.
+ * @returns the node id in Figma's own spelling, or undefined when the text
+ *   names no node.
  */
-export function parseNodeRef(
-	value: string,
-): { nodeId: string; fileKey?: string } | undefined {
+export function parseNodeRef(value: string): { nodeId: string } | undefined {
 	const text = value.trim();
 	if (text === "") return undefined;
 
@@ -301,15 +310,5 @@ export function parseNodeRef(
 	const nodeId = url.searchParams.get("node-id");
 	if (nodeId === null || !NODE_ID.test(nodeId)) return undefined;
 
-	// A branch URL carries the branch key where a file URL carries the file key,
-	// and the MCP server wants the branch's own key.
-	const segments = url.pathname.split("/").filter((part) => part !== "");
-	const branch = segments.indexOf("branch");
-	const fileKey =
-		branch === -1 ? segments[1] : (segments[branch + 1] ?? segments[1]);
-
-	return {
-		nodeId: nodeId.replace(/-/gu, ":"),
-		...(fileKey === undefined || fileKey === "" ? {} : { fileKey }),
-	};
+	return { nodeId: nodeId.replace(/-/gu, ":") };
 }

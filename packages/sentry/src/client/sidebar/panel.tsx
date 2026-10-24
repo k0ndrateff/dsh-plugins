@@ -149,6 +149,14 @@ function remember(reference: string): void {
  * remembered, and the field itself appears only when a new person has to be
  * named by hand.
  */
+/** A stored Sentry reference, as a person reads it in the menu. */
+const assigneeLabel = (reference: string): string => {
+	if (reference.startsWith("user:")) return `User ${reference.slice(5)}`;
+	if (reference.startsWith("team:")) return `Team ${reference.slice(5)}`;
+
+	return reference;
+};
+
 const Assignee = ({
 	issue,
 	actions,
@@ -196,7 +204,7 @@ const Assignee = ({
 		...(mine === null ? [] : [{ id: "me", label: "Assign to me" }]),
 		...known
 			.filter((entry) => entry !== mine)
-			.map((entry) => ({ id: entry, label: entry })),
+			.map((entry) => ({ id: entry, label: assigneeLabel(entry) })),
 		{ id: "manual", label: "Assign by reference…" },
 	];
 

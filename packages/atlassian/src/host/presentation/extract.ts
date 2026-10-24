@@ -74,7 +74,6 @@ class Extractor {
 	private readonly MAX_STRINGS = 800;
 	private readonly MAX_DEPTH = 7;
 	private readonly MAX_CARDS = 25;
-	private readonly MAX_TEXT = 4000;
 	/** Longest description or body kept for a summary pass or a panel. */
 	private readonly MAX_BODY = 8000;
 
@@ -93,7 +92,7 @@ class Extractor {
 	/**
 	 * Extract card data from one tool result.
 	 * @param options - the tool name, its arguments, and the returned value.
-	 * @returns the meta the client renders; `text` is always populated.
+	 * @returns the meta the client renders.
 	 */
 	extract = (options: ExtractOptions): AtlassianMeta => {
 		const texts = mcpText(options.value);
@@ -140,7 +139,6 @@ class Extractor {
 			"searchString",
 			"issueIdOrKey",
 			"pageId",
-			"cloudId",
 		);
 
 		const kind: MetaKind =
@@ -160,7 +158,6 @@ class Extractor {
 			...(total === undefined ? {} : { total }),
 			issues,
 			pages,
-			text: joined.slice(0, this.MAX_TEXT),
 		};
 	};
 

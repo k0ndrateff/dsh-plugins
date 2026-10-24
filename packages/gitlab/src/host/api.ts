@@ -77,13 +77,13 @@ export class GitLabApi {
 	 * unresolved threads on a large merge request.
 	 * @param path - the list's API path.
 	 * @param params - the filters, without `page` or `per_page`.
-	 * @param maxPages - the safety cap; ten pages is a thousand rows.
+	 * @param maxPages - the safety cap; a hundred pages is ten thousand rows.
 	 * @returns the rows from every page that answered.
 	 */
 	async getAll(
 		path: string,
 		params?: Readonly<Record<string, Param>>,
-		maxPages = 10,
+		maxPages = 100,
 	): Promise<{ readonly items: unknown[]; readonly truncated: boolean }> {
 		const items: unknown[] = [];
 		let page = 1;

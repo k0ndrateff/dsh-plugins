@@ -19,7 +19,7 @@ import {
 	type PipelineJob,
 	type PipelinePanel,
 } from "../../shared/panel";
-import { jobTone } from "../../shared/tone";
+import { jobStatusLabel, jobTone } from "../../shared/tone";
 import { readJobLog } from "../ansi";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
@@ -71,7 +71,7 @@ const Job = ({ job, busy, onOpen }: JobProps) => (
 
 		{job.stage === undefined ? null : <Tag tone="neutral">{job.stage}</Tag>}
 
-		<Tag tone={jobTone(job.status)}>{job.status}</Tag>
+		<Tag tone={jobTone(job.status)}>{jobStatusLabel(job.status)}</Tag>
 
 		{job.failureReason === undefined ? null : (
 			<span className={styles.caption}>{job.failureReason}</span>
@@ -148,7 +148,9 @@ export const MrPipeline = ({ target }: { target: PanelTarget }): ReactNode => {
 		<>
 			<Section title="Pipeline">
 				<div className={styles.badges}>
-					<Tag tone={jobTone(pipeline.status)}>{pipeline.status}</Tag>
+					<Tag tone={jobTone(pipeline.status)}>
+						{jobStatusLabel(pipeline.status)}
+					</Tag>
 
 					<span className={styles.caption}>{`#${pipeline.id}`}</span>
 

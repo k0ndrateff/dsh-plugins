@@ -21,5 +21,7 @@ export const AtlassianSection = createSettingsSection<AtlassianStatus>({
 	credentials: "browser",
 	signInLabel: "Sign in with Atlassian",
 	syncLabel: "Re-check",
+	details: (status) =>
+		status.siteUrl === null ? [] : [{ label: "Site", value: status.siteUrl }],
 	api: hostApi,
 });
