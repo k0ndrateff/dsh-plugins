@@ -42,8 +42,12 @@ class GetJobLogTool {
 		name: this.TOOL_NAME,
 		description:
 			"Read one CI job of a GitLab project and the end of its trace — what a failed pipeline " +
-			"actually printed. Get the job id from gitlab_get_merge_request with pipeline: true. " +
-			"Use this instead of running `glab` or reading the trace through a shell.",
+			"actually printed. Get the job id from gitlab_get_merge_request with pipeline: true. The " +
+			"answer carries at most the last 32,000 characters of the trace and says so when it cut " +
+			"it: the beginning of a long log is not in the answer, so open the job's URL in GitLab " +
+			"when you need it, or read another job. A job whose trace is archived or unavailable " +
+			"answers 404, which means its log cannot be read, not that the job does not exist. Use " +
+			"this instead of running `glab` or reading the trace through a shell.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,

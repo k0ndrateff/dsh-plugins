@@ -18,6 +18,7 @@ import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { IntegrationAuthFace } from "dsh-integration-host";
 import type { McpBridge } from "dsh-mcp-oauth";
 import { PanelApi } from "../src/host/panels/panel";
+import { createCommandHandler } from "../src/host/surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
 import type { FigmaStatus } from "../src/shared/status";
@@ -542,4 +543,134 @@ test("the route", async () => {
 			`an unknown path is not found — ${String(unknown.status)}`,
 		).toBe(true);
 	}
+});
+test("a closed Dev Mode connection is answered with the prerequisite", async () => {
+	{
+		const { bridge } = fakeBridge(() => {
+			throw new Error("the Figma MCP connection is not open");
+		});
+		const panel = new PanelApi({ bridge, ctx: context });
+
+		let message = "";
+		try {
+			await panel.node({});
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+
+		expect(
+			message.includes("Start the Figma desktop app") &&
+				message.includes("Enable Dev Mode MCP Server") &&
+				message.includes("/figma sync") &&
+				!message.includes("connection is not open"),
+			`a first run without the desktop app says what to start, not what the transport said — ${message}`,
+		).toBe(true);
+	}
+
+	{
+		const { bridge } = fakeBridge(() => {
+			throw new Error("the Figma MCP connection is not open");
+		});
+		const panel = new PanelApi({ bridge, ctx: context });
+
+		let message = "";
+		try {
+			await panel.screenshot("960:6938");
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+
+		expect(
+			message.includes("Start the Figma desktop app"),
+			`the screenshot route answers the same prerequisite — ${message}`,
+		).toBe(true);
+	}
+});
+test("a failed optional read is reported as a failure, not as nothing", async () => {
+	{
+		const { bridge } = fakeBridge((call) => {
+			if (call.name === "get_variable_defs")
+				throw new Error("the Figma MCP connection is not open");
+
+			return serverAnswer(call);
+		});
+		const panel = new PanelApi({ bridge, ctx: context });
+		const document = await panel.node({ node: "960:6938" });
+
+		expect(
+			document.tokensError?.includes("Start the Figma desktop app") === true &&
+				document.mappingsError === undefined,
+			`what could not be read is kept apart from what was read — ${document.tokensError}`,
+		).toBe(true);
+
+		const definition = presentTool.create({
+			panel,
+			imageTool: "mcp__figma__get_screenshot",
+		});
+		const value = await definition.execute(
+			{ node: "960:6938" },
+			execution("call-9"),
+		);
+		const summary = textOf(definition, value);
+
+		expect(
+			summary.includes("Variables: could not be read") &&
+				!summary.includes("Variables: none"),
+			`the model is not told a failed read found no variables — ${summary.split("\n").find((line) => line.startsWith("Variables"))}`,
+		).toBe(true);
+	}
+});
+test("the tool's description carries the prerequisite, the image tool and the depth", () => {
+	const { bridge } = fakeBridge(serverAnswer);
+	const definition = presentTool.create({
+		panel: new PanelApi({ bridge, ctx: context }),
+		imageTool: "mcp__figma__get_screenshot",
+	});
+	const description = definition.description ?? "";
+
+	expect(
+		description.includes("Figma desktop app") &&
+			description.includes("Enable Dev Mode MCP Server") &&
+			description.includes("mcp__figma__get_screenshot") &&
+			description.includes("direct children only") &&
+			description.includes("openPanel: false"),
+		`the description names what to start, what to call for the picture, and how deep the answer goes — ${description.slice(0, 160)}`,
+	).toBe(true);
+	expect(
+		(
+			definition.parameters as {
+				properties?: { openPanel?: { type?: string } };
+			}
+		).properties?.openPanel?.type === "boolean",
+		"the panel-opening behaviour has an opt-out in the schema",
+	).toBe(true);
+});
+test("an unknown /figma action is answered with the actions there are", async () => {
+	const handler = createCommandHandler({
+		getStatus: async () => ({
+			signedIn: false,
+			inFlight: false,
+			expiresAt: null,
+			scope: null,
+			notice: null,
+			error: null,
+			connected: false,
+			tools: [],
+			endpoint: "http://127.0.0.1:3845/mcp",
+		}),
+		signIn: async () => ({ status: "unavailable" }),
+		signOut: async () => {},
+		connect: async () => false,
+		loginMessage: () => "Nothing to sign in to.",
+		settleNotice: async () => {},
+	});
+
+	const result = await handler({ rawInput: "logn" });
+
+	expect(
+		result.kind === "error" &&
+			result.text.includes("is not a /figma action") &&
+			result.text.includes("status, login, logout, sync"),
+		`a typo is an error listing the actions, not a silent status — ${result.text}`,
+	).toBe(true);
 });

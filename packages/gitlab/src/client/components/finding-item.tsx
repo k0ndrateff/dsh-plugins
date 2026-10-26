@@ -39,6 +39,7 @@ export const FindingItem = ({ finding }: Props) => (
 						project: finding.project,
 						iid: finding.iid,
 						tab: "discussions",
+						discussionId: finding.discussionId,
 					});
 				}}
 			/>

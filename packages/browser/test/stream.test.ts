@@ -101,6 +101,14 @@ test("what one screencast message means", async () => {
 	expect(tabs?.kind === "address" && tabs.title === "X", "with its title").toBe(
 		true,
 	);
+	expect(
+		tabs?.kind === "address" && tabs.tabs.length === 2,
+		"and the tabs it reports, not only the active one",
+	).toBe(true);
+	expect(
+		tabs?.kind === "address" && tabs.tabs[1]?.active === true,
+		"with the active one marked",
+	).toBe(true);
 
 	const bare = parseStreamMessage(
 		JSON.stringify({ type: "url", url: "http://y/" }),
@@ -283,9 +291,11 @@ test("one hub, one screencast", async () => {
 		"a panel may ask before any browser exists",
 	).toBe(true);
 	expect(
-		String(quietAnswer.error).includes("no browser"),
-		"and is told there is nothing yet",
+		quietAnswer.phase === "none" &&
+			String(quietAnswer.message).includes("Nothing has been opened"),
+		"and is told, in neutral words, that there is nothing yet",
 	).toBe(true);
+	expect(quietAnswer.error === undefined, "which is not an error").toBe(true);
 	expect(quiet.connections() === 0, "without the CLI being asked").toBe(true);
 	quiet.hub.stop();
 
@@ -401,6 +411,69 @@ test("one hub, one screencast", async () => {
 		"an outcome nobody saw the command for is not a line",
 	).toBe(true);
 
+	const key = (letter: string, keyName = letter) =>
+		running.hub.sendInput({
+			type: "key",
+			event: "down",
+			key: keyName,
+			code: "",
+			modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+		});
+
+	key("h");
+	key("i");
+	key("Enter", "Enter");
+	const typed = running.hub.snapshot().activity;
+	expect(
+		typed.some((item) => item.kind === "human" && item.text === "type hi"),
+		"a run of typed letters is one line, not one line per key",
+	).toBe(true);
+	expect(
+		typed.some((item) => item.kind === "human" && item.text === "key Enter"),
+		"while a named key is its own act",
+	).toBe(true);
+	expect(
+		String(running.hub.takeNote()).includes('typed "hi"'),
+		"and the agent is told what was typed",
+	).toBe(true);
+
+	running.hub.announce("back", "back");
+	running.feed({
+		type: "command",
+		id: "r7",
+		action: "back",
+		params: {},
+		timestamp: 9,
+	});
+	expect(
+		running.hub
+			.snapshot()
+			.activity.some((item) => item.kind === "human" && item.text === "back"),
+		"a navigation the person caused reads as theirs",
+	).toBe(true);
+
+	const before = running.connections();
+
+	running.hub.announce("set", "resize 390×844");
+	running.feed({
+		type: "command",
+		id: "r8",
+		action: "set",
+		params: { viewport: "390 844" },
+		timestamp: 10,
+	});
+	expect(
+		running.hub
+			.snapshot()
+			.activity.some(
+				(item) => item.kind === "human" && item.text === "resize 390×844",
+			),
+		"and so does a page size it changed",
+	).toBe(true);
+	expect(running.connections() === before, "without starting another").toBe(
+		true,
+	);
+
 	running.drop("the browser went away");
 	const lost = running.hub.snapshot();
 	expect(
@@ -408,12 +481,14 @@ test("one hub, one screencast", async () => {
 		"a dropped screencast is answered as not connected",
 	).toBe(true);
 	expect(
-		lost.error === "the browser went away",
-		"with the reason it dropped",
+		lost.phase === "unreachable" &&
+			String(lost.error).includes("the browser went away"),
+		"with the reason it dropped, as a failure worth retrying",
 	).toBe(true);
+	expect(lost.retryable === true, "and the Retry it needs").toBe(true);
 	expect(
-		running.hub.latestFrame() === undefined && lost.seq === 0,
-		"and the stale picture is gone",
+		running.hub.latestFrame() !== undefined && lost.seq === 7,
+		"while the last picture is kept instead of pretending nothing was seen",
 	).toBe(true);
 	expect(
 		running.hub.state().url === "http://x/" &&
@@ -430,6 +505,16 @@ test("one hub, one screencast", async () => {
 			deltaY: 10,
 		}) === false,
 		"a click with nothing to carry it is refused",
+	).toBe(true);
+
+	const afterDrop = running.connections();
+	running.hub.retry();
+	await tick();
+	await tick();
+	expect(
+		running.connections() === afterDrop + 1 &&
+			running.hub.snapshot().phase === "live",
+		"Retry spends the budget again and reconnects",
 	).toBe(true);
 	running.hub.stop();
 
@@ -461,8 +546,12 @@ test("one hub, one screencast", async () => {
 	closing.hub.markClosed();
 	const shutdown = closing.hub.snapshot();
 	expect(
-		String(shutdown.error).includes("closed"),
-		"a browser closed on purpose says so",
+		shutdown.phase === "closed" && String(shutdown.message).includes("closed"),
+		"a browser closed on purpose is its own neutral state",
+	).toBe(true);
+	expect(
+		shutdown.error === undefined && shutdown.retryable === false,
+		"not an error, and nothing to retry",
 	).toBe(true);
 	expect(closing.connections() === 1, "and is not looked for again").toBe(true);
 	closing.hub.stop();
@@ -480,6 +569,11 @@ test("one hub, one screencast", async () => {
 		leaving.closed() === true,
 		"and is dropped a while after the last poll",
 	).toBe(true);
+	expect(
+		leaving.hub.snapshot().phase === "paused" &&
+			leaving.hub.snapshot().paused === true,
+		"as a pause, not an error",
+	).toBe(true);
 	leaving.hub.stop();
 
 	const unknown = scenario(undefined);
@@ -489,9 +583,11 @@ test("one hub, one screencast", async () => {
 	await tick();
 	const missing = unknown.hub.snapshot();
 	expect(
-		String(missing.error).includes("no browser is running"),
+		missing.phase === "none" &&
+			String(missing.message).includes("No browser is running"),
 		"a session whose browser is not running is told apart from one never opened",
 	).toBe(true);
+	expect(missing.retryable === true, "and can be retried").toBe(true);
 	expect(unknown.connections() === 0, "and no connection was attempted").toBe(
 		true,
 	);

@@ -13,13 +13,14 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import {
+	type CheckFailure,
 	type CheckResult,
 	type ChecksCard,
 	checkLabel,
 	durationLabel,
 	locationLabel,
 } from "../shared/checks";
-import { ALL_RECIPES, RecipeBook } from "./config";
+import { ALL_RECIPES, CONFIG_FILE, RecipeBook } from "./config";
 import { ProjectDirectory } from "./files";
 import type { RecipeRunner } from "./runner";
 import { tailLines } from "./text";
@@ -49,8 +50,11 @@ class CheckTool {
 		description:
 			"Run this project's configured checks — lint, typecheck, tests, build — and report " +
 			"each one's status, counts and failures, with a card under your answer. The recipes " +
-			"are the project's own: `dsh-checks.json` in the project root lists them, so you pick " +
-			"a check and the repository owns the command. Prefer this over `bash` for checks.",
+			"are the project's own: `dsh-checks.json` in the directory the session works in lists " +
+			"them — the session's working directory, which in a monorepo may be one package rather " +
+			"than the repository root — so you pick a check and the repository owns the command. " +
+			"The result names the file it read and the directory it ran in. Prefer this over " +
+			"`bash` for checks.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -69,6 +73,7 @@ class CheckTool {
 				additionalProperties: false,
 				properties: {
 					callId: { type: "string" },
+					project: { type: "string" },
 					ok: { type: "boolean" },
 					checks: {
 						type: "array",
@@ -132,6 +137,7 @@ class CheckTool {
 
 			return {
 				callId: String(exec.callId),
+				project: project.cwd,
 				ok: checks.every((check) => check.status === "passed"),
 				checks,
 			} satisfies ChecksCard;
@@ -160,10 +166,19 @@ class CheckTool {
 		return await deps.ctx.workingDirectory.ensure(exec.agent, exec.signal);
 	}
 
-	/** The text the model reads: one line per check, then what it found. */
+	/**
+	 * The text the model reads: one line per check, then what it found.
+	 *
+	 * The first line names the recipe book it read, because "the project's checks"
+	 * means the book in the session's directory, and a monorepo has several.
+	 */
 	private describe(card: ChecksCard): string {
 		const passed = card.checks.filter((check) => check.status === "passed");
-		const lines = [`${passed.length} of ${card.checks.length} checks passed.`];
+		const source =
+			card.project === undefined ? "" : ` from ${card.project}/${CONFIG_FILE}`;
+		const lines = [
+			`Checks${source}: ${passed.length} of ${card.checks.length} passed.`,
+		];
 
 		for (const check of card.checks) lines.push(...this.lines(check));
 
@@ -172,18 +187,18 @@ class CheckTool {
 
 	/** One check's line, its failures, and the output nothing parsed. */
 	private lines(check: CheckResult): string[] {
-		const mark = check.status === "passed" ? "✓" : "✗";
+		const mark =
+			check.status === "passed"
+				? "✓"
+				: check.status === "cancelled"
+					? "−"
+					: "✗";
 		const lines = [
 			`${mark} ${check.name} — ${checkLabel(check)} (${durationLabel(check.durationMs)})`,
 		];
 
-		for (const failure of check.failures.slice(0, MODEL_FAILURES)) {
-			const where = locationLabel(failure);
-
-			lines.push(
-				`  ${where === undefined ? "" : `${where} `}${failure.message}`,
-			);
-		}
+		for (const failure of check.failures.slice(0, MODEL_FAILURES))
+			lines.push(`  ${this.failureLine(failure)}`);
 
 		const dropped =
 			(check.failureTotal ?? check.failures.length) - MODEL_FAILURES;
@@ -196,6 +211,19 @@ class CheckTool {
 				lines.push(`  ${line}`);
 
 		return lines;
+	}
+
+	/**
+	 * One failure, with its severity and the rule or code that raised it.
+	 *
+	 * Both are in the payload already, and without them the model can neither
+	 * tell a warning from an error nor quote the rule a project would look up.
+	 */
+	private failureLine(failure: CheckFailure): string {
+		const where = locationLabel(failure);
+		const tag = [failure.severity, failure.rule].filter(Boolean).join(" ");
+
+		return `${where === undefined ? "" : `${where} `}${tag}: ${failure.message}`;
 	}
 }
 

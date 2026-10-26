@@ -37,6 +37,12 @@ export const markBad = style({
 	fontSize: "13px",
 });
 
+/** A cancelled run was neither a pass nor a failure of the check itself. */
+export const markCancelled = style({
+	color: theme.color.labelTertiary,
+	fontSize: "13px",
+});
+
 export const runName = style({
 	fontSize: "13px",
 	fontWeight: 600,
@@ -75,6 +81,63 @@ export const failure = style({
 	borderRadius: theme.radius.sm,
 	background: "transparent",
 	textAlign: "left",
+	cursor: "pointer",
+	selectors: {
+		"&:hover": { background: theme.color.hoverFill },
+	},
+});
+
+/** A warning even the linter does not consider a failure of the check. */
+export const severityWarning = style({
+	flexShrink: 0,
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.warn,
+});
+
+export const severityError = style({
+	flexShrink: 0,
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.danger,
+});
+
+/** The rule or error code a failure came from, such as TS2322. */
+export const rule = style({
+	flexShrink: 0,
+	fontFamily: theme.font.code,
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.labelTertiary,
+});
+
+/** The action that copies a failure's `path:line` for another tool. */
+export const copy = style({
+	flexShrink: 0,
+	marginLeft: "auto",
+	padding: "0 4px",
+	border: "none",
+	borderRadius: theme.radius.sm,
+	background: "transparent",
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.labelTertiary,
+	cursor: "pointer",
+	selectors: {
+		"&:hover": { background: theme.color.hoverFill },
+	},
+});
+
+/** The row that reveals the failures a card kept back. */
+export const showAll = style({
+	alignSelf: "flex-start",
+	padding: "2px 4px",
+	border: "none",
+	borderRadius: theme.radius.sm,
+	background: "transparent",
+	fontSize: "11px",
+	lineHeight: "16px",
+	color: theme.color.link,
 	cursor: "pointer",
 	selectors: {
 		"&:hover": { background: theme.color.hoverFill },

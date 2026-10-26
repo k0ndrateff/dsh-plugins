@@ -34,6 +34,10 @@ Or install one bundle straight from npm:
 dsh plugin --profile <profile> add dsh-sentry-plugin
 ```
 
+An individual bundle carries its own settings card. When the suite's Integrations
+page is not installed, the card appears as its own Settings section instead; add
+`dsh-integrations-plugin` to group every connection on one page.
+
 Discover keeps the index it read, and the entry it holds names one exact version,
 so after a new release reload the page — otherwise it keeps offering the version it
 fetched.
@@ -199,7 +203,12 @@ and what was measured on the way — [docs/roadmap.md](docs/roadmap.md).
 ## Limits
 
 - **The card and panel copy is English.** It goes through neither the client
-  locale service nor the provider's language.
+  locale service nor the provider's language. This is an accepted decision for
+  now, not an oversight: a locale bundle is a separate release, and a half-English
+  UI would be worse than one language everywhere.
+- **Three tool names are deliberately short.** `digest`, `correlate` and `checks`
+  keep their product names rather than a `dsh_*` prefix; the prefix is a
+  namespace for provider tools, not a requirement for the suite's own tools.
 - **The local `/dsh-*` routes trust the machine.** Cross-origin writes are
   refused by the page header and an origin check, but any local process can forge
   that header. These routes do write to providers: a Jira transition or assignee,

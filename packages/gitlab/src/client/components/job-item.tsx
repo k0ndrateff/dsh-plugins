@@ -8,7 +8,11 @@
 
 import { Tag } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { JobCard } from "../../shared/meta";
-import { jobTone } from "../../shared/tone";
+import {
+	jobFailureReasonLabel,
+	jobStatusLabel,
+	jobTone,
+} from "../../shared/tone";
 import * as styles from "../styles/styles.css";
 import { openTarget, RowLink } from "./row-link";
 
@@ -28,17 +32,20 @@ export const JobItem = ({ job }: Props) => (
 						project: job.project,
 						iid: job.iid,
 						tab: "pipeline",
+						jobId: job.id,
 					});
 				}}
 			/>
 
-			<Tag tone={jobTone(job.status)}>{job.status}</Tag>
+			<Tag tone={jobTone(job.status)}>{jobStatusLabel(job.status)}</Tag>
 
 			{job.stage === undefined ? null : <Tag tone="neutral">{job.stage}</Tag>}
 		</div>
 
 		{job.failureReason === undefined ? null : (
-			<span className={styles.caption}>{job.failureReason}</span>
+			<span className={styles.caption}>
+				{jobFailureReasonLabel(job.failureReason)}
+			</span>
 		)}
 	</li>
 );

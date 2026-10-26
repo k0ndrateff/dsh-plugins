@@ -22,6 +22,7 @@ import {
 	type PanelInput,
 	type PanelModifiers,
 	type PanelPage,
+	retryUrl,
 } from "../../shared/panel";
 import { hostWord, parseAnswer } from "./answer";
 
@@ -37,6 +38,27 @@ export interface InputAnswer {
 const isRefusal = (value: unknown): boolean =>
 	isRecord(value) && value.ok === false;
 
+/** Send one POST to a write route and read its answer. */
+const post = async (url: string, body: unknown): Promise<InputAnswer> => {
+	const response = await fetch(url, {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			accept: "application/json",
+			[CLIENT_REQUEST_HEADER]: CLIENT_REQUEST_VALUE,
+		},
+		body: JSON.stringify(body),
+	});
+
+	const text = (await response.text()).trim();
+	const parsed = parseAnswer(text);
+
+	return {
+		text: hostWord(parsed) ?? (text === "" ? undefined : text),
+		ok: response.ok && !isRefusal(parsed),
+	};
+};
+
 /**
  * Send one act to the host.
  *
@@ -46,28 +68,18 @@ const isRefusal = (value: unknown): boolean =>
  * @param input - what the person did.
  * @returns the host's answer, with whether it reports a failure.
  */
-export const sendInput = async (
-	session: string,
-	input: PanelInput,
-): Promise<InputAnswer> => {
-	const response = await fetch(inputUrl(session), {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			accept: "application/json",
-			[CLIENT_REQUEST_HEADER]: CLIENT_REQUEST_VALUE,
-		},
-		body: JSON.stringify(input),
-	});
+export const sendInput = (session: string, input: PanelInput) =>
+	post(inputUrl(session), input);
 
-	const body = (await response.text()).trim();
-	const parsed = parseAnswer(body);
-
-	return {
-		text: hostWord(parsed) ?? (body === "" ? undefined : body),
-		ok: response.ok && !isRefusal(parsed),
-	};
-};
+/**
+ * Ask the host to connect to this session's browser again.
+ *
+ * The retry budget is spent after three failed attempts, and then nothing but a
+ * tool call used to restart it. The person watching the panel needs their own
+ * way back: this is the click behind Retry.
+ * @param session - the browser session to reconnect.
+ */
+export const requestRetry = (session: string) => post(retryUrl(session), {});
 
 /** A box in the page's own pixels, as an element measures itself. */
 export interface ScreenBox {
@@ -214,5 +226,50 @@ export class WheelCoalescer {
 		}
 
 		if (burst !== undefined) this.send({ type: "wheel", ...burst });
+	}
+}
+
+/** How long a drag's pointer moves are collected before they are sent. */
+const MOVE_INTERVAL_MS = 40;
+
+/**
+ * Collects one drag's pointer positions into timed moves.
+ *
+ * Dragging across the picture to select text reports a pointer position per
+ * pixel; a request per pixel would be a burst of hundreds. One move every few
+ * tens of milliseconds is the same gesture with a fraction of the traffic, and
+ * the page selects exactly the text the hand covered.
+ */
+export class MoveCoalescer {
+	private point: PagePoint | undefined;
+	private timer: ReturnType<typeof setTimeout> | undefined;
+
+	/** @param send - where one collected position goes. */
+	constructor(private readonly send: (point: PagePoint) => void) {}
+
+	/** Add the pointer's newest position. */
+	move(point: PagePoint): void {
+		this.point = point;
+
+		if (this.timer !== undefined) return;
+
+		this.timer = setTimeout(() => {
+			this.timer = undefined;
+			this.flush();
+		}, MOVE_INTERVAL_MS);
+	}
+
+	/** Send whatever position is waiting. */
+	flush(): void {
+		const point = this.point;
+
+		this.point = undefined;
+
+		if (this.timer !== undefined) {
+			clearTimeout(this.timer);
+			this.timer = undefined;
+		}
+
+		if (point !== undefined) this.send(point);
 	}
 }

@@ -1,6 +1,6 @@
 {
 	"name": "dsh-mcp-oauth",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
 	"description": "OAuth for MCP servers, and the authenticated bridge, for DeepSeek Harness — a library, not a plugin",
 	"license": "MIT",

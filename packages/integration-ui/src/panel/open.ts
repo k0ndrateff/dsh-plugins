@@ -67,6 +67,20 @@ export const createPanelOpener = <K extends string>(
 
 			try {
 				sidebar.openTab(kind, { params });
+
+				// The tab strip and its pane are React-rendered after the navigation
+				// commit, so the focus call waits one frame; focusing the tab is what
+				// moves a keyboard reader from the transcript into the panel it opened.
+				const focusOpened = (): void => {
+					const active = sidebar.active();
+
+					if (active !== undefined) sidebar.focus(active.id);
+				};
+
+				if (typeof requestAnimationFrame === "function")
+					requestAnimationFrame(focusOpened);
+				else focusOpened();
+
 				return true;
 			} catch {
 				// Nothing registered the kind: a wiring mistake inside this plugin, and

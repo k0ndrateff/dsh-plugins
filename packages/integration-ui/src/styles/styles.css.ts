@@ -320,6 +320,7 @@ export const presentationHead = style({
 });
 
 export const presentationTitle = style({
+	margin: 0,
 	fontSize: "13px",
 	fontWeight: 600,
 	color: theme.color.labelPrimary,
@@ -370,6 +371,17 @@ export const toolLabel = style({
 	fontSize: "13px",
 	lineHeight: "20px",
 	color: theme.color.labelPrimary,
+});
+
+/** A terse tool row that can be opened into the call's own bytes. */
+export const toolDetails = style({
+	display: "block",
+});
+
+/** The row itself, when it is also the disclosure's summary. */
+export const toolSummary = style({
+	cursor: "pointer",
+	borderRadius: theme.radius.sm,
 });
 
 /** The side panel: the pane's whole height, with one scrollport inside it. */
@@ -468,4 +480,37 @@ export const mono = style({
 	fontFamily: theme.font.code,
 	fontSize: "12px",
 	color: theme.color.labelPrimary,
+});
+
+/** The confirmation of a completed settings action. */
+export const flash = style({
+	marginTop: "8px",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.success,
+});
+
+/** A credential field and the button that reveals it. */
+export const fieldRow = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+});
+
+/** The control that reveals the rows a card scrolls past. */
+export const showAll = style({
+	appearance: "none",
+	alignSelf: "flex-start",
+	padding: 0,
+	border: "none",
+	background: "none",
+	color: theme.color.link,
+	font: "inherit",
+	fontSize: "12px",
+	cursor: "pointer",
+	textDecoration: "none",
+	selectors: {
+		"&:hover": { textDecoration: "underline" },
+		"&:focus-visible": { textDecoration: "underline" },
+	},
 });

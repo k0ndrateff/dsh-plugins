@@ -33,7 +33,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type PanelActivity,
 	type PanelPage,
+	type PanelPhase,
 	type PanelSnapshot,
+	type PanelTab,
 	panelUrl,
 } from "../../shared/panel";
 
@@ -76,14 +78,37 @@ const page = object<PanelPage>({
 	height: required(number),
 });
 
-const snapshot = object<PanelSnapshot>({
-	session: required(string),
-	connected: required(boolean),
+/** One tab, as the browser reports it. */
+const tab = object<PanelTab>({
 	url: required(string),
 	title: required(string),
+	active: required(boolean),
+});
+
+/** Where a conversation's browser is, without deciding whether that is an error. */
+const phase = oneOf<PanelPhase>(
+	literal("none"),
+	literal("starting"),
+	literal("live"),
+	literal("closed"),
+	literal("paused"),
+	literal("unreachable"),
+);
+
+const snapshot = object<PanelSnapshot>({
+	session: required(string),
+	phase: required(phase),
+	message: required(string),
+	connected: required(boolean),
+	open: required(boolean),
+	paused: required(boolean),
+	url: required(string),
+	title: required(string),
+	tabs: required(list(tab)),
 	seq: required(number),
 	page: required(page),
 	activity: required(list(activity)),
+	retryable: required(boolean),
 	error: optional((value) =>
 		typeof value === "string" && value !== "" ? value : undefined,
 	),
@@ -173,7 +198,10 @@ export const useBrowserPanel = (
 				);
 			} catch (error) {
 				if (!stopped)
-					setPanel((current) => ({ ...current, error: messageOf(error) }));
+					setPanel((current) => ({
+						...current,
+						error: `The browser plugin's host half is not answering: ${messageOf(error)}`,
+					}));
 			} finally {
 				asking = false;
 				schedule();

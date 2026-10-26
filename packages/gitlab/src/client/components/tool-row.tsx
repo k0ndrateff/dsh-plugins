@@ -18,6 +18,7 @@ import {
 	type ToolRowBlock,
 } from "dsh-integration-ui";
 import { asGitLabPresentation } from "../../shared/meta";
+import { countText } from "../plural";
 
 /** The server's own words, as the last resort for a row with no payload. */
 const textOf = (block: ToolRowBlock | undefined): string =>
@@ -36,12 +37,20 @@ const firstReference = (value: unknown): string | undefined => {
 	);
 };
 
+/** The scope GitLab uses as a filter, as a person reads it. */
+const SCOPES: Readonly<Record<string, string>> = {
+	review_requested: "waiting for your review",
+	assigned_to_me: "assigned to you",
+	created_by_me: "created by you",
+};
+
 /** What a preparing `gitlab_present` call asked for. */
 const askedFor = (block: ToolRowBlock | undefined): string | undefined => {
 	const args = blockArgs(block);
 
 	if (typeof args.search === "string" && args.search !== "") return args.search;
-	if (typeof args.scope === "string" && args.scope !== "") return args.scope;
+	if (typeof args.scope === "string" && args.scope !== "")
+		return SCOPES[args.scope] ?? args.scope;
 
 	return (
 		firstReference(args.mergeRequests) ??
@@ -67,9 +76,12 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 
 	const parts: string[] = [];
 
-	if (mergeRequests > 0) parts.push(`${mergeRequests} merge requests`);
-	if (findings > 0) parts.push(`${findings} findings`);
-	if (jobs > 0) parts.push(`${jobs} failed jobs`);
+	if (mergeRequests > 0) parts.push(countText(mergeRequests, "merge request"));
+	if (findings > 0) parts.push(countText(findings, "finding"));
+	if (jobs > 0) parts.push(countText(jobs, "failed job"));
+
+	if (card.total !== undefined && card.total > card.items.length)
+		parts.push(`of ${card.total}`);
 
 	return parts.join(" · ");
 };

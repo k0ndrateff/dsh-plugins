@@ -50,7 +50,8 @@ export class RecipeRunner {
 	 * @param recipe - the command, its parser, and its deadline.
 	 * @param options - the project directory and the caller's cancellation.
 	 * @returns the run's status, counts, and failures; never throws for a
-	 *   failing command, and only reports infrastructure failures as `errored`.
+	 *   failing command, reports infrastructure failures as `errored`, and a
+	 *   cancelled run as `cancelled`.
 	 */
 	async run(
 		recipe: Recipe,
@@ -110,9 +111,14 @@ export class RecipeRunner {
 			? "\n[output was truncated; the parser saw only the captured part]"
 			: status === "timedout"
 				? `\n[no result: the recipe was still running at ${result.timeoutMs}ms]`
-				: "";
+				: status === "cancelled"
+					? "\n[no result: the check was cancelled]"
+					: "";
 		const output =
-			status === "timedout" || !understood || truncated
+			status === "timedout" ||
+			status === "cancelled" ||
+			!understood ||
+			truncated
 				? tailLines(`${text}${note}`, OUTPUT_TAIL_LINES)
 				: undefined;
 
@@ -130,10 +136,16 @@ export class RecipeRunner {
 		};
 	}
 
-	/** How one process ended, before any reading of what it printed. */
+	/**
+	 * How one process ended, before any reading of what it printed.
+	 *
+	 * A run the user cancelled is neither a pass nor a failure of the recipe, and
+	 * it is not an infrastructure error either: it gets its own status so the
+	 * card and the model can say "cancelled" instead of blaming the check.
+	 */
 	private statusOf(result: ShellRunResult): CheckResult["status"] {
 		if (result.timedOut) return "timedout";
-		if (result.aborted) return "errored";
+		if (result.aborted) return "cancelled";
 
 		return result.exitCode === 0 ? "passed" : "failed";
 	}

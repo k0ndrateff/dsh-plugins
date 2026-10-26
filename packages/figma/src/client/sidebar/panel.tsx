@@ -13,6 +13,7 @@
  */
 
 import {
+	Button,
 	type SegmentedTab,
 	SegmentedTabs,
 } from "@deepseek-ai/dsh-client-ui-primitives";
@@ -36,6 +37,8 @@ import {
 } from "../../shared/panel";
 import { FrameImage } from "../components/frame-image";
 import { hostApi } from "../host-api";
+import { countText } from "../plural";
+import { openPanel } from "../sidebar/open";
 import * as styles from "../styles/styles.css";
 
 /** The three sections of the panel. */
@@ -63,6 +66,33 @@ const TABS: readonly [
 	},
 ];
 
+/**
+ * How many variables the node uses, without passing a cut list off as the total.
+ * @param panel - the node's document.
+ */
+const variablesFact = (panel: NodePanel): string | number => {
+	if (panel.tokensError !== undefined) return "could not be read";
+	if (panel.tokensTruncated)
+		return `${panel.tokens.length} of ${panel.tokenTotal}`;
+
+	return panel.tokenTotal;
+};
+
+/** What Code Connect says, as a count when there is more than one mapping. */
+const mappingsFact = (panel: NodePanel): string => {
+	if (panel.mappingsError !== undefined) return "could not be read";
+	if (panel.mappings.length === 0) return "none";
+	if (panel.mappings.length === 1)
+		return panel.mappings[0]?.component ?? "none";
+
+	return countText(panel.mappings.length, "mapping");
+};
+
+/** Re-open the same node and section; the shared panel reads it again. */
+const retrySection = (panel: NodePanel, section: PanelSection): void => {
+	openPanel({ node: panel.node.id, section });
+};
+
 /** The picture, the node's numbers, and its structure. */
 const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 	const node = panel.node;
@@ -82,11 +112,8 @@ const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 								? undefined
 								: `${node.x}, ${node.y}`,
 					},
-					{ label: "Variables", value: panel.tokens.length },
-					{
-						label: "Code Connect",
-						value: panel.mappings[0]?.component ?? "none",
-					},
+					{ label: "Variables", value: variablesFact(panel) },
+					{ label: "Code Connect", value: mappingsFact(panel) },
 				]}
 			/>
 
@@ -94,14 +121,25 @@ const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 				<section className={styles.panelSection}>
 					<h3 className={styles.panelSectionTitle}>Layers</h3>
 
+					<span className={styles.caption}>
+						Direct children only — open a layer to read what is inside it.
+					</span>
+
 					{panel.children.map((child: FigmaNode) => (
-						<div key={child.id} className={styles.layer}>
+						<button
+							key={child.id}
+							type="button"
+							className={styles.layer}
+							onClick={() => {
+								openPanel({ node: child.id });
+							}}
+						>
 							<span className={styles.layerName}>{child.name}</span>
 
 							<span className={styles.layerMeta}>
 								{`${child.type} · ${child.width}×${child.height}`}
 							</span>
-						</div>
+						</button>
 					))}
 
 					{panel.childrenTruncated ? (
@@ -116,8 +154,27 @@ const FrameSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 	);
 };
 
-/** The variables the node uses. */
+/** The variables the node uses, or why they could not be read. */
 const TokensSection = ({ panel }: { panel: NodePanel }): ReactNode => {
+	if (panel.tokensError !== undefined)
+		return (
+			<>
+				<p className={styles.error} role="alert">
+					{`The variables could not be read — ${panel.tokensError}`}
+				</p>
+
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => {
+						retrySection(panel, "tokens");
+					}}
+				>
+					Try again
+				</Button>
+			</>
+		);
+
 	if (panel.tokens.length === 0)
 		return <p className={styles.caption}>This node uses no variables.</p>;
 
@@ -140,8 +197,27 @@ const TokensSection = ({ panel }: { panel: NodePanel }): ReactNode => {
 	);
 };
 
-/** What the node maps to in the codebase. */
+/** What the node maps to in the codebase, or why it could not be read. */
 const CodeSection = ({ panel }: { panel: NodePanel }): ReactNode => {
+	if (panel.mappingsError !== undefined)
+		return (
+			<>
+				<p className={styles.error} role="alert">
+					{`The Code Connect mappings could not be read — ${panel.mappingsError}`}
+				</p>
+
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => {
+						retrySection(panel, "code");
+					}}
+				>
+					Try again
+				</Button>
+			</>
+		);
+
 	if (panel.mappings.length === 0)
 		return (
 			<p className={styles.caption}>

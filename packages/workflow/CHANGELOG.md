@@ -1,5 +1,21 @@
 # dsh-workflow-plugin
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - dsh-atlassian-plugin@0.5.0
+  - dsh-browser-plugin@0.3.0
+  - dsh-correlation-plugin@0.3.0
+  - dsh-devkit-plugin@0.3.0
+  - dsh-digest-plugin@0.3.0
+  - dsh-figma-plugin@0.3.0
+  - dsh-gitlab-plugin@0.4.0
+  - dsh-integrations-plugin@0.3.0
+  - dsh-sentry-plugin@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

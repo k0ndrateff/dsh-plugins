@@ -47,7 +47,10 @@ class ReviewTool {
 			"or approve a merge request. These are social actions on somebody else's work, so the tool " +
 			"does not send them by itself: call it once to get the exact text that would be posted, show " +
 			"that to the user, and call it again with confirm: true only after they agree. Never set " +
-			"confirm without the user's explicit approval of that wording.",
+			"confirm without the user's explicit approval of that wording. Confirming is not idempotent: " +
+			"each confirm sends the action again, and a second identical confirm within a minute is " +
+			"refused. If a confirm call times out or fails ambiguously, GitLab may already have performed " +
+			"it — re-read the merge request with gitlab_get_merge_request before repeating the call.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -70,7 +73,8 @@ class ReviewTool {
 					],
 					description:
 						"comment posts a new top-level note; reply answers an existing thread; resolve and " +
-						"unresolve close or reopen one; approve and unapprove set your own approval.",
+						"unresolve close or reopen one; approve and unapprove set your own approval. Use " +
+						"gitlab_get_merge_request to learn the discussionId and the current state first.",
 				},
 				body: {
 					type: "string",
@@ -81,14 +85,16 @@ class ReviewTool {
 				discussionId: {
 					type: "string",
 					description:
-						"The thread to answer or resolve, as a card or the panel spells it. Required by " +
-						"reply, resolve and unresolve.",
+						"The thread to answer or resolve, as a card or the panel spells it (the id in " +
+						"`[unresolved] path:line (id <discussionId>)`). Required by reply, resolve and " +
+						"unresolve.",
 				},
 				confirm: {
 					type: "boolean",
 					description:
 						"Send it for real. Set this only after the user approved the exact text this tool " +
-						"answered with on the first call.",
+						"answered with on the first call. A repeated confirm posts a second comment or " +
+						"approval unless the first one is visible in the merge request.",
 				},
 			},
 		},
@@ -156,15 +162,18 @@ class ReviewTool {
 		summary: string;
 		subject: string;
 		body?: string;
+		discussionId?: string;
 	}): string {
 		const lines = [
 			`Not sent yet. ${draft.summary} on ${draft.subject}${draft.body === undefined ? "." : ":"}`,
 		];
 
+		if (draft.discussionId !== undefined)
+			lines.push(`Thread: ${draft.discussionId}.`);
 		if (draft.body !== undefined) lines.push("", draft.body, "");
 
 		lines.push(
-			`Show this wording to the user and ask whether to send it. Call ${GITLAB_REVIEW_TOOL} again with confirm: true only after they agree.`,
+			`Show this wording to the user and ask whether to send it. Call ${GITLAB_REVIEW_TOOL} again with confirm: true only after they agree. Confirming twice posts it twice: if that call fails or times out, re-read the merge request before retrying, because GitLab may already have performed it.`,
 		);
 
 		return lines.join("\n");

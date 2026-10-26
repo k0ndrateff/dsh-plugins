@@ -44,6 +44,7 @@ export { errorText, type Logger, loggerOf } from "./log";
 export { LoopbackListener } from "./loopback";
 export {
 	asRecord,
+	mcpFailure,
 	mcpJson,
 	mcpText,
 	pickNumber,

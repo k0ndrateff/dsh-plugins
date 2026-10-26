@@ -8,9 +8,12 @@
  * never do.
  */
 
+import type { Context } from "@deepseek-ai/cordis";
 import type { RuntimeState } from "dsh-integration-host";
+import { errorText, loggerOf } from "dsh-mcp-oauth";
 import type {
 	JobLogPanel,
+	MergeRequestApprovals,
 	MergeRequestPanel,
 	PipelineJob,
 	PipelinePanel,
@@ -18,6 +21,7 @@ import type {
 import type { GitLabAccount } from "../account";
 import type { GitLabApi } from "../api";
 import {
+	parseApprovals,
 	parseDiffFiles,
 	parseDiscussions,
 	parseJob,
@@ -37,6 +41,7 @@ const mrPath = (project: string, iid: number): string =>
 export interface PanelDeps {
 	readonly api: GitLabApi;
 	readonly state: RuntimeState<GitLabAccount>;
+	readonly ctx: Context;
 }
 
 export class PanelApi {
@@ -64,12 +69,17 @@ export class PanelApi {
 		const discussions = parseDiscussions({
 			discussions: discussionPage.items,
 		});
+		const approvals = await this.approvals(project, iid);
 
 		return {
 			kind: "merge_request",
 			mr,
 			diffs,
 			discussions,
+			...(approvals.value === undefined ? {} : { approvals: approvals.value }),
+			...(approvals.error === undefined
+				? {}
+				: { approvalsError: approvals.error }),
 			...(diffPage.truncated || discussionPage.truncated
 				? { truncated: true }
 				: {}),
@@ -77,8 +87,44 @@ export class PanelApi {
 	}
 
 	/**
-	 * Load the merge request's newest pipeline and its jobs.
-	 * @param project - full path of the project.
+	 * Who has approved the merge request, or why GitLab would not say.
+	 *
+	 * Which of the two approval actions is applicable depends on whether the
+	 * reader's own approval is on the merge request, so the panel reads it rather
+	 * than offering both. A refused read (a token without `read_api`, a project
+	 * with approvals disabled) is reported as such instead of as "nobody".
+	 */
+	private async approvals(
+		project: string,
+		iid: number,
+	): Promise<{
+		readonly value?: MergeRequestApprovals;
+		readonly error?: string;
+	}> {
+		try {
+			const value = parseApprovals(
+				await this.deps.api.get(`${mrPath(project, iid)}/approvals`),
+				this.deps.state.facts?.username,
+			);
+
+			if (value === undefined)
+				throw new Error("GitLab answered with no approvals document");
+
+			return { value };
+		} catch (error) {
+			loggerOf(this.deps.ctx).warn(
+				"[gitlab] could not read approvals for %s!%d: %s",
+				project,
+				iid,
+				errorText(error),
+			);
+
+			return { error: errorText(error) };
+		}
+	}
+
+	/**
+	 * Load the merge request's newest pipeline and its jobs.	 * @param project - full path of the project.
 	 * @param iid - the merge request's project-local id.
 	 */
 	async pipeline(project: string, iid: number): Promise<PipelinePanel> {

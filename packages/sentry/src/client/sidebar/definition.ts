@@ -26,6 +26,14 @@ export const PANEL_ID = "dsh-sentry";
 export interface PanelTarget {
 	/** Sentry's short id, such as `CHECKOUT-13P`. */
 	readonly id: string;
+	/**
+	 * The organization the card was read from.
+	 *
+	 * A card from organization B must not open organization A's issue of the
+	 * same id, so the target carries the organization it was built with; only a
+	 * target without one falls back to the selected default.
+	 */
+	readonly organization?: string;
 }
 
 declare module "@deepseek-ai/dsh-client-ui-sidebar-right/client" {
@@ -43,9 +51,17 @@ declare module "@deepseek-ai/dsh-client-ui-sidebar-right/client" {
 export const asPanelTarget = (value: unknown): PanelTarget | undefined => {
 	if (value === null || typeof value !== "object") return undefined;
 
-	const id = (value as { id?: unknown }).id;
+	const record = value as { id?: unknown; organization?: unknown };
+	const id = record.id;
 
-	return typeof id === "string" && id !== "" ? { id } : undefined;
+	if (typeof id !== "string" || id === "") return undefined;
+
+	return {
+		id,
+		...(typeof record.organization === "string" && record.organization !== ""
+			? { organization: record.organization }
+			: {}),
+	};
 };
 
 /** The panel's registry definition; the body and title carry the rest. */

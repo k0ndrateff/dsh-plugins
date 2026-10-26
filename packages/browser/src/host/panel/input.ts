@@ -103,6 +103,8 @@ const readMouse = (body: Record<string, unknown>): InputReading => {
 	const button = body.button;
 	if (!isButton(button)) return refused("that is not a mouse button");
 
+	const clickCount = numberIn(body.clickCount, 1, 3) ?? 1;
+
 	return {
 		ok: true,
 		input: {
@@ -111,6 +113,7 @@ const readMouse = (body: Record<string, unknown>): InputReading => {
 			x: point.x,
 			y: point.y,
 			button,
+			clickCount,
 			modifiers: modifiersOf(body.modifiers),
 		},
 	};

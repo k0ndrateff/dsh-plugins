@@ -23,6 +23,7 @@ import type { TokenStore } from "../src/host/token";
 import { getJobLogTool } from "../src/host/tools/get-job-log";
 import { getMergeRequestTool } from "../src/host/tools/get-merge-request";
 import { listMergeRequestsTool } from "../src/host/tools/list-merge-requests";
+import { presentTool } from "../src/host/tools/present";
 import { readTool } from "../src/host/tools/read";
 import {
 	GITLAB_GET_JOB_LOG_TOOL,
@@ -45,6 +46,11 @@ interface Call {
 function fakeApi(
 	answers: (call: Call) => unknown,
 	total?: number,
+	readOf?: (call: Call) => {
+		contentType?: string;
+		page?: number;
+		nextPage?: number;
+	},
 ): {
 	api: GitLabApi;
 	calls: Call[];
@@ -95,6 +101,37 @@ function fakeApi(
 			const answer = answers(record("GET", path));
 
 			return typeof answer === "string" ? answer : "";
+		},
+		read: async (
+			path: string,
+			params?: Readonly<Record<string, unknown>>,
+		): Promise<{
+			value: unknown;
+			isJson: boolean;
+			contentType: string;
+			text: string;
+			isBinary: boolean;
+			total?: number;
+			page?: number;
+			nextPage?: number;
+		}> => {
+			const call = record("GET", path, params);
+			const answer = answers(call);
+			const isJson = typeof answer !== "string";
+			const extra = readOf?.(call);
+
+			return {
+				value: answer,
+				isJson,
+				contentType:
+					extra?.contentType ??
+					(isJson ? "application/json" : "text/plain; charset=utf-8"),
+				text: isJson ? JSON.stringify(answer) : String(answer),
+				isBinary: false,
+				...(total === undefined ? {} : { total }),
+				...(extra?.page === undefined ? {} : { page: extra.page }),
+				...(extra?.nextPage === undefined ? {} : { nextPage: extra.nextPage }),
+			};
 		},
 	} as unknown as GitLabApi;
 
@@ -254,6 +291,8 @@ interface ListResult {
 	readonly summary: string;
 	readonly count: number;
 	readonly total?: number;
+	readonly page?: number;
+	readonly nextPage?: number;
 	readonly items: ReadonlyArray<{
 		readonly project: string;
 		readonly iid: number;
@@ -294,7 +333,10 @@ interface JobLogResult {
 interface ReadResult {
 	readonly summary: string;
 	readonly path: string;
+	readonly contentType?: string;
 	readonly total?: number;
+	readonly page?: number;
+	readonly nextPage?: number;
 	readonly truncated: boolean;
 }
 
@@ -317,17 +359,18 @@ test("the list tool asks GitLab for what waits on the signed-in reviewer", async
 		expect(
 			calls[0]?.path === "/merge_requests" &&
 				calls[0]?.params?.reviewer_username === "ada" &&
-				calls[0]?.params?.state === "opened" &&
+				calls[0]?.params?.state === "all" &&
 				calls[0]?.params?.per_page === 10,
-			`waiting for my review is a reviewer filter on open requests — ${JSON.stringify(calls[0]?.params)}`,
+			`waiting for my review is a reviewer filter that keeps every state unless asked otherwise — ${JSON.stringify(calls[0]?.params)}`,
 		).toBe(true);
 		expect(
 			listed.count === 1 &&
 				listed.total === 137 &&
+				listed.page === 1 &&
 				listed.summary.startsWith(
-					"Merge requests: 1 shown of 137 · review_requested",
+					"Merge requests: 1 shown on page 1 of 137 · waiting for your review",
 				),
-			`the heading says how many of the total are shown, and for what — ${listed.summary.split("\n")[0]}`,
+			`the heading says how many of the total are shown, on which page, and for what — ${listed.summary.split("\n")[0]}`,
 		).toBe(true);
 	}
 });
@@ -374,7 +417,7 @@ test("a project or group list is read from its own path, keeping the filters", a
 		).toBe(true);
 	}
 });
-test("a limit above the page size is clamped to 25", async () => {
+test("a limit outside the page size is refused, not silently changed", async () => {
 	{
 		const { api, calls } = fakeApi(() => [MR]);
 		const definition = listMergeRequestsTool.create({
@@ -382,11 +425,15 @@ test("a limit above the page size is clamped to 25", async () => {
 			state: signedIn(),
 		});
 
-		await definition.execute({ limit: 500 }, execution());
+		const refused = await refusalOf(() =>
+			definition.execute({ limit: 500 }, execution()),
+		);
 
 		expect(
-			calls[0]?.params?.per_page === 25,
-			`GitLab is never asked for more than one page of 25 — ${String(calls[0]?.params?.per_page)}`,
+			refused.includes("is not a page size") &&
+				refused.includes("1 to 25") &&
+				calls.length === 0,
+			`a page size the tool cannot honour is refused with the range it takes — ${refused}`,
 		).toBe(true);
 		expect(
 			(
@@ -395,6 +442,39 @@ test("a limit above the page size is clamped to 25", async () => {
 				}
 			).properties?.limit?.maximum === 25,
 			"and the schema does not advertise a bigger page than GitLab is asked for",
+		).toBe(true);
+
+		await definition.execute({ limit: 25 }, execution());
+
+		expect(
+			calls[0]?.params?.per_page === 25,
+			`a valid page size reaches GitLab — ${String(calls[0]?.params?.per_page)}`,
+		).toBe(true);
+	}
+});
+test("a page number is passed through and the next page is named", async () => {
+	{
+		const { api, calls } = fakeApi(() => [MR], 137);
+		const definition = listMergeRequestsTool.create({
+			api,
+			state: signedIn(),
+		});
+		const listed = (await definition.execute(
+			{ project: "acme/storefront", page: 2, limit: 10 },
+			execution(),
+		)) as ListResult;
+
+		expect(
+			calls[0]?.params?.page === 2 && calls[0]?.params?.per_page === 10,
+			`the page the model asked for is the page GitLab reads — ${JSON.stringify(calls[0]?.params)}`,
+		).toBe(true);
+		expect(
+			listed.page === 2 &&
+				listed.nextPage === 3 &&
+				listed.summary.includes(
+					"call gitlab_list_merge_requests again with page: 3",
+				),
+			`the answer says how to continue instead of ending at the page — ${listed.summary.split("\n").pop()}`,
 		).toBe(true);
 	}
 });
@@ -780,8 +860,10 @@ test("the total GitLab reports is part of the answer", async () => {
 
 		expect(
 			read.total === 42 &&
-				read.summary.startsWith("GET /projects?membership=true — total 42"),
-			`a list's total is shown beside the request — ${read.summary.split("\n")[0]}`,
+				read.summary.startsWith(
+					"GET /projects?membership=true — application/json — 1 row on page 1 — 42 total",
+				),
+			`a list's total and content type are shown beside the request — ${read.summary.split("\n")[0]}`,
 		).toBe(true);
 	}
 });
@@ -929,6 +1011,116 @@ test("every read tool renders the text its execute value carries", async () => {
 		expect(
 			textOf(definition, value) === value.summary,
 			"the read tool's render returns the summary it answers with",
+		).toBe(true);
+	}
+});
+test("a text endpoint is answered as text rather than as a JSON failure", async () => {
+	{
+		const raw = "export const retries = 3;\n";
+		const { api } = fakeApi(() => raw);
+		const read = (await readTool.create({ api }).execute(
+			{
+				path: "/projects/acme%2Fproject/repository/files/src%2Fuploader.ts/raw",
+			},
+			execution(),
+		)) as ReadResult;
+
+		expect(
+			read.contentType?.startsWith("text/plain") === true &&
+				read.summary.includes(raw.trim()) &&
+				read.summary.includes("text/plain"),
+			`a raw repository file comes back as its text, with the content type named — ${read.summary.split("\n")[0]}`,
+		).toBe(true);
+	}
+});
+test("a paged list reports the page it read and how to continue", async () => {
+	{
+		const { api } = fakeApi(
+			() => [{ id: 1 }],
+			137,
+			() => ({ page: 2, nextPage: 3 }),
+		);
+		const read = (await readTool
+			.create({ api })
+			.execute(
+				{ path: "/projects", query: { page: 2, per_page: 20 } },
+				execution(),
+			)) as ReadResult;
+
+		expect(
+			read.page === 2 &&
+				read.nextPage === 3 &&
+				read.summary.includes("pass the same path with page: 3"),
+			`the answer names the page and the next one, so a first page is not taken for the list — ${read.summary.split("\n").slice(0, 2).join(" / ")}`,
+		).toBe(true);
+	}
+});
+test("a huge discussion list is bounded and names the next thread to read", async () => {
+	{
+		const body = "the loop can spin forever ".repeat(20);
+		const many = Array.from({ length: 60 }, (_, index) => ({
+			id: `thread-${index}`,
+			notes: Array.from({ length: 5 }, (_, note) => ({
+				id: index * 10 + note,
+				body: `${body}${note}`,
+				resolvable: true,
+				resolved: false,
+				author: { username: "coderabbitai[bot]" },
+				position: { new_path: "src/uploader.ts", new_line: note + 1 },
+			})),
+		}));
+		const { api } = fakeApi((call) =>
+			call.path.endsWith("/discussions") ? many : MR,
+		);
+		const value = (await getMergeRequestTool
+			.create({ api })
+			.execute(
+				{ mergeRequest: "acme/storefront!12", discussions: true },
+				execution(),
+			)) as MrResult & { truncated?: boolean };
+
+		expect(
+			value.truncated === true &&
+				value.summary.includes("more thread") &&
+				value.summary.includes("gitlab_read") &&
+				value.summary.includes("discussions/"),
+			`one large review cannot fill the answer, and the remainder is addressable — ${value.summary.split("\n").at(-1)?.slice(0, 120)}`,
+		).toBe(true);
+	}
+});
+test("a findings card reports how many findings there are behind the shown rows", async () => {
+	{
+		const findings = Array.from({ length: 30 }, (_, index) => ({
+			id: `thread-${index}`,
+			notes: [
+				{
+					id: index + 1,
+					body: `Finding ${index}`,
+					resolvable: true,
+					resolved: false,
+					author: { username: "coderabbitai[bot]" },
+					position: { new_path: "src/uploader.ts", new_line: index + 1 },
+				},
+			],
+		}));
+		const { api } = fakeApi((call) =>
+			call.path.endsWith("/discussions") ? findings : MR,
+		);
+		const value = (await presentTool
+			.create({ api, state: signedIn() })
+			.execute({ findings: ["acme/storefront!12"] }, execution())) as {
+			shown: number;
+			total?: number;
+			truncated?: boolean;
+			summary: string;
+		};
+
+		expect(
+			value.shown === 25 &&
+				value.total === 30 &&
+				value.truncated === true &&
+				value.summary.includes("25 of 30"),
+			`a bounded findings card says how many matched, so it cannot be reported as complete — ${value.summary.split("\n")[0]}`,
 		).toBe(true);
 	}
 });

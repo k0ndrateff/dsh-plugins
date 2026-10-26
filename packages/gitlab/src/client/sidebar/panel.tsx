@@ -31,7 +31,6 @@ import {
 	type MergeRequestPanel,
 	type PanelTarget,
 } from "../../shared/panel";
-import { ConfirmRow } from "../components/confirm-row";
 import { MrDiff } from "../components/mr-diff";
 import { MrDiscussions } from "../components/mr-discussions";
 import { MrOverview } from "../components/mr-overview";
@@ -125,29 +124,24 @@ const MrView = ({
 				/>
 			</div>
 
-			{review.error === undefined ? null : (
-				<p className={styles.error}>{review.error}</p>
-			)}
-
-			{review.draft === null ? null : (
-				<ConfirmRow
-					draft={review.draft}
-					busy={actions.busy || review.busy}
-					onSend={() => {
-						review.send(actions);
-					}}
-					onCancel={review.cancel}
-				/>
-			)}
-
 			<div id={active?.panelId} role="tabpanel" aria-labelledby={active?.id}>
-				{tab === "overview" ? <MrOverview mr={mr} review={review} /> : null}
+				{tab === "overview" ? (
+					<MrOverview
+						mr={mr}
+						review={review}
+						actions={actions}
+						approvals={data.approvals}
+						approvalsError={data.approvalsError}
+					/>
+				) : null}
 				{tab === "diff" ? <MrDiff diffs={data.diffs} /> : null}
 				{tab === "discussions" ? (
 					<MrDiscussions
 						mr={mr}
 						discussions={data.discussions}
 						review={review}
+						actions={actions}
+						focusDiscussionId={params.discussionId}
 					/>
 				) : null}
 				{tab === "pipeline" ? <MrPipeline target={params} /> : null}
@@ -160,7 +154,8 @@ const MrView = ({
 const provider: PanelProvider<MergeRequestPanel, PanelTarget> = {
 	emptyMessage: "This panel was opened without a merge request.",
 	parseParams: (value) => asPanelTarget(value),
-	identity: (target) => `${target.project}!${target.iid}#${target.tab ?? ""}`,
+	identity: (target) =>
+		`${target.project}!${target.iid}#${target.tab ?? ""}#${target.discussionId ?? ""}#${target.jobId ?? ""}`,
 	title: (target) => `!${target.iid}`,
 	fetch: async (target, signal) =>
 		await hostApi.mergeRequest(target.project, target.iid, signal),

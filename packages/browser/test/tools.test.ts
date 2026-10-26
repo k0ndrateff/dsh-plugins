@@ -10,21 +10,34 @@
  */
 
 import { expect, test } from "bun:test";
-import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
+import {
+	assertObjectJsonSchema,
+	type ToolDefinition,
+	type ToolRunContext,
+} from "@deepseek-ai/dsh-tools";
 import { BrowserSettings } from "../src/host/config";
 import type {
 	AgentBrowserRunner,
 	BrowserCommand,
 	BrowserOutcome,
 } from "../src/host/runner";
+import type {
+	ScreenshotFormat,
+	ScreenshotSaved,
+	ScreenshotSink,
+} from "../src/host/screenshots";
 import type { SessionScope } from "../src/host/session";
 import type { StreamHubs } from "../src/host/stream/hubs";
 import { actTool } from "../src/host/tools/act";
+import { closeTool } from "../src/host/tools/close";
 import type { BrowserToolDeps } from "../src/host/tools/deps";
+import { failureText } from "../src/host/tools/failure";
+import { browserTools } from "../src/host/tools/index";
 import { withHumanNotice } from "../src/host/tools/notice";
 import { openTool } from "../src/host/tools/open";
 import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
+import { screenshotTool } from "../src/host/tools/screenshot";
 import { snapshotTool } from "../src/host/tools/snapshot";
 
 /** An answer, or a function of the call that is being answered. */
@@ -81,21 +94,64 @@ const scriptedHubs = () => {
 	const hubs = {
 		markLive: (session: string) => live.push(session),
 		markClosed: (session: string) => closed.push(session),
+		state: () => ({
+			phase: "live" as const,
+			open: true,
+			url: "http://x/",
+			title: "X",
+			connected: true,
+		}),
 	} as unknown as StreamHubs;
 
 	return { hubs, live, closed };
 };
 
+/** A picture sink that records what was asked and answers what the test decides. */
+const scriptedImages = (
+	answer: ScreenshotSaved = {
+		image: {
+			attachmentId: "sha256-shot",
+			mediaType: "image/png",
+			bytes: 1_234,
+			width: 1_280,
+			height: 633,
+		},
+		path: "",
+		bytes: 1_234,
+	},
+) => {
+	const commits: {
+		readonly path: string;
+		readonly format: ScreenshotFormat;
+	}[] = [];
+	const images = {
+		pathFor: (format: ScreenshotFormat) => `/tmp/shot-${format}.png`,
+		commit: async (path: string, format: ScreenshotFormat) => {
+			commits.push({ path, format });
+
+			return answer;
+		},
+	} as unknown as ScreenshotSink;
+
+	return { images, commits };
+};
+
 /** One plugin's worth of tools over one script. */
-const toolsFor = (script: Script, maxOutputBytes = 400) => {
+const toolsFor = (
+	script: Script,
+	maxOutputBytes = 400,
+	imageAnswer?: ScreenshotSaved,
+) => {
 	const { runner, commands } = scriptedRunner(script);
 	const { sessions, asked } = scriptedScope();
 	const { hubs, live, closed } = scriptedHubs();
+	const { images, commits } = scriptedImages(imageAnswer);
 	const deps: BrowserToolDeps = {
 		runner,
 		sessions,
 		config: BrowserSettings.from({ maxOutputBytes }),
 		hubs,
+		images,
 	};
 
 	return {
@@ -104,13 +160,23 @@ const toolsFor = (script: Script, maxOutputBytes = 400) => {
 		asked,
 		live,
 		closed,
+		images,
+		commits,
 		open: openTool.create(deps),
 		snapshot: snapshotTool.create(deps),
 		act: actTool.create(deps),
 		read: readTool.create(deps),
 		run: runTool.create(deps),
+		screenshot: screenshotTool.create(deps),
+		close: closeTool.create(deps),
 	};
 };
+
+/** The image block in one tool answer, when it produced one. */
+const imageOf = (tool: ToolDefinition, args: unknown, value: unknown) =>
+	tool.output
+		.render(args, value as never)
+		.find((block) => block.type === "image");
 
 /** One execution, as many as the tool needs to see. */
 const execOf = (
@@ -195,6 +261,18 @@ test("opening a page", async () => {
 	expect(
 		(await refusalOf(() => call(opened.open, {}))).includes("needs a url"),
 		"a call without a URL is refused",
+	).toBe(true);
+	expect(
+		(await refusalOf(() => call(opened.open, { url: "checkout" }))).includes(
+			"absolute http, https, file, data or about:blank",
+		),
+		"a relative address is refused before the CLI sees it",
+	).toBe(true);
+	expect(
+		(
+			await refusalOf(() => call(opened.open, { url: "javascript:alert(1)" }))
+		).includes("absolute http"),
+		"and so is a scheme that is not a page",
 	).toBe(true);
 
 	const unreachable = toolsFor([
@@ -302,6 +380,24 @@ test("acting on the page", async () => {
 		true,
 	);
 
+	const unreadable = toolsFor((command) =>
+		command.args[0] === "get"
+			? { ok: false, error: "browser not launched", durationMs: 1 }
+			: ok({ clicked: "@e1" }),
+	);
+	const unknown = await call(unreadable.act, {
+		action: "click",
+		target: "@e1",
+	});
+	expect(
+		unknown.value.addressUnread === true,
+		"an address that could not be read is not an address that did not change",
+	).toBe(true);
+	expect(
+		unknown.text.includes("could not be read"),
+		"and the model is told so",
+	).toBe(true);
+
 	const typed = toolsFor([ok({ filled: "@e2" })]);
 	await call(typed.act, {
 		action: "fill",
@@ -319,11 +415,23 @@ test("acting on the page", async () => {
 		"typing without a value is refused",
 	).toBe(true);
 
-	const chosen = toolsFor([ok({ selected: "@e3" })]);
+	const chosen = toolsFor(() => ok({ selected: "@e3" }));
 	await call(chosen.act, { action: "select", target: "@e3", value: "eu west" });
 	expect(
-		chosen.commands[0]?.args.join("|") === "select|@e3|eu|west",
-		"a multi-word option becomes one argument each",
+		chosen.commands[0]?.args.join("|") === "select|@e3|eu west",
+		"an option with spaces in its label stays one option",
+	).toBe(true);
+
+	await call(chosen.act, {
+		action: "select",
+		target: "@e3",
+		values: ["eu", "us west"],
+	});
+	expect(
+		chosen.commands
+			.filter((command) => command.args[0] === "select")[1]
+			?.args.join("|") === "select|@e3|eu|us west",
+		"several options are passed as the list they are",
 	).toBe(true);
 
 	const scrolled = toolsFor([ok({ scrolled: "down" })]);
@@ -419,6 +527,24 @@ test("reading the page", async () => {
 		"and the page's own error is kept",
 	).toBe(true);
 
+	const located = toolsFor([
+		ok({
+			errors: [
+				{
+					column: 23,
+					line: 5,
+					text: "TypeError: boom",
+					url: "http://x/app.js",
+				},
+			],
+		}),
+	]);
+	const placed = await call(located.read, { what: "errors" });
+	expect(
+		placed.text.includes("http://x/app.js:5:23"),
+		"with the place it happened, which is what the model acts on",
+	).toBe(true);
+
 	const quiet = toolsFor([ok({ messages: [] })]);
 	const silent = await call(quiet.read, { what: "console" });
 	expect(silent.value.count === 0, "an empty log is not an error").toBe(true);
@@ -444,6 +570,10 @@ test("the escape hatch", async () => {
 	expect(ran.text.includes("http://x/api"), "its answer is JSON text").toBe(
 		true,
 	);
+	expect(
+		!String(ran.value.answer).includes("\n"),
+		"and compact, because indentation is context the model pays for twice",
+	).toBe(true);
 
 	await call(escaped.run, { args: ["agent-browser", "tab", "list"] });
 	expect(
@@ -537,4 +667,212 @@ test("what the person did while the agent was away", async () => {
 		plain.finalizeContent === undefined && plain.name === noticed.name,
 		"the tool itself is left as it was",
 	).toBe(true);
+});
+
+test("a screenshot the model can look at", async () => {
+	const shot = toolsFor(() => ok({ path: "/tmp/shot.png" }));
+	const taken = await call(shot.screenshot, {});
+
+	expect(
+		shot.commands[0]?.args.join(" ").startsWith("screenshot /tmp/shot-png.png"),
+		"the CLI is asked to write one file",
+	).toBe(true);
+	expect(
+		shot.commands[0]?.args.join(" ").includes("--screenshot-format png"),
+		"in the format the model chose",
+	).toBe(true);
+	expect(
+		shot.commits[0]?.format === "png" &&
+			shot.commits[0]?.path === "/tmp/shot-png.png",
+		"and the bytes are committed through the image seam",
+	).toBe(true);
+	expect(
+		(taken.value.image as { width?: number } | undefined)?.width === 1_280,
+		"the answer carries the stored image",
+	).toBe(true);
+	expect(
+		imageOf(shot.screenshot, {}, taken.value)?.type === "image",
+		"which the model receives as an image block, not as base64 text",
+	).toBe(true);
+	expect(
+		taken.text.includes("1280×633") &&
+			taken.text.includes("PNG") &&
+			!taken.text.includes("base64"),
+		"and the sentence beside it describes the picture",
+	).toBe(true);
+	expect(
+		shot.live.includes("dsh-test"),
+		"a screenshot proves the browser",
+	).toBe(true);
+
+	const framed = toolsFor(() => ok({ path: "/tmp/shot.png" }));
+	await call(framed.screenshot, {
+		format: "jpeg",
+		quality: 70,
+		full: true,
+		selector: "#main",
+	});
+	const argv = framed.commands[0]?.args.join(" ");
+	expect(
+		argv?.includes("#main") === true &&
+			argv.includes("--full") &&
+			argv.includes("--screenshot-format jpeg") &&
+			argv.includes("--screenshot-quality 70"),
+		"the page, the element, the format and the quality all reach the CLI",
+	).toBe(true);
+
+	expect(
+		(
+			await refusalOf(() => call(framed.screenshot, { format: "webp" }))
+		).includes("png, jpeg"),
+		"an unknown format is refused before the CLI runs",
+	).toBe(true);
+	expect(
+		(await refusalOf(() => call(framed.screenshot, { quality: 200 }))).includes(
+			"1 to 100",
+		),
+		"and a quality the encoder cannot take",
+	).toBe(true);
+
+	const noStore = toolsFor(() => ok({ path: "/tmp/shot.png" }), 400, {
+		image: undefined,
+		path: "/tmp/shot.png",
+		bytes: 5,
+	});
+	const kept = await call(noStore.screenshot, {});
+	expect(
+		kept.text.includes("/tmp/shot.png") && kept.text.includes("read_image"),
+		"without an image store the file is named and the way to open it is given",
+	).toBe(true);
+	expect(
+		imageOf(noStore.screenshot, {}, kept.value) === undefined,
+		"and no empty image block is invented",
+	).toBe(true);
+});
+test("closing the browser", async () => {
+	const closing = toolsFor(() => ok({}));
+	const done = await call(closing.close, {});
+
+	expect(
+		closing.commands[0]?.args.join(" ") === "close",
+		"the close runs",
+	).toBe(true);
+	expect(done.value.closed === true, "and is reported as done").toBe(true);
+	expect(
+		closing.closed.includes("dsh-test"),
+		"the panel stops looking for a browser that closed",
+	).toBe(true);
+	expect(done.text.includes("Closed"), "the model is told so").toBe(true);
+
+	const absent = toolsFor(() => ({
+		ok: false,
+		error: "no browser to close",
+		durationMs: 1,
+	}));
+	const nothing = await call(absent.close, {});
+	expect(
+		nothing.value.closed === false,
+		"closing what was already closed is not an error",
+	).toBe(true);
+	expect(
+		nothing.text.includes("no open browser"),
+		"and the model is told which state it found",
+	).toBe(true);
+
+	const broken = toolsFor(() => ({
+		ok: false,
+		error: "the command did not finish within 60000ms and was stopped",
+		durationMs: 1,
+	}));
+	expect(
+		(await refusalOf(() => call(broken.close, {}))).includes("timed out"),
+		"a close that really failed fails the call, with the next step",
+	).toBe(true);
+});
+test("an empty snapshot says what was looked at", async () => {
+	const empty = toolsFor(() =>
+		ok({ origin: "http://x/", refs: {}, snapshot: "" }),
+	);
+
+	const interactive = await call(empty.snapshot, {});
+	expect(
+		interactive.text.includes("no interactive elements") &&
+			interactive.text.includes("interactive:false"),
+		"an empty interactive tree points at the whole tree",
+	).toBe(true);
+
+	const whole = await call(empty.snapshot, { interactive: false });
+	expect(
+		whole.text.includes("no accessible elements"),
+		"while the whole tree says the page has nothing to read",
+	).toBe(true);
+
+	const scoped = await call(empty.snapshot, { selector: "#nope" });
+	expect(
+		scoped.text.includes("Nothing matched `#nope`") &&
+			scoped.text.includes("http://x/"),
+		"and a selector names what matched nothing on which page",
+	).toBe(true);
+});
+test("a refusal carries the next step", async () => {
+	expect(
+		failureText(
+			"the command did not finish within 60000ms and was stopped",
+		).includes("timed out"),
+		"a timeout is retryable",
+	).toBe(true);
+	expect(
+		failureText("no element matches @e9").includes("fresh browser_snapshot"),
+		"a stale reference has an action",
+	).toBe(true);
+	expect(
+		failureText("browser not launched").includes("browser_open"),
+		"a missing browser has an action",
+	).toBe(true);
+	expect(
+		failureText("something the plugin has never seen") ===
+			"something the plugin has never seen",
+		"an unknown refusal is left as it was",
+	).toBe(true);
+});
+
+test("every tool registers a schema the harness accepts", async () => {
+	const { deps } = toolsFor(() => ok({}));
+	const names = browserTools.map((tool) => tool.TOOL_NAME);
+
+	expect(
+		names.join(",") ===
+			"browser_open,browser_snapshot,browser_act,browser_read,browser_run,browser_screenshot,browser_close",
+		"the dictionary is the five tools plus a picture and a close",
+	).toBe(true);
+	expect(new Set(names).size === names.length, "with no name repeated").toBe(
+		true,
+	);
+
+	for (const tool of browserTools) {
+		const definition = tool.create(deps);
+
+		expect(
+			() =>
+				assertObjectJsonSchema(
+					definition.parameters as unknown as Parameters<
+						typeof assertObjectJsonSchema
+					>[0],
+				),
+			`${tool.TOOL_NAME} takes an object schema`,
+		).not.toThrow();
+		expect(
+			() =>
+				assertObjectJsonSchema(
+					definition.output.schema as unknown as Parameters<
+						typeof assertObjectJsonSchema
+					>[0],
+				),
+			`${tool.TOOL_NAME} answers with an object schema`,
+		).not.toThrow();
+		expect(
+			definition.description.length > 120,
+			`${tool.TOOL_NAME} says what it is for`,
+		).toBe(true);
+	}
 });

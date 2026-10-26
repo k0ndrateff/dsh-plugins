@@ -11,6 +11,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { errorText, loggerOf, type McpBridge } from "dsh-mcp-oauth";
 import type { NodePanel, PanelTarget } from "../../shared/panel";
+import { humanFigmaError, reasonOf } from "../errors";
 import {
 	type Metadata,
 	parseCodeConnectMap,
@@ -50,22 +51,27 @@ export class PanelApi {
 		const metadata = await this.readMetadata(target);
 		const nodeId = metadata.root.id;
 
-		const tokens = parseVariableDefs(
-			await this.optional("get_variable_defs", { nodeId }),
-		);
-		const mappings = parseCodeConnectMap(
-			await this.optional("get_code_connect_map", { nodeId }),
+		const tokensRead = await this.optional("get_variable_defs", { nodeId });
+		const mappingsRead = await this.optional("get_code_connect_map", {
 			nodeId,
-		);
+		});
+		const tokens = parseVariableDefs(tokensRead.value);
+		const mappings = parseCodeConnectMap(mappingsRead.value, nodeId);
 
 		return {
 			kind: "node",
 			node: metadata.root,
 			screenshot: this.screenshotUrl(nodeId),
 			tokens: tokens.slice(0, MAX_TOKENS),
+			...(tokensRead.error === undefined
+				? {}
+				: { tokensError: tokensRead.error }),
 			tokensTruncated: tokens.length > MAX_TOKENS,
 			tokenTotal: tokens.length,
 			mappings,
+			...(mappingsRead.error === undefined
+				? {}
+				: { mappingsError: mappingsRead.error }),
 			children: metadata.children.slice(0, MAX_CHILDREN),
 			childrenTruncated: metadata.children.length > MAX_CHILDREN,
 			childTotal: metadata.children.length,
@@ -79,7 +85,7 @@ export class PanelApi {
 	 */
 	async screenshot(node: string): Promise<Screenshot> {
 		const shot = parseScreenshot(
-			await this.deps.bridge.callTool("get_screenshot", { nodeId: node }),
+			await this.call("get_screenshot", { nodeId: node }),
 		);
 
 		if (shot === undefined)
@@ -132,12 +138,22 @@ export class PanelApi {
 		return metadata;
 	}
 
-	/** One read whose failure is the panel's to report. */
+	/** One read whose failure is the panel's to report, in human words. */
 	private async call(
 		name: string,
 		args: Record<string, unknown>,
 	): Promise<unknown> {
-		return await this.deps.bridge.callTool(name, args);
+		try {
+			return await this.deps.bridge.callTool(name, args);
+		} catch (error) {
+			loggerOf(this.deps.ctx).warn(
+				"[figma] %s failed: %s",
+				name,
+				errorText(error),
+			);
+
+			throw humanFigmaError(error);
+		}
 	}
 
 	/**
@@ -145,22 +161,18 @@ export class PanelApi {
 	 *
 	 * A node with no variables, and a file with no Code Connect library, are both
 	 * ordinary: the tools answer an empty object for the first and refuse with a
-	 * message for the second, and neither is a reason to fail the panel.
+	 * message for the second, and neither is a reason to fail the panel. A failed
+	 * read is kept as its own field, though, because "none" and "could not read"
+	 * are different answers and the panel must not print the first for the second.
 	 */
 	private async optional(
 		name: string,
 		args: Record<string, unknown>,
-	): Promise<unknown> {
+	): Promise<{ readonly value?: unknown; readonly error?: string }> {
 		try {
-			return await this.call(name, args);
+			return { value: await this.call(name, args) };
 		} catch (error) {
-			loggerOf(this.deps.ctx).warn(
-				"[figma] %s answered nothing: %s",
-				name,
-				errorText(error),
-			);
-
-			return undefined;
+			return { error: reasonOf(error) };
 		}
 	}
 }

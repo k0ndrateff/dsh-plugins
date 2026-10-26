@@ -44,6 +44,20 @@ export interface AtlassianPresentation {
 	readonly title?: string;
 	readonly layout: PresentationLayout;
 	/**
+	 * The site the card was resolved on.
+	 *
+	 * A card from site B must open site B's panel, so the card carries the cloud
+	 * id rather than letting the panel fall back to the selected default.
+	 */
+	readonly cloudId?: string;
+	/**
+	 * The site's base URL, when the plugin knew it.
+	 *
+	 * A multi-site account sees which site a card was read from without opening
+	 * the panel.
+	 */
+	readonly siteUrl?: string;
+	/**
 	 * How many items the search matched, when that is more than the card shows.
 	 *
 	 * A card that scrolls says "25 of 137 issues"; a card that shows everything
@@ -89,6 +103,8 @@ const presentation = object<AtlassianPresentation>({
 	callId: required(nonEmptyString),
 	title: optional(nonEmptyString),
 	layout: fallback(layout, "list"),
+	cloudId: optional(nonEmptyString),
+	siteUrl: optional(nonEmptyString),
 	total: optional(number),
 	truncated: optional(trueOnly),
 	items: required(list(item)),

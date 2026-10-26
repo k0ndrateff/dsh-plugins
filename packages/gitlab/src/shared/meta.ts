@@ -101,11 +101,13 @@ export interface GitLabPresentation {
 	readonly layout: PresentationLayout;
 	/** How many items matched, when that is more than the card shows. */
 	readonly total?: number;
-	/** The scope or query the list ran, as the server echoed it. */
+	/** The scope or query the list ran, as a human label the card shows. */
 	readonly query?: string;
+	/** Every filter the list applied, so the card names them all. */
+	readonly filters?: readonly string[];
 	/** The merge request a findings or jobs card belongs to, as `group/project!12`. */
 	readonly subject?: string;
-	/** Whether GitLab had more pages than the tool read. */
+	/** Whether GitLab had more rows than the card shows. */
 	readonly truncated?: boolean;
 	readonly items: readonly PresentationItem[];
 }
@@ -189,6 +191,7 @@ const presentation = object<GitLabPresentation>({
 	layout: fallback(layout, "list"),
 	total: optional(number),
 	query: optional(nonEmptyString),
+	filters: optional(list(nonEmptyString)),
 	subject: optional(nonEmptyString),
 	truncated: optional(trueOnly),
 	items: required(list(item)),

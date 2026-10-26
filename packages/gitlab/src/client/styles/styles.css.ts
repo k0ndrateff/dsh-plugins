@@ -199,3 +199,14 @@ export const log = style({
 	whiteSpace: "pre-wrap",
 	wordBreak: "break-word",
 });
+
+/** The thread a card opened the panel on, so the eye lands on it. */
+export const threadFocused = style({
+	border: `1px solid ${theme.color.link}`,
+});
+
+/** A short confirmation of what one write changed, under the thread it touched. */
+export const notice = style({
+	fontSize: "12px",
+	color: theme.color.success,
+});

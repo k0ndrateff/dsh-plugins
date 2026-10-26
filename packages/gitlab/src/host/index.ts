@@ -60,7 +60,7 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	const token = new TokenStore(ctx);
 	const api = new GitLabApi({ config, token });
 	const auth = new GitLabAuth({ ctx, config, api, token, state });
-	const panel = new PanelApi({ api, state });
+	const panel = new PanelApi({ api, state, ctx });
 	const review = new ReviewService(api);
 
 	// The digest plugin, when it is installed, composes this plugin's merge

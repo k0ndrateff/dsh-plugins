@@ -14,9 +14,11 @@ import * as styles from "../styles/styles.css";
 
 interface Props {
 	issue: IssueCard;
+	/** The site the card was resolved on, so the panel opens the same one. */
+	cloudId?: string;
 }
 
-export const IssueItem = ({ issue }: Props) => {
+export const IssueItem = ({ issue, cloudId }: Props) => {
 	const title = [issue.key, issue.summary]
 		.filter((part) => part !== undefined && part !== "")
 		.join(" · ");
@@ -38,7 +40,7 @@ export const IssueItem = ({ issue }: Props) => {
 							// The panel, when this build has one; the browser for a
 							// modified click, or when it does not.
 							if (wantsBrowser(event)) return;
-							if (openPanel({ kind: "issue", key: issue.key }))
+							if (openPanel({ kind: "issue", key: issue.key, cloudId }))
 								event.preventDefault();
 						}}
 					>

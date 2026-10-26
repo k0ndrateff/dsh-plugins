@@ -8,7 +8,10 @@
  * say *where*.
  *
  * Everything it writes goes to the same settings document the card writes, so
- * the two entrances can never disagree about what the user chose.
+ * the two entrances can never disagree about what the user chose. And everything
+ * it prints about the reminders is read from the service each time, so a user
+ * who forgot where they enabled the digest can find those sessions — and stop
+ * them — from one place.
  */
 
 import type { CommandResult } from "dsh-integration-host";
@@ -17,9 +20,11 @@ import {
 	type DigestSettings,
 	isDigestTime,
 	isTimeZone,
+	WEEK_ORDER,
 } from "../shared/digest";
 import type { DigestCollector } from "./collect";
-import type { DigestSchedule } from "./schedule";
+import type { DigestSave } from "./save";
+import type { DigestReminders, DigestSchedule } from "./schedule";
 import type { DigestSettingsStore } from "./settings";
 
 /** The weekdays this command understands, by the names a human types. */
@@ -33,11 +38,24 @@ const WEEKDAYS: Readonly<Record<string, number>> = {
 	sat: 6,
 };
 
+/** Every action this command has, as the refusal message lists them. */
+const ACTIONS = [
+	"status",
+	"now",
+	"on",
+	"off [all]",
+	"time HH:MM",
+	"timezone <IANA zone>",
+	"days mon,tue,...",
+	"blocks [<id> on|off]",
+] as const;
+
 /** What the command needs from the plugin. */
 export interface DigestCommandDeps {
 	readonly collector: DigestCollector;
 	readonly settings: DigestSettingsStore;
 	readonly schedule: DigestSchedule;
+	readonly save: DigestSave;
 }
 
 /** The invoking agent, as the command registry hands it over. */
@@ -79,11 +97,25 @@ export const parseDays = (input: string): number[] | undefined => {
 	return [...new Set(days as number[])].sort((left, right) => left - right);
 };
 
-/** The days of one configuration, as a human reads them. */
+/**
+ * The days of one configuration, as a human reads them.
+ *
+ * Monday first: the stored numbers keep JavaScript's Sunday-first order, but a
+ * working week read out of order — "Sun, Mon, Tue" — is a small lie about how
+ * people plan one.
+ */
 export const describeDays = (days: readonly number[]): string =>
 	days.length === 7
 		? "every day"
-		: days.map((day) => DAY_LABELS[day] ?? String(day)).join(", ");
+		: WEEK_ORDER.filter((day) => days.includes(day))
+				.map((day) => DAY_LABELS[day] ?? String(day))
+				.join(", ");
+
+/** The refusal for an action this command does not have. */
+const unknownAction = (action: string): CommandResult => ({
+	kind: "error",
+	text: `"/digest ${action}" is not an action. Use /digest ${ACTIONS.join(" | ")}.`,
+});
 
 /**
  * Build the handler the command registers.
@@ -92,9 +124,11 @@ export const describeDays = (days: readonly number[]): string =>
 export const createDigestCommand =
 	(deps: DigestCommandDeps) =>
 	async (invocation: Invocation): Promise<CommandResult> => {
-		const [action = "status", ...rest] = String(invocation.rawInput ?? "")
+		const words = String(invocation.rawInput ?? "")
 			.trim()
-			.split(/\s+/u);
+			.split(/\s+/u)
+			.filter((word) => word !== "");
+		const [action = "status", ...rest] = words;
 		const current = await deps.settings.ensure();
 
 		try {
@@ -113,6 +147,18 @@ export const createDigestCommand =
 						kind: "error",
 						text: "This harness composes no reminder service, so a digest cannot be scheduled.",
 					};
+
+				if (action === "off" && rest[0] === "all") {
+					const removed = await deps.schedule.unbindAll();
+
+					return {
+						kind: "success",
+						text:
+							removed === 0
+								? "No digest was scheduled in any session."
+								: `The digest is no longer scheduled anywhere (${removed} reminder${removed === 1 ? "" : "s"} removed).`,
+					};
+				}
 
 				const sessionId = sessionOf(invocation.agent);
 
@@ -151,12 +197,11 @@ export const createDigestCommand =
 						text: "Use /digest time HH:MM, in 24-hour form.",
 					};
 
-				await deps.settings.save({ time });
-				await deps.schedule.rebindAll(deps.settings.get());
+				const saved = await deps.save.apply({ time });
 
 				return {
 					kind: "success",
-					text: `The digest is set for ${time} ${current.timeZone}.`,
+					text: `The digest is set for ${saved.time} ${saved.timeZone}.`,
 				};
 			}
 
@@ -169,12 +214,11 @@ export const createDigestCommand =
 						text: `"${timeZone}" is not an IANA time zone, such as Europe/Moscow.`,
 					};
 
-				await deps.settings.save({ timeZone });
-				await deps.schedule.rebindAll(deps.settings.get());
+				const saved = await deps.save.apply({ timeZone });
 
 				return {
 					kind: "success",
-					text: `The digest is set for ${current.time} ${timeZone}.`,
+					text: `The digest is set for ${saved.time} ${saved.timeZone}.`,
 				};
 			}
 
@@ -187,8 +231,7 @@ export const createDigestCommand =
 						text: "Name weekdays, separated by commas: /digest days mon,tue,wed,thu,fri.",
 					};
 
-				await deps.settings.save({ days });
-				await deps.schedule.rebindAll(deps.settings.get());
+				await deps.save.apply({ days });
 
 				return {
 					kind: "success",
@@ -198,7 +241,10 @@ export const createDigestCommand =
 
 			if (action === "blocks") return await blocks(deps, rest, current);
 
-			return { kind: "success", text: await status(deps, current) };
+			if (action === "status")
+				return { kind: "success", text: await status(deps, current) };
+
+			return unknownAction(action);
 		} catch (error) {
 			return {
 				kind: "error",
@@ -239,7 +285,7 @@ async function blocks(
 			text: `Use /digest blocks <${sources.map((block) => block.id).join("|") || "block"}> on|off.`,
 		};
 
-	const saved = await deps.settings.save({
+	const saved = await deps.save.apply({
 		blocks: { ...current.blocks, [id]: value === "on" },
 	});
 
@@ -249,26 +295,43 @@ async function blocks(
 	};
 }
 
+/** One bound session, as the status line lists it. */
+const sessionLine = (sessionId: string): string => `- ${sessionId}`;
+
 /** The line a bare `/digest` answers with. */
 async function status(
 	deps: DigestCommandDeps,
 	current: DigestSettings,
 ): Promise<string> {
-	const bound = await deps.schedule.bound();
+	const reminders = await deps.schedule.bound();
 	const lines = [
 		`Digest: ${current.time} ${current.timeZone}, ${describeDays(current.days)}, up to ${current.limit} rows per block.`,
 	];
 
-	if (!deps.schedule.isAvailable)
-		lines.push("This harness composes no reminder service.");
-	else if (bound.length === 0)
+	lines.push(remindersLine(deps, reminders));
+
+	if (reminders.entries.length > 0)
 		lines.push(
-			"Scheduled in no session yet — run /digest on where you want it.",
-		);
-	else
-		lines.push(
-			`Scheduled in ${bound.length} session${bound.length === 1 ? "" : "s"}.`,
+			...reminders.entries.map((entry) => sessionLine(entry.sessionId)),
+			"`/digest off` stops the reminder for this session; `/digest off all` stops every one.",
 		);
 
-	return lines.join(" ");
+	return lines.join("\n");
 }
+
+/** How many sessions receive the digest — or why that is not known. */
+const remindersLine = (
+	deps: DigestCommandDeps,
+	reminders: DigestReminders,
+): string => {
+	if (!deps.schedule.isAvailable)
+		return "This harness composes no reminder service.";
+
+	if (reminders.error !== undefined)
+		return `The reminder catalog could not be read (${reminders.error}), so how many sessions receive the digest is unknown.`;
+
+	if (reminders.entries.length === 0)
+		return "Scheduled in no session yet — run /digest on where you want it.";
+
+	return `Scheduled in ${reminders.entries.length} session${reminders.entries.length === 1 ? "" : "s"}:`;
+};

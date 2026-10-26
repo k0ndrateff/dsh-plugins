@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integration-host",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"type": "module",
 	"description": "The host-half shell the integrations of k0ndrateff/dsh-plugins share — a library, not a plugin",
 	"license": "MIT",
@@ -38,7 +38,7 @@
 		"prepack": "bun run build"
 	},
 	"dependencies": {
-		"dsh-mcp-oauth": "^0.2.0"
+		"dsh-mcp-oauth": "^0.3.0"
 	},
 	"peerDependencies": {
 		"@deepseek-ai/cordis": "~4.0.5",

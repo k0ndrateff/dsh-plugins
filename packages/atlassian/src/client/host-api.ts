@@ -35,29 +35,49 @@ export const hostApi = {
 		return await request("/logout", "POST");
 	},
 
+	/** Abandon the sign-in attempt that is waiting for the browser. */
+	cancel: async (): Promise<AtlassianStatus> => {
+		return await request("/cancel", "POST");
+	},
+
 	/** Reconnect and re-publish the Atlassian tools. */
 	sync: async (): Promise<AtlassianStatus> => {
 		return await request("/sync", "POST");
 	},
 
-	/** Everything one panel shows for its target. */
+	/** Everything one panel shows for its target, on the site the target names. */
 	getPanel: async (
 		target: PanelTarget,
 		signal?: AbortSignal,
 	): Promise<PanelData> => {
+		const site =
+			target.cloudId === undefined
+				? ""
+				: `&cloudId=${encodeURIComponent(target.cloudId)}`;
+
 		return target.kind === "issue"
 			? await request(
-					`/issue?key=${encodeURIComponent(target.key)}`,
+					`/issue?key=${encodeURIComponent(target.key)}${site}`,
 					"GET",
 					undefined,
 					signal,
 				)
 			: await request(
-					`/page?id=${encodeURIComponent(target.id)}`,
+					`/page?id=${encodeURIComponent(target.id)}${site}`,
 					"GET",
 					undefined,
 					signal,
 				);
+	},
+
+	/**
+	 * Make one of the account's sites the default, without signing out.
+	 * @param cloudId - a site from the account's own list.
+	 */
+	selectSite: async (
+		cloudId: string,
+	): Promise<{ cloudId: string | null; siteUrl: string | null }> => {
+		return await request("/site", "POST", { cloudId });
 	},
 
 	/**
@@ -85,22 +105,35 @@ export const hostApi = {
 		return Array.isArray(found) ? found : [];
 	},
 
-	/** Move one issue through a workflow transition; answers with the fresh issue. */
+	/**
+	 * Move one issue through a workflow transition; answers with the fresh issue.
+	 * @param cloudId - the site the panel is showing, when the card named one.
+	 */
 	transitionIssue: async (
 		key: string,
 		transitionId: string,
+		cloudId?: string,
 	): Promise<IssuePanel> => {
 		return await request("/issue/transition", "POST", {
 			key,
 			transitionId,
+			...(cloudId === undefined ? {} : { cloudId }),
 		});
 	},
 
-	/** Set or clear one issue's assignee; answers with the fresh issue. */
+	/**
+	 * Set or clear one issue's assignee; answers with the fresh issue.
+	 * @param cloudId - the site the panel is showing, when the card named one.
+	 */
 	assignIssue: async (
 		key: string,
 		accountId: string | null,
+		cloudId?: string,
 	): Promise<IssuePanel> => {
-		return await request("/issue/assignee", "POST", { key, accountId });
+		return await request("/issue/assignee", "POST", {
+			key,
+			accountId,
+			...(cloudId === undefined ? {} : { cloudId }),
+		});
 	},
 };

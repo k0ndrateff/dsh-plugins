@@ -27,17 +27,22 @@ import {
 } from "dsh-integration-host";
 import {
 	CLOSE_PATH,
+	DOCTOR_PATH,
 	FRAME_PATH,
 	INPUT_PATH,
 	PANEL_PATH,
 	type PanelInput,
+	RETRY_PATH,
 	ROUTE_PREFIX,
 	STATE_PATH,
+	TEXT_PATH,
 } from "../../shared/panel";
+import { fieldOf, isText, modelData } from "../envelope";
 import type { AgentBrowserRunner } from "../runner";
 import { isSessionName } from "../session";
 import type { StreamHubs } from "../stream/hubs";
 import { noteOf } from "../stream/input";
+import { bound } from "../text";
 import { type InputReading, readPanelInput } from "./input";
 
 /** What the panel route needs from the plugin. */
@@ -54,6 +59,9 @@ const NAVIGATE_TIMEOUT_MS = 60_000;
 
 /** The largest input body one request may carry; a click is a few dozen bytes. */
 const MAX_BODY_BYTES = 4_096;
+
+/** The most text the accessibility-tree view may answer with. */
+const TEXT_CAP_BYTES = 64_000;
 
 /** The headers every answer here carries: nothing about a live view is cacheable. */
 const NO_STORE = "no-store";
@@ -140,6 +148,19 @@ const commandOf = (
 		? [input.to]
 		: ["set", "viewport", String(input.width), String(input.height)];
 
+/** The CLI action that command will report on the screencast. */
+const actionOf = (
+	input: Extract<PanelInput, { readonly type: "navigate" | "viewport" }>,
+): string => (input.type === "navigate" ? input.to : "set");
+
+/** What the person's own line in the feed says about that command. */
+const humanCommandOf = (
+	input: Extract<PanelInput, { readonly type: "navigate" | "viewport" }>,
+): string =>
+	input.type === "navigate"
+		? input.to
+		: `resize ${input.width}×${input.height}`;
+
 /**
  * Read one request's input, or answer the reason it is not one.
  * @returns the reading, or undefined when the answer has already been sent.
@@ -181,6 +202,37 @@ export const createPanelHandler = (
 
 		if (refusal !== undefined) {
 			reply(response, 403, { error: refusal });
+
+			return;
+		}
+
+		// `doctor` is about the machine, not about a conversation: it is asked
+		// before a session name is required, by the settings page.
+		if (url.pathname === DOCTOR_PATH && method === "GET") {
+			const report = await deps.runner.status({
+				session: "dsh-doctor",
+				cwd: process.cwd(),
+				signal: AbortSignal.timeout(NAVIGATE_TIMEOUT_MS),
+			});
+
+			if (report === undefined) {
+				reply(response, 200, {
+					ok: false,
+					error:
+						"The browser needs the agent-browser CLI, and it is not on PATH. Install it with " +
+						"`npm install -g agent-browser` and `agent-browser install`, or point the Executable " +
+						"setting at an existing one.",
+				});
+
+				return;
+			}
+
+			reply(response, 200, {
+				ok: true,
+				version: report.version ?? "",
+				chrome: report.chrome ?? "",
+				checks: report.checks,
+			});
 
 			return;
 		}
@@ -231,6 +283,43 @@ export const createPanelHandler = (
 			return;
 		}
 
+		if (url.pathname === RETRY_PATH && method === "POST") {
+			const hub = deps.hubs.for(session);
+
+			hub.retry();
+			reply(response, 200, { ok: true, ...hub.snapshot() });
+
+			return;
+		}
+
+		// The page as the agent's own tree, for a reader who cannot see the picture:
+		// the text view costs one CLI call, and only when it is asked for.
+		if (url.pathname === TEXT_PATH && method === "GET") {
+			const read = await deps.runner.run({
+				args: ["snapshot", "-i"],
+				session,
+				cwd: process.cwd(),
+				signal: AbortSignal.timeout(NAVIGATE_TIMEOUT_MS),
+			});
+
+			if (!read.ok) {
+				reply(response, 409, { error: read.error });
+
+				return;
+			}
+
+			deps.hubs.markLive(session);
+
+			const data = modelData(read.data);
+
+			reply(response, 200, {
+				text: bound(fieldOf(data, "snapshot", isText) ?? "", TEXT_CAP_BYTES),
+				url: fieldOf(data, "origin", isText) ?? "",
+			});
+
+			return;
+		}
+
 		if (url.pathname === INPUT_PATH && method === "POST") {
 			const reading = await inputOf(request, response);
 
@@ -244,6 +333,11 @@ export const createPanelHandler = (
 				reading.input.type === "navigate" ||
 				reading.input.type === "viewport"
 			) {
+				// The screencast reports this command like any other, as if the agent
+				// had run it; announcing it first lets the feed put the person's name
+				// on the line.
+				hub.announce(actionOf(reading.input), humanCommandOf(reading.input));
+
 				const moved = await deps.runner.run({
 					args: commandOf(reading.input),
 					session,
@@ -257,6 +351,8 @@ export const createPanelHandler = (
 					deps.hubs.markLive(session);
 					deps.hubs.note(session, noteOf(reading.input));
 					await hub.remeasure();
+				} else {
+					hub.clearAnnouncements();
 				}
 
 				reply(response, 200, {
@@ -287,7 +383,12 @@ export const createPanelHandler = (
 				cwd: process.cwd(),
 				signal: AbortSignal.timeout(CLOSE_TIMEOUT_MS),
 			});
-			if (closed.ok) deps.hubs.markClosed(session);
+			if (closed.ok) {
+				const hub = deps.hubs.for(session);
+
+				hub.note("closed the browser");
+				deps.hubs.markClosed(session);
+			}
 
 			reply(response, 200, {
 				closed: closed.ok,

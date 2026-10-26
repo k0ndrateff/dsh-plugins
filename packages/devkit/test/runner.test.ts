@@ -182,7 +182,7 @@ test("how a run ends", async () => {
 			[
 				"a cancelled run is not a failure of the check",
 				{ aborted: true, exitCode: null },
-				"errored",
+				"cancelled",
 				null,
 			],
 			[
@@ -211,6 +211,21 @@ test("how a run ends", async () => {
 		expect(
 			failed.output === "no shell",
 			`an error says why in place of output — ${failed.output}`,
+		).toBe(true);
+
+		const { ctx: cancelledContext } = scriptedShell({
+			aborted: true,
+			exitCode: null,
+			stdout: "still running\n",
+		});
+		const cancelled = await new RecipeRunner(cancelledContext).run(recipe(), {
+			cwd: "/work",
+		});
+
+		expect(
+			cancelled.status === "cancelled" &&
+				(cancelled.output ?? "").includes("the check was cancelled"),
+			`a run the user stopped says so rather than blaming the recipe — ${cancelled.output}`,
 		).toBe(true);
 	}
 });

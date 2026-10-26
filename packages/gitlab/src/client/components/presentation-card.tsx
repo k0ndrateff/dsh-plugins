@@ -79,14 +79,24 @@ export const gitlabCard: CardProvider<GitLabPresentation> = {
 		}),
 	meta: (presentation) => {
 		const hasMeta =
-			presentation.query !== undefined || presentation.subject !== undefined;
+			presentation.query !== undefined ||
+			presentation.filters !== undefined ||
+			presentation.subject !== undefined;
 
 		if (!hasMeta) return null;
 
 		return (
 			<div className={styles.cardMeta}>
 				{presentation.query === undefined ? null : (
-					<code className={styles.query}>{presentation.query}</code>
+					<span
+						className={styles.caption}
+					>{`Showing: ${presentation.query}`}</span>
+				)}
+
+				{presentation.filters === undefined ? null : (
+					<span className={styles.caption}>
+						{`Filters: ${presentation.filters.join(" · ")}`}
+					</span>
 				)}
 
 				{presentation.subject === undefined ? null : (

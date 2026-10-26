@@ -59,9 +59,51 @@ export interface AuthDeps<
 	readonly spec: AuthSpec<TStatus, TFacts>;
 }
 
+/**
+ * The sentence a person can act on for a failed sign-in.
+ *
+ * The OAuth library's failures are precise for a log — a discovery URL, an HTTP
+ * status, a timeout — and unreadable in a settings card. The common ones get a
+ * sentence that names the next step; anything else keeps its own words because
+ * a wrong translation is worse than a technical truth.
+ */
+const signInFailure = (error: unknown): string => {
+	const message = errorText(error);
+
+	if (/sign-in cancelled|operation was aborted/iu.test(message))
+		return "Sign-in was cancelled.";
+
+	if (/sign-in timed out/iu.test(message))
+		return "Sign-in timed out. Try again.";
+
+	if (/no oauth metadata|incomplete oauth metadata/iu.test(message))
+		return "Could not reach the provider’s sign-in service. Check the endpoint and your network, then try again.";
+
+	if (/authorization denied: (.+)/iu.test(message)) {
+		const reason = /authorization denied: (.+)/iu.exec(message)?.[1] ?? "";
+
+		return reason === ""
+			? "The provider refused the sign-in."
+			: `The provider refused the sign-in (${reason}).`;
+	}
+
+	if (/token endpoint|token exchange/iu.test(message))
+		return "The provider refused the token exchange. Try signing in again.";
+
+	return message;
+};
+
 /** The sign-in operations every caller of an integration shares. */
 export interface IntegrationAuthFace<TStatus extends IntegrationStatus> {
 	signIn(): Promise<unknown>;
+	/**
+	 * Abort the attempt that is running, when the provider has a browser flow.
+	 *
+	 * A provider whose credential is typed has nothing in flight; leaving this
+	 * optional is what keeps the token and no-auth implementations from writing
+	 * an empty method they can never use.
+	 */
+	cancel?(): Promise<void>;
 	signOut(): Promise<void>;
 	connect(): Promise<boolean>;
 	getStatus(): Promise<TStatus>;
@@ -87,6 +129,7 @@ export class IntegrationAuth<
 
 		const controller = new AbortController();
 
+		state.controller = controller;
 		state.running = (async () => {
 			try {
 				const outcome = await ctx.authorization.begin({
@@ -118,21 +161,47 @@ export class IntegrationAuth<
 
 				return outcome;
 			} catch (error) {
-				state.error = errorText(error);
-				loggerOf(ctx).warn("%s sign-in failed: %s", spec.logTag, state.error);
+				state.error = signInFailure(error);
+				loggerOf(ctx).warn(
+					"%s sign-in failed: %s",
+					spec.logTag,
+					errorText(error),
+				);
 
 				return { status: "failed" as const };
 			} finally {
 				state.running = undefined;
+				state.controller = undefined;
 			}
 		})();
 
 		return state.running;
 	}
 
+	/**
+	 * Stop waiting for the browser and let the attempt settle as cancelled.
+	 *
+	 * The flow rejects its loopback promise on the signal, so `signIn` reaches its
+	 * own catch and clears `running`; waiting for it here means the card never
+	 * reports "cancelled" while the attempt is still holding the loopback port.
+	 */
+	async cancel(): Promise<void> {
+		const { state } = this.deps;
+		const controller = state.controller;
+
+		if (controller === undefined || controller.signal.aborted) return;
+
+		controller.abort();
+		await state.running?.catch(() => undefined);
+	}
+
 	/** Forget the sign-in and withdraw every published tool. */
 	async signOut(): Promise<void> {
 		const { ctx, state, store, bridge } = this.deps;
+
+		// A user who signs out while the browser flow is still open means it; stop
+		// waiting for the callback before the credential and its tools go away.
+		await this.cancel();
 
 		try {
 			ctx.authorization.cancel(store.credentialKey);
@@ -198,7 +267,10 @@ export class IntegrationAuth<
 	/** The line the command and any notice show for a sign-in in progress. */
 	loginMessage(status: TStatus): string {
 		if (status.notice?.url !== undefined)
-			return `${status.notice.message} ${status.notice.url}`;
+			return (
+				`${status.notice.message}\n` +
+				`If your browser did not open, visit ${status.notice.url}`
+			);
 
 		return (
 			status.notice?.message ??

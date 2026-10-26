@@ -17,6 +17,10 @@ import type { AtlassianStatus } from "../../shared/status";
 /** The command's name, without the leading slash. */
 export const COMMAND_NAME = "atlassian";
 
+/** One sentence about the site this installation works with. */
+const describe = (status: AtlassianStatus): string =>
+	status.siteUrl === null ? "" : `Site: ${status.siteUrl}.`;
+
 /**
  * Build the handler the command registers.
  * @param auth - the one implementation of sign-in state.
@@ -25,7 +29,7 @@ export const createCommandHandler = (
 	auth: IntegrationAuthFace<AtlassianStatus>,
 ): ((invocation: { rawInput?: unknown }) => Promise<CommandResult>) => {
 	return createIntegrationCommand<AtlassianStatus>(
-		{ name: COMMAND_NAME, label: "Atlassian" },
+		{ name: COMMAND_NAME, label: "Atlassian", describe },
 		auth,
 	);
 };

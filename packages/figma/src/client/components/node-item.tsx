@@ -42,6 +42,7 @@ export const FigmaNodeItem = ({ node }: Props) => (
 				{ label: "Variables", value: node.tokenCount },
 				{ label: "Children", value: node.childCount },
 				{ label: "Component", value: node.component },
+				{ label: "Source", value: node.source },
 			]}
 		/>
 	</li>

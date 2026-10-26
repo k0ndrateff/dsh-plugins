@@ -21,16 +21,22 @@ const ACTIONS = ["status", "login", "logout", "sync"] as const;
 
 type Action = (typeof ACTIONS)[number];
 
-/** Which action a raw input names; anything else is the status. */
-const parseAction = (rawInput: unknown): Action => {
+/**
+ * Which action a raw input names.
+ * @returns the action, `undefined` for a word that is not one, and the status
+ *   for an input that names nothing.
+ */
+const parseAction = (rawInput: unknown): Action | undefined => {
 	const first =
 		String(rawInput ?? "")
 			.trim()
 			.split(/\s+/u)[0] ?? "";
 
+	if (first === "") return "status";
+
 	return (ACTIONS as readonly string[]).includes(first)
 		? (first as Action)
-		: "status";
+		: undefined;
 };
 
 /**
@@ -42,6 +48,16 @@ export const createCommandHandler = (
 ): ((invocation: { rawInput?: unknown }) => Promise<CommandResult>) => {
 	return async ({ rawInput }) => {
 		const action = parseAction(rawInput);
+
+		if (action === undefined)
+			return {
+				kind: "error",
+				text: `"${
+					String(rawInput ?? "")
+						.trim()
+						.split(/\s+/u)[0] ?? ""
+				}" is not a /figma action; use ${ACTIONS.join(", ")}.`,
+			};
 
 		try {
 			if (action === "login")

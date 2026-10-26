@@ -28,6 +28,50 @@ export interface Answer<T> {
 	readonly total?: number;
 }
 
+/**
+ * One answer whose body may be JSON, text, or bytes.
+ *
+ * `gitlab_read` is the plugin's generic GET, and some of the endpoints it covers
+ * answer plain text — a repository file's raw contents, a job's trace — rather
+ * than JSON. The caller needs to know which it got before it prints anything.
+ */
+export interface RawAnswer {
+	/** The body decoded as JSON when it is JSON, and its text otherwise. */
+	readonly value: unknown;
+	/** Whether the body was JSON. */
+	readonly isJson: boolean;
+	/** What GitLab said it was sending, for the caller's own report. */
+	readonly contentType: string;
+	/** The body as text, for a text answer or a cut-down JSON one. */
+	readonly text: string;
+	/** Whether the body is binary and cannot be shown as text. */
+	readonly isBinary: boolean;
+	/** The `x-total` header, when the endpoint reports one. */
+	readonly total?: number;
+	/** The page GitLab said it answered, when it said one. */
+	readonly page?: number;
+	/** The next page's number, when GitLab names one. */
+	readonly nextPage?: number;
+}
+
+/** A content type whose body is bytes rather than something a model can read. */
+const BINARY_TYPE =
+	/^(?:image|audio|video)\/|application\/(?:octet-stream|zip|pdf|gzip)/iu;
+
+/** The reason inside an unknown thrown value, as a plain sentence. */
+const reasonOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
+
+/** One positive integer header, when it is a positive integer. */
+function positiveHeader(response: Response, name: string): number | undefined {
+	const raw = response.headers.get(name);
+	if (raw === null || raw.trim() === "") return undefined;
+
+	const value = Number(raw);
+
+	return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 /** Everything the client needs, wired once at apply time. */
 export interface ApiDeps {
 	readonly config: GitLabConfig;
@@ -66,6 +110,72 @@ export class GitLabApi {
 		return {
 			value: (await response.json()) as T,
 			...(total !== undefined && Number.isFinite(total) ? { total } : {}),
+		};
+	}
+
+	/**
+	 * Read one endpoint without assuming its body is JSON.
+	 *
+	 * The generic read tool promises any GET, and not every GET answers JSON: a
+	 * repository file's raw contents and a job's trace are text, an artifact is
+	 * bytes. Decoding all of them through `response.json()` was what turned a
+	 * perfectly good text answer into a parser failure.
+	 * @param path - the API path.
+	 * @param params - query parameters; undefined values are left out.
+	 * @returns the decoded body, the content type, and the paging headers.
+	 */
+	async read(
+		path: string,
+		params?: Readonly<Record<string, Param>>,
+	): Promise<RawAnswer> {
+		const response = await this.request("GET", path, params);
+		const contentType = response.headers.get("content-type") ?? "";
+		const binary = BINARY_TYPE.test(contentType);
+
+		// An artifact can be megabytes of bytes a model cannot read; cancel it rather
+		// than downloading it only to report its type.
+		if (binary) {
+			await response.body?.cancel().catch(() => undefined);
+
+			return {
+				value: "",
+				isJson: false,
+				contentType,
+				text: "",
+				isBinary: true,
+				...(positiveHeader(response, "x-total") === undefined
+					? {}
+					: { total: positiveHeader(response, "x-total") }),
+			};
+		}
+
+		const text = await response.text();
+		const page = positiveHeader(response, "x-page");
+		const nextPage = positiveHeader(response, "x-next-page");
+		const total = positiveHeader(response, "x-total");
+		const json = /json/iu.test(contentType) || /^\s*[[{]/u.test(text);
+
+		let value: unknown = text;
+		let isJson = false;
+
+		if (json) {
+			try {
+				value = JSON.parse(text) as unknown;
+				isJson = true;
+			} catch {
+				// A body that only looks like JSON is text, and is reported as such.
+			}
+		}
+
+		return {
+			value,
+			isJson,
+			contentType,
+			text,
+			isBinary: false,
+			...(total === undefined ? {} : { total }),
+			...(page === undefined ? {} : { page }),
+			...(nextPage === undefined ? {} : { nextPage }),
 		};
 	}
 
@@ -164,20 +274,44 @@ export class GitLabApi {
 			if (value !== undefined) url.searchParams.set(name, String(value));
 		}
 
-		const response = await fetch(url, {
-			method,
-			headers: {
-				accept: "application/json",
-				"private-token": token,
-				...(body === undefined ? {} : { "content-type": "application/json" }),
-			},
-			...(body === undefined ? {} : { body: JSON.stringify(body) }),
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-		});
+		const response = await this.requestOnce(url, method, token, body);
 
 		if (!response.ok) throw await this.failureOf(response);
 
 		return response;
+	}
+
+	/** One fetch, with a network failure said as one. */
+	private async requestOnce(
+		url: URL,
+		method: string,
+		token: string,
+		body: unknown,
+	): Promise<Response> {
+		try {
+			return await fetch(url, {
+				method,
+				headers: {
+					accept: "application/json",
+					"private-token": token,
+					...(body === undefined ? {} : { "content-type": "application/json" }),
+				},
+				...(body === undefined ? {} : { body: JSON.stringify(body) }),
+				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+			});
+		} catch (error) {
+			const seconds = REQUEST_TIMEOUT_MS / 1000;
+			const timeout =
+				(error instanceof Error &&
+					(error.name === "TimeoutError" || error.name === "AbortError")) ||
+				/timed? ?out|abort/iu.test(reasonOf(error));
+
+			throw new Error(
+				timeout
+					? `GitLab did not answer ${method} ${url.pathname} within ${seconds} s; the request timed out. The same call can be retried.`
+					: `Could not reach GitLab at ${url.origin} (${method} ${url.pathname}): ${reasonOf(error)}. Check the network or VPN, then retry — the same call can be retried.`,
+			);
+		}
 	}
 
 	/** GitLab's own words about a refusal, as one sentence. */

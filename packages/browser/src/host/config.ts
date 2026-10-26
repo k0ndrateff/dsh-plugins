@@ -73,21 +73,21 @@ export const Config = z.object({
 		.default(false)
 		.volatile()
 		.description(
-			"Show the browser window instead of running headless. Takes effect when that session's browser starts.",
+			"Show the browser window instead of running headless. Applies the next time this conversation's browser starts.",
 		),
 	chromeProfile: z
 		.string()
 		.default("")
 		.volatile()
 		.description(
-			"Reuse a real Chrome profile, by name or path, so the browser starts signed in. Empty means the plugin's own throwaway profile.",
+			"Reuse a real Chrome profile, by name or path, so the browser starts signed in. Risk: the agent can then see and change every site you are already signed in to. Empty means the plugin's own throwaway profile. Applies the next time this conversation's browser starts.",
 		),
 	allowedDomains: z
 		.array(z.string())
 		.default([])
 		.volatile()
 		.description(
-			"Domain patterns the CLI itself allows, such as example.com or *.example.com. Empty means no restriction; the CLI enforces the list when it starts.",
+			"Domain patterns the CLI itself allows, such as example.com or *.example.com. Empty means no restriction. Applies the next time this conversation's browser starts.",
 		),
 	streamQuality: z
 		.natural()
@@ -96,7 +96,7 @@ export const Config = z.object({
 		.default(STREAM_QUALITY)
 		.volatile()
 		.description(
-			"JPEG quality of the live view, 1 to 100. Higher is sharper and costlier; 60 is about 31 KB a frame at 1280 wide.",
+			"JPEG quality of the live view, 1 to 100. Higher is sharper and costlier; 60 is about 31 KB a frame at 1280 wide. Applies the next time this conversation's browser starts.",
 		),
 	streamMaxWidth: z
 		.natural()
@@ -105,7 +105,7 @@ export const Config = z.object({
 		.default(STREAM_MAX_WIDTH)
 		.volatile()
 		.description(
-			"The widest frame the live view encodes, in pixels. Narrower viewports are never enlarged.",
+			"The widest frame the live view encodes, in pixels. Narrower viewports are never enlarged. Applies the next time this conversation's browser starts.",
 		),
 	streamMaxHeight: z
 		.natural()
@@ -113,7 +113,9 @@ export const Config = z.object({
 		.max(2_160)
 		.default(STREAM_MAX_HEIGHT)
 		.volatile()
-		.description("The tallest frame the live view encodes, in pixels."),
+		.description(
+			"The tallest frame the live view encodes, in pixels. Applies the next time this conversation's browser starts.",
+		),
 	streamMaxFps: z
 		.natural()
 		.min(1)
@@ -121,7 +123,7 @@ export const Config = z.object({
 		.default(STREAM_MAX_FPS)
 		.volatile()
 		.description(
-			"The most frames per second one open panel asks the screencast for.",
+			"The most frames per second one open panel asks the screencast for. Applies the next time the panel connects.",
 		),
 });
 

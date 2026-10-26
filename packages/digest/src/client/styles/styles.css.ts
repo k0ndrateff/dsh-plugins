@@ -99,6 +99,10 @@ export const days = style({
 	alignItems: "center",
 	gap: "12px",
 	flexWrap: "wrap",
+	margin: 0,
+	padding: 0,
+	border: "none",
+	minWidth: 0,
 });
 
 /** One block of the settings card, with its own heading. */

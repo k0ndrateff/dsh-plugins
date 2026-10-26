@@ -72,12 +72,16 @@ export interface NodePanel {
 	readonly screenshot: string | null;
 	/** The variables the node uses. */
 	readonly tokens: readonly FigmaToken[];
+	/** Why the variables read failed, when it did; absence means "read". */
+	readonly tokensError?: string;
 	/** Whether the node used more variables than the panel lists. */
 	readonly tokensTruncated: boolean;
 	/** How many variables the node uses in total. */
 	readonly tokenTotal: number;
 	/** The Code Connect mappings that name this node. */
 	readonly mappings: readonly FigmaMapping[];
+	/** Why the Code Connect read failed, when it did; absence means "read". */
+	readonly mappingsError?: string;
 	/** The node's direct children, for reading its structure. */
 	readonly children: readonly FigmaNode[];
 	/** Whether the node has more children than the panel lists. */
@@ -131,9 +135,11 @@ const nodePanel = object<NodePanelWire>({
 	node: required(node),
 	screenshot: required(screenshot),
 	tokens: required(list(token)),
+	tokensError: optional(nonEmptyString),
 	tokensTruncated: required(isTrue),
 	tokenTotal: optional(number),
 	mappings: required(list(mapping)),
+	mappingsError: optional(nonEmptyString),
 	children: required(list(node)),
 	childrenTruncated: required(isTrue),
 	childTotal: optional(number),

@@ -10,7 +10,8 @@
  * rather than one replayed from the session log — navigates the right Sidebar to
  * the node it settled on, so the picture is already there while the agent is
  * still working. A replayed call opens nothing: a page reload must not move the
- * user's panels.
+ * user's panels. A live call that passed `openPanel: false` does not open one
+ * either, so showing a card never silently replaces another integration's panel.
  */
 
 import {
@@ -22,6 +23,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { asFigmaPresentation } from "../../shared/meta";
+import { countText } from "../plural";
 import { openPanel } from "../sidebar/open";
 
 /** The node a preparing call asked for, as the arguments spell it. */
@@ -41,7 +43,7 @@ const summarize = (block: ToolRowBlock | undefined): string => {
 	const node = card.node;
 	const parts = [
 		`${node.type} ${node.width}×${node.height}`,
-		node.tokenCount === 0 ? undefined : `${node.tokenCount} variables`,
+		node.tokenCount === 0 ? undefined : countText(node.tokenCount, "variable"),
 		node.component,
 	].filter((part): part is string => part !== undefined);
 
@@ -71,6 +73,9 @@ const useOpenOnSettle = ({ phase, block }: ToolRowProps): void => {
 
 		if (!watched.current) return;
 		watched.current = false;
+
+		// The call may have asked not to move the panel; the card still appears.
+		if (blockArgs(block).openPanel === false) return;
 
 		const card = asFigmaPresentation(block?.meta);
 		if (card !== undefined) openPanel({ node: card.node.id });

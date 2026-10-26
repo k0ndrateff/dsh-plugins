@@ -17,6 +17,7 @@ import {
 	PROMPT_MARKER,
 	type ScheduleCatalogEntry,
 	type ScheduleCreateRequest,
+	TASK_PROMPT,
 } from "../src/host/schedule";
 import { defaultDigestSettings } from "../src/host/settings";
 import {
@@ -36,6 +37,8 @@ interface Held {
 class FakeSchedule {
 	readonly held: Held[] = [];
 	readonly deleted: string[] = [];
+	/** Whether the next catalog read answers the way a broken service does. */
+	failCatalog = false;
 	private next = 1;
 
 	async create(
@@ -57,6 +60,8 @@ class FakeSchedule {
 	}
 
 	async catalog(): Promise<readonly ScheduleCatalogEntry[]> {
+		if (this.failCatalog) throw new Error("the reminder catalog is locked");
+
 		return this.held.map((entry) => ({
 			id: entry.id,
 			title: entry.request.title,
@@ -261,9 +266,10 @@ test("a deployment without the service", async () => {
 			!(await schedule.bind("session-a", settings)),
 			"nothing is bound",
 		).toBe(true);
-		expect((await schedule.bound()).length === 0, "nothing is counted").toBe(
-			true,
-		);
+		expect(
+			(await schedule.bound()).entries.length === 0,
+			"nothing is counted",
+		).toBe(true);
 		expect(
 			(await schedule.rebindAll(settings)) === 0,
 			"re-timing is a no-op",
@@ -273,4 +279,88 @@ test("a deployment without the service", async () => {
 			"unbinding is a no-op",
 		).toBe(true);
 	}
+});
+
+test("a catalog nobody can read is not an empty one", async () => {
+	{
+		const service = new FakeSchedule();
+		const schedule = new DigestSchedule(contextWith(service));
+
+		service.failCatalog = true;
+
+		const read = await schedule.bound();
+
+		expect(
+			read.entries.length === 0 && read.error?.includes("catalog is locked"),
+			`the read says it failed rather than that nobody has a digest — ${JSON.stringify(read)}`,
+		).toBe(true);
+
+		const message = await schedule.rebindAll(defaultDigestSettings()).then(
+			() => "",
+			(error: unknown) => (error as Error).message,
+		);
+
+		expect(
+			message.includes("catalog is locked"),
+			`a re-time refuses instead of quietly re-timing nothing — ${message}`,
+		).toBe(true);
+	}
+});
+test("stopping every reminder at once", async () => {
+	{
+		const service = new FakeSchedule();
+		const schedule = new DigestSchedule(contextWith(service));
+		const settings = defaultDigestSettings();
+
+		await schedule.bind("session-a", settings);
+		await schedule.bind("session-b", settings);
+		await schedule.bind("session-c", settings);
+
+		const removed = await schedule.unbindAll();
+
+		expect(
+			removed === 3 && service.held.length === 0,
+			`every session's reminder is dropped — ${removed}`,
+		).toBe(true);
+		expect(
+			(await schedule.unbindAll()) === 0,
+			"and doing it again removes nothing",
+		).toBe(true);
+	}
+});
+test("a failure part-way through stopping them all says how far it got", async () => {
+	{
+		const service = new FakeSchedule();
+		const schedule = new DigestSchedule(contextWith(service));
+		const settings = defaultDigestSettings();
+
+		await schedule.bind("session-a", settings);
+		await schedule.bind("session-b", settings);
+
+		const original = service.delete.bind(service);
+		service.delete = async (request) => {
+			await original(request);
+
+			throw new Error("the reminder service went away");
+		};
+
+		const message = await schedule.unbindAll().then(
+			() => "",
+			(error: unknown) => (error as Error).message,
+		);
+
+		expect(
+			message.includes("stopped 0 of 2") && message.includes("went away"),
+			`the refusal counts what it managed before failing — ${message}`,
+		).toBe(true);
+	}
+});
+test("the reminder prompt asks for a digest, not a deliverable", async () => {
+	expect(
+		TASK_PROMPT.startsWith(PROMPT_MARKER) &&
+			!TASK_PROMPT.includes("present") &&
+			!TASK_PROMPT.toLowerCase().includes("daily") &&
+			TASK_PROMPT.includes("show the result"),
+		`the scheduled run cannot be read as "call the present tool", and is not called daily — ${TASK_PROMPT}`,
+	).toBe(true);
 });

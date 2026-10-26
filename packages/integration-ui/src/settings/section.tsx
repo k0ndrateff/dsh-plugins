@@ -21,7 +21,12 @@
  * account it works with — arrives as those facts.
  */
 
-import { Button, Input, StateDot } from "@deepseek-ai/dsh-client-ui-primitives";
+import {
+	Button,
+	Input,
+	Modal,
+	StateDot,
+} from "@deepseek-ai/dsh-client-ui-primitives";
 import type { IntegrationStatus } from "dsh-integration-host/status";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +44,8 @@ export interface SettingsApi<TStatus extends IntegrationStatus> {
 	status(): Promise<TStatus>;
 	/** Start a sign-in attempt; a token card has no flow to start. */
 	login?(): Promise<TStatus>;
+	/** Stop a running browser flow; a token card has nothing to stop. */
+	cancel?(): Promise<TStatus>;
 	/** Forget the stored credential and withdraw the published tools. */
 	logout(): Promise<TStatus>;
 	/** Verify the stored credential and re-publish the integration's tools. */
@@ -59,6 +66,10 @@ export interface TokenFieldSpec<TStatus extends IntegrationStatus> {
 	readonly placeholder: string;
 	/** Where the user gets one, in one sentence. */
 	readonly hint: string;
+	/** Where the user gets one, when the provider has a page for it. */
+	readonly hintUrl?: string;
+	/** The link's text, when it differs from "Open the token page". */
+	readonly hintLinkLabel?: string;
 	readonly saveLabel: string;
 	/** What the button that opens the field says once a credential is stored. */
 	readonly replaceLabel: string;
@@ -129,6 +140,29 @@ export type SettingsSectionSpec<TStatus extends IntegrationStatus> =
 	| TokenSection<TStatus>
 	| OpenSection<TStatus>;
 
+/** One instant as a person reads it, with the zone that makes it unambiguous. */
+const expiryText = (time: number): string =>
+	new Date(time).toLocaleString(undefined, {
+		dateStyle: "medium",
+		timeStyle: "short",
+		timeZoneName: "short",
+	});
+
+/** What a completed action says, so the card confirms it happened. */
+const doneText = (
+	key: string,
+	credentials: "browser" | "typed" | "none",
+): string => {
+	if (key === "login") return "Sign-in started.";
+	if (key === "logout")
+		return credentials === "typed" ? "Credential forgotten." : "Signed out.";
+	if (key === "save") return "Token saved.";
+	if (key === "sync") return "Connection checked.";
+	if (key === "cancel") return "Sign-in cancelled.";
+
+	return "Done.";
+};
+
 /** Human text for the connection state, for the tooltip and the dot. */
 const connectionState = (status: IntegrationStatus | null): ConnectionState => {
 	if (status?.inFlight === true) return "ongoing";
@@ -169,6 +203,12 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 		const [typed, setTyped] = useState("");
 		/** Whether the typed field is open on a card that already holds one. */
 		const [replacing, setReplacing] = useState(false);
+		/** Whether the typed credential is shown instead of masked. */
+		const [revealing, setRevealing] = useState(false);
+		/** Which destructive action is waiting for confirmation. */
+		const [confirming, setConfirming] = useState<"logout" | null>(null);
+		/** What the last completed action did, announced to the screen reader. */
+		const [flash, setFlash] = useState<string | null>(null);
 
 		const refresh = useCallback(async () => {
 			try {
@@ -204,8 +244,16 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 			return () => clearInterval(timer);
 		}, [status?.inFlight, refresh]);
 
+		useEffect(() => {
+			if (flash === null) return;
+
+			const timer = setTimeout(() => setFlash(null), 4000);
+
+			return () => clearTimeout(timer);
+		}, [flash]);
+
 		const act = useCallback(
-			async (key: string, action: () => Promise<TStatus>) => {
+			async (key: string, action: () => Promise<TStatus>, done?: string) => {
 				setPending(key);
 
 				try {
@@ -215,6 +263,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 					setStatus(next);
 					setFailure(null);
+					if (done !== undefined) setFlash(done);
 				} catch (error) {
 					if (!mounted.current) return;
 
@@ -243,7 +292,9 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						</div>
 
 						{failure === null ? null : (
-							<div className={styles.code}>{failure}</div>
+							<div className={styles.code} role="alert">
+								{failure}
+							</div>
 						)}
 
 						<div className={styles.actions}>
@@ -285,7 +336,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 								{stateText(status, spec.credentials)}
 							</span>
 
-							{toolCount === 0 ? null : (
+							{status.connected !== true || toolCount === 0 ? null : (
 								<span>{`· ${toolCount} tool${toolCount === 1 ? "" : "s"}`}</span>
 							)}
 						</span>
@@ -301,7 +352,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 								: [
 										{
 											label: "Token",
-											value: `valid until ${new Date(expiry).toLocaleString()}`,
+											value: `valid until ${expiryText(expiry)}`,
 										},
 									]),
 						]}
@@ -309,40 +360,66 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 
 					{waiting ? (
 						<div className={styles.row}>
-							<StateDot state="ongoing" />
-
 							<span className={styles.caption}>
-								Waiting for you to approve the sign-in in your browser…
+								<StateDot state="ongoing" /> Waiting for you to approve the
+								sign-in in your browser…
 							</span>
+
+							{spec.api.cancel === undefined ? null : (
+								<Button
+									variant="ghost"
+									disabled={pending !== null}
+									onClick={() => {
+										const cancel = spec.api.cancel;
+
+										if (cancel !== undefined)
+											void act(
+												"cancel",
+												cancel,
+												doneText("cancel", spec.credentials),
+											);
+									}}
+								>
+									{label("cancel", "Cancel")}
+								</Button>
+							)}
 						</div>
 					) : null}
 
-					{status.notice?.url !== undefined ? (
+					{status.notice === null ? null : (
 						<div className={styles.row}>
 							<span className={styles.caption}>{status.notice.message}</span>
 
-							<a
-								className={styles.link}
-								href={status.notice.url}
-								target="_blank"
-								rel="noreferrer"
-							>
-								Open the sign-in page
-							</a>
+							{status.notice.url === undefined ? null : (
+								<a
+									className={styles.link}
+									href={status.notice.url}
+									target="_blank"
+									rel="noreferrer"
+								>
+									Open the sign-in page
+								</a>
+							)}
 						</div>
-					) : null}
+					)}
 
 					{status.error != null ? (
-						<div className={styles.row}>
+						<div className={styles.row} role="alert">
 							<span className={styles.error}>{status.error}</span>
 						</div>
 					) : null}
 
+					{flash === null ? null : (
+						<div className={styles.flash} role="status" aria-live="polite">
+							{flash}
+						</div>
+					)}
+
 					{showField && field !== undefined ? (
 						<>
-							<div className={styles.field}>
+							<div className={styles.fieldRow}>
 								<Input
-									type="password"
+									type={revealing ? "text" : "password"}
 									value={typed}
 									placeholder={field.placeholder}
 									aria-label={field.label}
@@ -351,9 +428,33 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 										setTyped(event.target.value);
 									}}
 								/>
+
+								<Button
+									variant="ghost"
+									disabled={pending !== null || typed === ""}
+									onClick={() => setRevealing((shown) => !shown)}
+								>
+									{revealing ? "Hide" : "Show"}
+								</Button>
 							</div>
 
-							<div className={styles.caption}>{field.hint}</div>
+							<div className={styles.caption}>
+								{field.hint}
+
+								{field.hintUrl === undefined ? null : (
+									<>
+										{" "}
+										<a
+											className={styles.link}
+											href={field.hintUrl}
+											target="_blank"
+											rel="noreferrer"
+										>
+											{field.hintLinkLabel ?? "Open the token page"}
+										</a>
+									</>
+								)}
+							</div>
 						</>
 					) : null}
 
@@ -363,7 +464,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 								<Button
 									variant="outline"
 									disabled={pending !== null}
-									onClick={() => void act("logout", spec.api.logout)}
+									onClick={() => setConfirming("logout")}
 								>
 									{label("logout", "Sign out")}
 								</Button>
@@ -371,7 +472,13 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 								<Button
 									variant="primary"
 									disabled={pending !== null || waiting}
-									onClick={() => void act("login", spec.api.login)}
+									onClick={() =>
+										void act(
+											"login",
+											spec.api.login,
+											doneText("login", spec.credentials),
+										)
+									}
 								>
 									{label("login", waiting ? "Waiting…" : spec.signInLabel)}
 								</Button>
@@ -428,7 +535,7 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 									<Button
 										variant="ghost"
 										disabled={pending !== null}
-										onClick={() => void act("logout", spec.api.logout)}
+										onClick={() => setConfirming("logout")}
 									>
 										{label("logout", field.clearLabel)}
 									</Button>
@@ -445,6 +552,50 @@ export const createSettingsSection = <TStatus extends IntegrationStatus>(
 						</Button>
 					</div>
 				</div>
+
+				<Modal
+					open={confirming !== null}
+					onClose={() => setConfirming(null)}
+					closeLabel="Close"
+					title={
+						spec.credentials === "typed"
+							? `Forget the ${spec.title} credential?`
+							: `Sign out of ${spec.title}?`
+					}
+					description={
+						spec.credentials === "typed"
+							? "The stored token is removed and the integration’s tools stop working until another one is saved."
+							: "The stored credential is removed and the integration’s tools stop working until you sign in again."
+					}
+					footer={
+						<>
+							<Button
+								variant="ghost"
+								disabled={pending !== null}
+								onClick={() => setConfirming(null)}
+							>
+								Cancel
+							</Button>
+
+							<Button
+								variant="primary"
+								disabled={pending !== null}
+								onClick={() => {
+									setConfirming(null);
+									void act(
+										"logout",
+										spec.api.logout,
+										doneText("logout", spec.credentials),
+									);
+								}}
+							>
+								{spec.credentials === "typed"
+									? (spec.token?.clearLabel ?? "Forget token")
+									: "Sign out"}
+							</Button>
+						</>
+					}
+				/>
 			</section>
 		);
 	};

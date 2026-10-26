@@ -12,17 +12,27 @@ import { BROWSER_READ_TOOL } from "../../shared/tools";
 import { fieldOf, isList, isText, modelData } from "../envelope";
 import { bound } from "../text";
 import { type BrowserToolDeps, runForSession } from "./deps";
+import { failureOf } from "./failure";
 
 /** The three logs this tool reads. */
 const KINDS = ["text", "console", "errors"] as const;
 
 type Kind = (typeof KINDS)[number];
 
-/** What the answer says when the log is empty. */
+/**
+ * What the answer says when the log is empty.
+ *
+ * "The page has not thrown" is the one sentence this tool must not say on its
+ * own: a page that catches its own failures logs them to the console instead, so
+ * `errors` being quiet is not the same as everything working. The empty answers
+ * point at the other log and say the two are read together.
+ */
 const EMPTY: Record<Kind, string> = {
 	text: "The page has no readable text.",
-	console: "The console is empty.",
-	errors: "The page has not thrown.",
+	console:
+		"The console is empty. The page may still have thrown: read `errors` as well.",
+	errors:
+		"No uncaught errors were recorded. Errors the page catches and logs itself appear in `console` instead — read that too after a change.",
 };
 
 /** The arguments the model may send, after validation. */
@@ -41,6 +51,19 @@ const entryLines = (
 			? render(entry as Record<string, unknown>)
 			: [],
 	);
+
+/** Where one error happened, as `url:line:column` with the parts it has. */
+const locationOf = (record: Record<string, unknown>): string => {
+	const url =
+		typeof record.url === "string" && record.url !== "" ? record.url : "";
+	const line = typeof record.line === "number" ? record.line : undefined;
+	const column = typeof record.column === "number" ? record.column : undefined;
+
+	if (line === undefined && column === undefined) return url === "" ? "" : url;
+	if (url === "") return `line ${String(line ?? "?")}:${String(column ?? "?")}`;
+
+	return `${url}:${String(line ?? "?")}:${String(column ?? "?")}`;
+};
 
 /**
  * A document's lines, without the blank ones at either end.
@@ -74,8 +97,10 @@ class ReadTool {
 		name: this.TOOL_NAME,
 		description:
 			"Read what the page says and what it logged: its text, the browser console, or the " +
-			"errors the page threw. Use it after a change to see whether the UI still renders and " +
-			"whether the console reports anything the change introduced.",
+			"uncaught errors the page threw. Use it after a change to see whether the UI still " +
+			"renders and whether the console reports anything the change introduced. `errors` " +
+			"only sees uncaught failures: many frameworks catch an error and log it, so read " +
+			"`console` too — a quiet `errors` does not mean a clean page.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -121,7 +146,7 @@ class ReadTool {
 			const args = this.parseArgs(rawArgs);
 			const { outcome } = await runForSession(deps, exec, this.argv(args));
 
-			if (!outcome.ok) throw new Error(outcome.error);
+			if (!outcome.ok) throw failureOf(outcome);
 
 			const lines = this.lines(args.what, modelData(outcome.data));
 			const whole = lines.join("\n");
@@ -183,9 +208,14 @@ class ReadTool {
 		return entryLines(fieldOf(data, "errors", isList) ?? [], (record) => {
 			const text = typeof record.text === "string" ? record.text : "";
 
-			return text === ""
-				? []
-				: text.split("\n").filter((line) => line.trim() !== "");
+			if (text === "") return [];
+
+			const lines = text.split("\n").filter((line) => line.trim() !== "");
+			const where = locationOf(record);
+
+			// Where the error happened is the half of the answer the model acts on;
+			// the CLI reports it beside the text and this tool used to drop it.
+			return where === "" ? lines : [...lines, `  at ${where}`];
 		});
 	}
 }

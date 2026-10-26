@@ -98,7 +98,7 @@ const mouseEvent = (
 	x: Math.round(input.x),
 	y: Math.round(input.y),
 	button: input.button,
-	clickCount,
+	clickCount: input.clickCount ?? clickCount,
 	modifiers: bitsOf(input.modifiers),
 });
 

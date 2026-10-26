@@ -2,17 +2,22 @@
  * The checks card: one run, under the closing text of its turn.
  *
  * Each check keeps its own line and, beneath it, the places it complained about.
- * Clicking one opens that file in the harness's own panel. The file opens at its
- * beginning: this seat's `openFile` takes a path and nothing more, so a position
- * would be dropped — the tool row, inside the tool group, sits in the seat that
- * also takes a line.
+ * Clicking one opens that file in the harness's own panel, and the panel opens
+ * at its beginning: this seat's `openFile` takes a path and nothing more, so a
+ * position would be dropped. The card therefore promises only the file, shows
+ * the position as text, and offers a copy of `path:line` — the reader who wants
+ * the line in another tool gets it exactly, and the one who clicks is not
+ * surprised. A warning is marked as one, and a cancelled run as cancelled: both
+ * are drawn differently from a failure, because the reader's next move differs.
  *
  * The card's chrome — its heading, its count, and the list its checks sit in —
  * belongs to `dsh-integration-ui`; what is devkit's is what one check looks like.
  */
 
+import { writeClipboard } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
 import type { CardProvider } from "dsh-integration-ui";
+import { useState } from "react";
 import {
 	type CheckFailure,
 	type CheckResult,
@@ -20,10 +25,11 @@ import {
 	checkLabel,
 	durationLabel,
 	locationLabel,
+	MAX_CARD_FAILURES,
 } from "../../shared/checks";
 import * as styles from "../styles/styles.css";
 
-/** How many failures one card lists; the rest are counted. */
+/** How many failures one card lists before it offers the rest. */
 const CARD_FAILURES = 20;
 
 /** What the turn-tail seat hands a card that needs more than its payload. */
@@ -38,26 +44,53 @@ const Failure = ({
 	openFile: (path: string) => void;
 }) => {
 	const file = failure.file;
+	const where = locationLabel(failure);
+	const severity =
+		failure.severity === "warning" ? (
+			<span className={styles.severityWarning}>warning</span>
+		) : (
+			<span className={styles.severityError}>error</span>
+		);
+	const rule =
+		failure.rule === undefined ? null : (
+			<span className={styles.rule}>{failure.rule}</span>
+		);
 
 	if (file === undefined)
 		return (
 			<span className={styles.failureStatic}>
+				{severity}
+				{rule}
 				<span className={styles.message}>{failure.message}</span>
 			</span>
 		);
 
-	const where = locationLabel(failure);
-
 	return (
-		<button
-			type="button"
-			className={styles.failure}
-			title={`Open ${where ?? file}`}
-			onClick={() => openFile(file)}
-		>
-			<span className={styles.where}>{where}</span>
-			<span className={styles.message}>{failure.message}</span>
-		</button>
+		<span className={styles.failureStatic}>
+			{severity}
+			{rule}
+
+			<button
+				type="button"
+				className={styles.failure}
+				title={`Open ${file}`}
+				onClick={() => openFile(file)}
+			>
+				<span className={styles.where}>{where}</span>
+				<span className={styles.message}>{failure.message}</span>
+			</button>
+
+			{where === undefined ? null : (
+				<button
+					type="button"
+					className={styles.copy}
+					title={`Copy ${where}`}
+					onClick={() => void writeClipboard(where)}
+				>
+					Copy
+				</button>
+			)}
+		</span>
 	);
 };
 
@@ -75,40 +108,72 @@ const Run = ({
 }: {
 	run: CheckResult;
 	openFile: (path: string) => void;
-}) => (
-	<li className={styles.run}>
-		<div className={styles.runHead}>
-			<span
-				className={run.status === "passed" ? styles.markOk : styles.markBad}
-			>
-				{run.status === "passed" ? "✓" : "✗"}
-			</span>
-			<span className={styles.runName}>{run.name}</span>
-			<span className={styles.runLabel}>{checkLabel(run)}</span>
-			<span className={styles.duration}>{durationLabel(run.durationMs)}</span>
-		</div>
+}) => {
+	const [expanded, setExpanded] = useState(false);
+	const shown = expanded ? run.failures : run.failures.slice(0, CARD_FAILURES);
+	const total = run.failureTotal ?? run.failures.length;
+	const kept = run.failures.length;
 
-		{run.failures.length === 0 ? null : (
-			<ul className={styles.failures}>
-				{run.failures.slice(0, CARD_FAILURES).map((failure, index) => (
-					<li key={`${failure.file ?? ""}:${failure.line ?? 0}:${index}`}>
-						<Failure failure={failure} openFile={openFile} />
-					</li>
-				))}
-				{run.failures.length > CARD_FAILURES ||
-				(run.failureTotal ?? run.failures.length) > CARD_FAILURES ? (
-					<li className={styles.more}>
-						… {(run.failureTotal ?? run.failures.length) - CARD_FAILURES} more
-					</li>
-				) : null}
-			</ul>
-		)}
+	return (
+		<li className={styles.run}>
+			<div className={styles.runHead}>
+				<span
+					className={
+						run.status === "passed"
+							? styles.markOk
+							: run.status === "cancelled"
+								? styles.markCancelled
+								: styles.markBad
+					}
+				>
+					{run.status === "passed"
+						? "✓"
+						: run.status === "cancelled"
+							? "−"
+							: "✗"}
+				</span>
+				<span className={styles.runName}>{run.name}</span>
+				<span className={styles.runLabel}>{checkLabel(run)}</span>
+				<span className={styles.duration}>{durationLabel(run.durationMs)}</span>
+			</div>
 
-		{run.status === "passed" || run.output === undefined ? null : (
-			<pre className={styles.output}>{run.output}</pre>
-		)}
-	</li>
-);
+			{run.failures.length === 0 ? null : (
+				<ul className={styles.failures}>
+					{shown.map((failure, index) => (
+						<li key={`${failure.file ?? ""}:${failure.line ?? 0}:${index}`}>
+							<Failure failure={failure} openFile={openFile} />
+						</li>
+					))}
+
+					{expanded || total <= CARD_FAILURES ? null : (
+						<li>
+							<button
+								type="button"
+								className={styles.showAll}
+								onClick={() => {
+									setExpanded(true);
+								}}
+							>
+								{`Show all ${Math.min(total, kept)}${total > kept ? ` of ${total}` : ""}`}
+							</button>
+						</li>
+					)}
+
+					{expanded && total > kept ? (
+						<li className={styles.more}>
+							… {total - kept} more that the card does not keep (
+							{MAX_CARD_FAILURES} is its cap)
+						</li>
+					) : null}
+				</ul>
+			)}
+
+			{run.status === "passed" || run.output === undefined ? null : (
+				<pre className={styles.output}>{run.output}</pre>
+			)}
+		</li>
+	);
+};
 
 /** How one run of checks draws itself. */
 export const checksCard: CardProvider<ChecksCard, TurnTailOwner> = {
@@ -119,10 +184,21 @@ export const checksCard: CardProvider<ChecksCard, TurnTailOwner> = {
 			(check) => check.status === "passed",
 		).length;
 
-		return `${passed} of ${run.checks.length} passed`;
+		const cancelled = run.checks.filter(
+			(check) => check.status === "cancelled",
+		).length;
+		const base = `${passed} of ${run.checks.length} passed`;
+
+		return cancelled === 0 ? base : `${base} · ${cancelled} cancelled`;
 	},
 	length: (run) => run.checks.length,
 	layout: () => "list",
+	// The directory matters in a monorepo: the session's project may be one
+	// package, and "Project checks" alone does not say whose.
+	meta: (run) =>
+		run.project === undefined ? null : (
+			<span className={styles.caption}>{run.project}</span>
+		),
 	items: (run, owner) =>
 		run.checks.map((check) => (
 			<Run key={check.name} run={check} openFile={owner.openFile} />

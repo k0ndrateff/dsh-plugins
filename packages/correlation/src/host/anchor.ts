@@ -7,6 +7,12 @@
  * key — and refuses anything it cannot place, with a sentence saying what was
  * expected instead of a chain that silently starts from the wrong object.
  *
+ * An integration may resolve several kinds but *start* from one of them: naming
+ * a GitLab merge request is the usual way in, while a commit sha is the way in
+ * when the question is "which merge request contains this commit". So the read
+ * tries the provider's entry kind first and then every other kind it resolves,
+ * and a refusal lists them all.
+ *
  * The rules are about the *shape* of an identifier, never about a provider: a
  * link is trimmed to its last path segment because that is where an id usually
  * lives, not because any particular site is known here.
@@ -43,6 +49,12 @@ const READERS: Record<CorrelationKind, (text: string) => CorrelationRef> = {
 
 		if (id === "") throw new Error(`"${text}" names no issue`);
 
+		// A sha is a reference to a commit, and the walker can follow it once it
+		// has started from the error; starting an error chain from one finds
+		// nothing and looks like an outage.
+		if (SHA.test(id))
+			throw new Error(`"${text}" is a commit sha, not an issue id`);
+
 		return { kind: "error", id };
 	},
 	commit: (text) => {
@@ -77,19 +89,51 @@ const READERS: Record<CorrelationKind, (text: string) => CorrelationRef> = {
 	},
 };
 
+/** What one kind's identifiers look like, as a refusal names them. */
+const ACCEPTS: Readonly<Record<CorrelationKind, string>> = {
+	error: "a Sentry issue short id or link",
+	commit: "a commit sha",
+	change: "a merge request as group/project!12",
+	task: "a tracker key such as DEV-5977",
+};
+
+/** The integration a chain starts from, as the registry describes it. */
+export interface AnchorSpec {
+	/** The provider's name, as the user typed it. */
+	readonly provider: string;
+	/** The kind a chain normally starts from for this provider. */
+	readonly entry: CorrelationKind;
+	/** Every kind this provider can resolve, which includes its entry. */
+	readonly resolves: readonly CorrelationKind[];
+}
+
 /**
  * Read the reference a chain starts from.
- * @param kind - the entry kind of the provider the user named.
+ * @param spec - the integration the user named, and what it can start from.
  * @param text - what the user typed.
- * @throws when the text is not a spelling of that kind.
+ * @throws when the text is not a spelling this integration starts from; the
+ *   message names the spellings it does accept.
  */
-export const anchorFor = (
-	kind: CorrelationKind,
-	text: string,
-): CorrelationRef => {
+export const anchorFor = (spec: AnchorSpec, text: string): CorrelationRef => {
 	const trimmed = text.trim();
 
 	if (trimmed === "") throw new Error("the reference is empty");
 
-	return READERS[kind](trimmed);
+	const kinds = [
+		spec.entry,
+		...spec.resolves.filter((kind) => kind !== spec.entry),
+	];
+	let refusal = "";
+
+	for (const kind of kinds) {
+		try {
+			return READERS[kind](trimmed);
+		} catch (error) {
+			refusal = refusal === "" ? (error as Error).message : refusal;
+		}
+	}
+
+	throw new Error(
+		`${spec.provider} starts a chain from ${kinds.map((kind) => ACCEPTS[kind]).join(" or ")}; ${refusal}`,
+	);
 };

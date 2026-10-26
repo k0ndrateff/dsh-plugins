@@ -9,7 +9,14 @@
  * chip nobody clicks must not cost a frame.
  */
 
-import { boolean, object, required, string } from "dsh-integration-host/shape";
+import {
+	boolean,
+	literal,
+	object,
+	oneOf,
+	required,
+	string,
+} from "dsh-integration-host/shape";
 import { useEffect, useRef, useState } from "react";
 import { type PanelState, stateUrl } from "../../shared/panel";
 
@@ -20,7 +27,13 @@ export const STATE_POLL_MS = 4_000;
 const CLOSED_POLL_MS = 15_000;
 
 /** What the chip knows before the first answer: nothing yet. */
-const CLOSED: PanelState = { open: false, url: "", title: "" };
+const CLOSED: PanelState = {
+	phase: "none",
+	open: false,
+	url: "",
+	title: "",
+	connected: false,
+};
 
 /**
  * Read one answer from the state route.
@@ -28,9 +41,20 @@ const CLOSED: PanelState = { open: false, url: "", title: "" };
  * @returns the state, or undefined when it is not one this half reads.
  */
 export const asPanelState = object<PanelState>({
+	phase: required(
+		oneOf<PanelState["phase"]>(
+			literal("none"),
+			literal("starting"),
+			literal("live"),
+			literal("closed"),
+			literal("paused"),
+			literal("unreachable"),
+		),
+	),
 	open: required(boolean),
 	url: required(string),
 	title: required(string),
+	connected: required(boolean),
 });
 
 /**

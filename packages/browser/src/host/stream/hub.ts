@@ -2,7 +2,7 @@
  * One session's live view: the host's side of a panel.
  *
  * Exactly one connection watches a session's screencast, and every poll of the
- * panel is answered from what that connection last saw. Three decisions live here
+ * panel is answered from what that connection last saw. Four decisions live here
  * and nowhere else:
  *
  *  - the connection exists only while somebody is asking, and ends a while after
@@ -10,6 +10,9 @@
  *    not pay for them;
  *  - a session is watched only once a tool call has proved there is a browser in
  *    it, so opening a panel never starts one;
+ *  - a browser that is not on screen right now is a *state*, not an error: not
+ *    opened yet, closed, paused because nobody was looking, or reconnecting are
+ *    answered as neutral sentences, and only a failed connection is red;
  *  - the feed keeps the CLI's own pairs — a command line, then its outcome —
  *    plus what the person at the panel did, and only the last few, because a
  *    feed nobody scrolls is not a log.
@@ -19,8 +22,10 @@ import type {
 	PanelActivity,
 	PanelInput,
 	PanelPage,
+	PanelPhase,
 	PanelSnapshot,
 	PanelState,
+	PanelTab,
 } from "../../shared/panel";
 import { errorText } from "../text";
 import type { WirePeer } from "../wire/peer";
@@ -53,9 +58,30 @@ const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 500;
 const RETRY_CAP_MS = 8_000;
 
-/** What a reader is told when nothing has driven this session yet. */
-const NO_BROWSER_YET =
-	"this session has no browser yet: open a page with browser_open";
+/** How long a person's typing is collected into one feed line. */
+const TYPING_SETTLE_MS = 400;
+
+/** How long the host waits for the command a person's own action caused. */
+const ANNOUNCE_MS = 10_000;
+
+/** What a panel says when this conversation never opened a browser. */
+const NOTHING_OPEN =
+	"Nothing has been opened in this conversation's browser yet. The agent opens one when it needs a page.";
+
+/** What a panel says when the browser was closed on purpose. */
+const CLOSED =
+	"The browser was closed. Ask the agent to open a page when you need it again.";
+
+/** What a panel says while the host is connecting to a browser. */
+const CONNECTING = "Connecting to the browser…";
+
+/** What a panel says when the session claims a browser that is not running. */
+const NOT_RUNNING =
+	"No browser is running in this conversation right now. If the agent is still working, it opens one on its next page.";
+
+/** What a panel says when the idle connection was dropped and can come back. */
+const PAUSED =
+	"The live view paused while nobody was looking. It reconnects when the panel is shown again; the last picture and activity are kept below.";
 
 /** What one hub needs from the plugin. */
 export interface StreamHubDeps {
@@ -78,10 +104,18 @@ export interface StreamHubDeps {
 	readonly maxFps?: number | (() => number);
 }
 
+/** A person's action whose CLI command the feed should read as theirs. */
+interface Announced {
+	readonly action: string;
+	readonly text: string;
+	readonly until: number;
+}
+
 export class StreamHub {
 	private peer: WirePeer | undefined;
 	private idle: NodeJS.Timeout | undefined;
-	private retry: NodeJS.Timeout | undefined;
+	private retryTimer: NodeJS.Timeout | undefined;
+	private typingTimer: NodeJS.Timeout | undefined;
 	private attempts = 0;
 	private opening = false;
 	private closing = false;
@@ -89,9 +123,13 @@ export class StreamHub {
 	private generation = 0;
 	private watching = false;
 	private connected = false;
+	private phase: PanelPhase = "none";
+	private message = NOTHING_OPEN;
+	private error: string | undefined;
+	private paused = false;
 	private url = "";
 	private title = "";
-	private failure: string | undefined;
+	private tabs: PanelTab[] = [];
 	private frame: StreamFrame | undefined;
 	private page: PanelPage = { width: 0, height: 0 };
 	/** The window the last frame was taken in, for noticing a relayout. */
@@ -99,6 +137,10 @@ export class StreamHub {
 	private activity: PanelActivity[] = [];
 	/** What the person did and the agent has not been told yet. */
 	private pending: string[] = [];
+	/** The letters of the current burst of typing, or empty. */
+	private typing = "";
+	/** The person's actions whose CLI command the feed should read as theirs. */
+	private announced: Announced[] = [];
 	/** Commands whose outcome this feed can still place. */
 	private commanding = new Set<string>();
 
@@ -119,14 +161,42 @@ export class StreamHub {
 	markLive(): void {
 		this.watching = true;
 		this.attempts = 0;
-		this.failure = undefined;
+		this.error = undefined;
+		this.paused = false;
+
+		if (this.connected) {
+			this.phase = "live";
+			this.message = "";
+
+			return;
+		}
+
+		if (this.phase !== "starting") {
+			this.phase = "starting";
+			this.message = CONNECTING;
+		}
 	}
 
 	/** The browser was closed on purpose, so it is not worth looking for. */
 	markClosed(): void {
 		this.watching = false;
+		this.attempts = 0;
+		this.paused = false;
 		this.cancelRetry();
-		this.drop("this session's browser was closed");
+		this.flushTyping();
+		this.announced = [];
+		this.closePeer("the browser was closed");
+
+		this.connected = false;
+		this.phase = "closed";
+		this.message = CLOSED;
+		this.url = "";
+		this.title = "";
+		this.tabs = [];
+		this.frame = undefined;
+		this.page = { width: 0, height: 0 };
+		// The activity is kept on purpose: what happened before a close is still
+		// the answer to "what did the agent do" when the panel comes back.
 	}
 
 	/**
@@ -139,12 +209,16 @@ export class StreamHub {
 	touch(): void {
 		this.armIdle();
 
-		if (!this.watching) {
-			// A panel that opens before anything has driven this session is told so,
-			// rather than left to read an empty page as a blank.
-			if (this.failure === undefined) this.failure = NO_BROWSER_YET;
+		if (!this.watching) return;
 
-			return;
+		// The budget is spent and the panel already says so: polling must not turn
+		// that into a "Connecting…" that never connects. Retry is the way back.
+		if (this.attempts >= MAX_ATTEMPTS) return;
+
+		if (this.paused || this.phase === "none") {
+			this.paused = false;
+			this.phase = "starting";
+			this.message = CONNECTING;
 		}
 
 		void this.open();
@@ -154,12 +228,18 @@ export class StreamHub {
 	snapshot(): PanelSnapshot {
 		return {
 			session: this.deps.session,
+			phase: this.phase,
+			message: this.message,
 			connected: this.connected,
+			open: this.watching,
+			paused: this.paused,
 			url: this.url,
 			title: this.title,
-			...(this.failure === undefined || this.connected
-				? {}
-				: { error: this.failure }),
+			tabs: [...this.tabs],
+			...(this.error === undefined ? {} : { error: this.error }),
+			retryable:
+				this.watching &&
+				(this.phase === "none" || this.phase === "unreachable"),
 			seq: this.frame?.seq ?? 0,
 			page: this.page,
 			activity: [...this.activity],
@@ -183,16 +263,31 @@ export class StreamHub {
 		for (const message of wireMessagesOf(input))
 			peer.send(JSON.stringify(message));
 
-		const line = humanLineOf(input);
-
-		if (line !== undefined)
-			this.remember({ kind: "human", text: line, at: Date.now() });
-
-		const note = noteOf(input);
-
-		if (note !== undefined) this.note(note);
+		this.rememberHuman(input);
 
 		return true;
+	}
+
+	/**
+	 * Let the feed read the CLI's next command as the person's own.
+	 *
+	 * A navigation or a page size is run by the host as a CLI command, and the
+	 * screencast reports it like any other command — as if the agent had done it.
+	 * Announcing the action here lets the feed put the person's name on the line
+	 * instead.
+	 * @param action - the CLI action the next command will carry.
+	 * @param text - what the person's line says.
+	 */
+	announce(action: string, text: string): void {
+		this.announced = [
+			...this.announced,
+			{ action, text, until: Date.now() + ANNOUNCE_MS },
+		].slice(-8);
+	}
+
+	/** Forget announced actions that will never arrive. */
+	clearAnnouncements(): void {
+		this.announced = [];
 	}
 
 	/**
@@ -206,13 +301,43 @@ export class StreamHub {
 	}
 
 	/**
+	 * Try again after the retry budget ran out.
+	 *
+	 * Explicit rather than implicit on `touch()`: a panel that polls five times a
+	 * second must not turn a broken connection into a connect loop.
+	 */
+	retry(): void {
+		this.attempts = 0;
+		this.cancelRetry();
+		this.error = undefined;
+
+		if (!this.watching) {
+			this.phase = "none";
+			this.message = NOTHING_OPEN;
+
+			return;
+		}
+
+		this.paused = false;
+		this.phase = "starting";
+		this.message = CONNECTING;
+		void this.open();
+	}
+
+	/**
 	 * Whether this conversation has a browser, and where it was last seen.
 	 *
 	 * Read by the chip above the chat, which exists to bring a closed panel back:
 	 * it says nothing about frames, and asking it must not cost one.
 	 */
 	state(): PanelState {
-		return { open: this.watching, url: this.url, title: this.title };
+		return {
+			phase: this.phase,
+			open: this.watching && this.phase !== "closed",
+			url: this.url,
+			title: this.title,
+			connected: this.connected,
+		};
 	}
 
 	/** The last frame, for a reader that does not have it yet. */
@@ -224,9 +349,19 @@ export class StreamHub {
 	stop(): void {
 		this.watching = false;
 		this.pending = [];
+		this.announced = [];
 		this.cancelIdle();
 		this.cancelRetry();
-		this.drop("the plugin was unloaded");
+		this.stopTyping();
+		this.closePeer("the plugin was unloaded");
+		this.connected = false;
+		this.phase = "none";
+		this.message = NOTHING_OPEN;
+		this.error = undefined;
+		this.paused = false;
+		this.frame = undefined;
+		this.page = { width: 0, height: 0 };
+		this.activity = [];
 	}
 
 	/** Open the screencast, when there is a reason to and nobody else is. */
@@ -234,7 +369,7 @@ export class StreamHub {
 		if (
 			this.opening ||
 			this.peer !== undefined ||
-			this.retry !== undefined ||
+			this.retryTimer !== undefined ||
 			this.attempts >= MAX_ATTEMPTS ||
 			!this.watching
 		)
@@ -249,7 +384,7 @@ export class StreamHub {
 			if (!this.watching) return;
 
 			if (port === undefined) {
-				this.gave("no browser is running in this session");
+				this.gave(NOT_RUNNING, "none");
 
 				return;
 			}
@@ -271,7 +406,10 @@ export class StreamHub {
 			this.peer = peer;
 			this.attempts = 0;
 			this.connected = true;
-			this.failure = undefined;
+			this.error = undefined;
+			this.paused = false;
+			this.phase = "live";
+			this.message = "";
 			// One bounded frame rate for our reader: the screencast ticks per client.
 			this.peer.send(
 				JSON.stringify({
@@ -284,7 +422,7 @@ export class StreamHub {
 			);
 			void this.measure();
 		} catch (error) {
-			this.gave(errorText(error));
+			this.gave(errorText(error), "unreachable");
 		} finally {
 			this.opening = false;
 		}
@@ -300,6 +438,8 @@ export class StreamHub {
 			case "address": {
 				this.url = event.url;
 				this.title = event.title ?? this.title;
+
+				if (event.tabs.length > 0) this.tabs = [...event.tabs];
 
 				return;
 			}
@@ -400,6 +540,16 @@ export class StreamHub {
 	 */
 	private placed(activity: StreamActivity): void {
 		if (activity.kind === "command") {
+			const mine = this.takeAnnouncement(activity.action);
+
+			if (mine !== undefined) {
+				// The command was caused by the person at the panel, so the feed says
+				// so; its duration is not their act and is dropped with the pair.
+				this.remember({ kind: "human", text: mine, at: Date.now() });
+
+				return;
+			}
+
 			if (this.commanding.size > COMMAND_WINDOW) this.commanding.clear();
 
 			this.commanding.add(activity.id);
@@ -411,6 +561,23 @@ export class StreamHub {
 		if (!this.commanding.delete(activity.id)) return;
 
 		this.remember(activity);
+	}
+
+	/** The person's line waiting for one CLI action, if it is still fresh. */
+	private takeAnnouncement(action: string): string | undefined {
+		const now = Date.now();
+
+		// Expired announcements go first, so the index below points at the entry
+		// it was found on rather than at one the filter would have removed.
+		this.announced = this.announced.filter((entry) => entry.until > now);
+
+		const index = this.announced.findIndex((entry) => entry.action === action);
+
+		if (index === -1) return undefined;
+
+		const [mine] = this.announced.splice(index, 1);
+
+		return mine?.text;
 	}
 
 	/** One line of the feed, and the window it belongs to. */
@@ -427,20 +594,146 @@ export class StreamHub {
 		].slice(-limit);
 	}
 
+	/** One act of the person, as the feed line and the note the agent gets. */
+	private rememberHuman(input: PanelInput): void {
+		if (input.type === "key") {
+			if (input.event !== "down") return;
+
+			// A printable key is part of a word the person is typing: one line per
+			// letter would push every action of the agent out of the window.
+			if (input.key.length === 1) {
+				this.typing += input.key;
+				this.armTyping();
+
+				return;
+			}
+
+			this.flushTyping();
+		} else {
+			this.flushTyping();
+		}
+
+		const line = humanLineOf(input);
+		const note = noteOf(input);
+
+		if (line !== undefined)
+			this.remember({ kind: "human", text: line, at: Date.now() });
+		if (note !== undefined) this.note(note);
+	}
+
+	/** Wait a moment for the word to finish before it becomes one line. */
+	private armTyping(): void {
+		if (this.typingTimer !== undefined) clearTimeout(this.typingTimer);
+
+		this.typingTimer = setTimeout(() => {
+			this.typingTimer = undefined;
+			this.flushTyping();
+		}, TYPING_SETTLE_MS);
+		this.typingTimer.unref();
+	}
+
+	/** Turn whatever the person has typed so far into one line and one note. */
+	private flushTyping(): void {
+		this.stopTyping();
+
+		const typed = this.typing;
+
+		this.typing = "";
+
+		if (typed === "") return;
+
+		this.remember({ kind: "human", text: `type ${typed}`, at: Date.now() });
+		this.note(`typed "${typed}"`);
+	}
+
+	private stopTyping(): void {
+		if (this.typingTimer === undefined) return;
+
+		clearTimeout(this.typingTimer);
+		this.typingTimer = undefined;
+	}
+
 	/** The screencast ended on its own. */
 	private lose(reason: string): void {
 		if (this.closing) return;
 
+		this.generation += 1;
 		this.peer = undefined;
 		this.connected = false;
-		this.frame = undefined;
-		this.page = { width: 0, height: 0 };
-		this.activity = [];
-		this.gave(reason);
+		// The last picture and the feed are kept: the page did not go back, and
+		// losing the socket is not a reason to make a person forget what happened.
+		this.gave(`the live view lost its connection (${reason})`, "unreachable");
 	}
 
-	/** End the connection because we decided to, not because it broke. */
-	private drop(reason: string): void {
+	/** Nothing to watch, and why; retried a few times, then left to a tool call. */
+	private gave(reason: string, phase: "none" | "unreachable"): void {
+		this.connected = false;
+		this.paused = false;
+		this.phase = phase;
+
+		if (phase === "unreachable") {
+			this.error = `${reason}. Retry when the browser is ready; the person at the panel can also press Retry.`;
+			this.message = "";
+		} else {
+			this.error = undefined;
+			this.message = reason;
+		}
+
+		this.attempts += 1;
+
+		if (this.attempts < MAX_ATTEMPTS) this.scheduleRetry();
+	}
+
+	/** One more attempt, further away than the last. */
+	private scheduleRetry(): void {
+		if (this.retryTimer !== undefined || !this.watching) return;
+
+		const delay = Math.min(
+			RETRY_BASE_MS * 2 ** (this.attempts - 1),
+			RETRY_CAP_MS,
+		);
+
+		this.retryTimer = setTimeout(() => {
+			this.retryTimer = undefined;
+			void this.open();
+		}, delay);
+		this.retryTimer.unref();
+	}
+
+	/** Stop watching a while after the last poll, keeping what was seen. */
+	private armIdle(): void {
+		this.cancelIdle();
+		this.idle = setTimeout(() => {
+			this.idle = undefined;
+
+			if (!this.watching) return;
+
+			this.pause();
+		}, this.deps.idleMs ?? DEFAULT_IDLE_MS);
+		this.idle.unref();
+	}
+
+	/**
+	 * End the connection because nobody is watching, without forgetting the page.
+	 *
+	 * The feed and the last frame stay: a person who comes back to the panel asks
+	 * what happened while they were away, and an empty list is the one answer
+	 * that cannot help.
+	 */
+	private pause(): void {
+		this.flushTyping();
+		this.cancelRetry();
+		this.closePeer("nobody is watching");
+		this.connected = false;
+		this.paused = true;
+		this.phase = "paused";
+		this.message = PAUSED;
+		this.error = undefined;
+		this.page = { width: 0, height: 0 };
+	}
+
+	/** Close the socket we hold, if we hold one. */
+	private closePeer(reason: string): void {
 		const peer = this.peer;
 
 		this.generation += 1;
@@ -452,50 +745,6 @@ export class StreamHub {
 		} finally {
 			this.closing = false;
 		}
-
-		this.connected = false;
-		this.frame = undefined;
-		this.page = { width: 0, height: 0 };
-		this.activity = [];
-		this.failure = reason;
-	}
-
-	/** Nothing to watch, and why; retried a few times, then left to a tool call. */
-	private gave(reason: string): void {
-		this.connected = false;
-		this.failure = reason;
-		this.attempts += 1;
-
-		if (this.attempts < MAX_ATTEMPTS) this.scheduleRetry();
-	}
-
-	/** One more attempt, further away than the last. */
-	private scheduleRetry(): void {
-		if (this.retry !== undefined || !this.watching) return;
-
-		const delay = Math.min(
-			RETRY_BASE_MS * 2 ** (this.attempts - 1),
-			RETRY_CAP_MS,
-		);
-
-		this.retry = setTimeout(() => {
-			this.retry = undefined;
-			void this.open();
-		}, delay);
-		this.retry.unref();
-	}
-
-	/** Stop watching a while after the last poll. */
-	private armIdle(): void {
-		this.cancelIdle();
-		this.idle = setTimeout(() => {
-			this.idle = undefined;
-
-			if (!this.watching) return;
-
-			this.drop("nobody is watching");
-		}, this.deps.idleMs ?? DEFAULT_IDLE_MS);
-		this.idle.unref();
 	}
 
 	private cancelIdle(): void {
@@ -508,7 +757,7 @@ export class StreamHub {
 	private cancelRetry(): void {
 		if (this.retry === undefined) return;
 
-		clearTimeout(this.retry);
-		this.retry = undefined;
+		clearTimeout(this.retryTimer);
+		this.retryTimer = undefined;
 	}
 }

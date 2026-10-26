@@ -17,6 +17,7 @@ import { BROWSER_SNAPSHOT_TOOL } from "../../shared/tools";
 import { fieldOf, isRecord, isText, modelData } from "../envelope";
 import { bound } from "../text";
 import { type BrowserToolDeps, runForSession } from "./deps";
+import { failureOf } from "./failure";
 
 /** The arguments the model may send, after validation. */
 interface SnapshotArgs {
@@ -68,26 +69,37 @@ class SnapshotTool {
 					snapshot: { type: "string" },
 					elements: { type: "number" },
 					url: { type: "string" },
+					interactive: { type: "boolean" },
+					selector: { type: "string" },
 				},
-				required: ["snapshot", "elements", "url"],
+				required: ["snapshot", "elements", "url", "interactive", "selector"],
 			},
 			render: (_args, value) => {
 				const tree = value as {
 					snapshot: string;
 					elements: number;
 					url: string;
+					interactive: boolean;
+					selector: string;
 				};
+				const where = tree.url === "" ? "this page" : tree.url;
 				const empty = tree.snapshot.trim() === "";
-				const lines = [
-					empty
-						? "Nothing to act on: this page has no interactive elements."
-						: tree.snapshot,
-				];
+				const lines: string[] = [];
 
-				if (!empty && tree.elements > 0)
+				if (empty) {
 					lines.push(
-						`\n${tree.elements} element${tree.elements === 1 ? "" : "s"} · ${tree.url}`,
+						tree.selector === ""
+							? tree.interactive
+								? `Nothing to act on: ${where} has no interactive elements. Ask with interactive:false for the whole tree, or with a selector for one part of it.`
+								: `The page at ${where} has no accessible elements to read.`
+							: `Nothing matched \`${tree.selector}\` on ${where}.`,
 					);
+				} else {
+					lines.push(tree.snapshot);
+					lines.push(
+						`\n${tree.elements} element${tree.elements === 1 ? "" : "s"} · ${where}`,
+					);
+				}
 
 				return [{ type: "text", text: lines.join("\n") }];
 			},
@@ -96,7 +108,7 @@ class SnapshotTool {
 			const args = this.parseArgs(rawArgs);
 			const { outcome } = await runForSession(deps, exec, this.argv(args));
 
-			if (!outcome.ok) throw new Error(outcome.error);
+			if (!outcome.ok) throw failureOf(outcome);
 
 			const data = modelData(outcome.data);
 			const tree = fieldOf(data, "snapshot", isText) ?? "";
@@ -107,6 +119,8 @@ class SnapshotTool {
 				elements:
 					refs === undefined ? countedRefs(tree) : Object.keys(refs).length,
 				url: fieldOf(data, "origin", isText) ?? "",
+				interactive: args.interactive,
+				selector: args.selector ?? "",
 			};
 		},
 	});

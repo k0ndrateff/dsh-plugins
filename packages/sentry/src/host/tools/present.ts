@@ -8,6 +8,8 @@
  *
  * The search tool takes a query in natural language: Sentry's own agent
  * translates it, so the caller may pass the user's question almost verbatim.
+ * The summary names the limit the search ran under, because a card that shows
+ * ten of a thousand matches must not read as "ten issues".
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
@@ -33,6 +35,28 @@ const RESOURCE_TOOL = "get_sentry_resource";
 /** Never put more than this many issues on one card. */
 const MAX_ISSUES = 25;
 
+/** How many issues a search reads when the caller names no limit. */
+const DEFAULT_LIMIT = 10;
+
+/** An issue id as Sentry spells it or as the URL a user copies. */
+const ISSUE_ID =
+	/(?:^|\/issues\/)([A-Za-z][A-Za-z0-9_]*-\d[A-Za-z0-9]*)(?:$|[/?#])/u;
+
+/**
+ * The issue id a value names.
+ *
+ * A user copies a browser URL, not an id, so both are accepted; a value that
+ * names neither is passed through unchanged, and the server's own refusal then
+ * reaches the model as the reason.
+ * @param value - an issue id or a Sentry issue URL.
+ * @returns the id, or the input when it carries none.
+ */
+export const issueIdOf = (value: string): string => {
+	const trimmed = value.trim();
+
+	return ISSUE_ID.exec(trimmed)?.[1] ?? trimmed;
+};
+
 /** What the tool needs from the plugin. */
 export interface PresentDeps {
 	readonly bridge: McpBridge;
@@ -50,6 +74,8 @@ interface PresentArgs {
 	readonly period: string | undefined;
 	readonly sort: string | undefined;
 	readonly limit: number | undefined;
+	/** Ids left out because one card reads only {@link MAX_ISSUES}. */
+	readonly dropped: number;
 }
 
 /** What one resolution pass found. */
@@ -58,8 +84,13 @@ interface Found {
 	readonly total: number | undefined;
 	readonly query: string | undefined;
 	readonly dashboardUrl: string | undefined;
+	readonly organization: string;
 	readonly suspect: SuspectCommit | undefined;
 	readonly failed: readonly string[];
+	/** The search limit that actually ran, when a search ran. */
+	readonly limit: number | undefined;
+	/** Ids that were never looked up because the card has a cap. */
+	readonly dropped: number;
 }
 
 function stringList(value: unknown): string[] {
@@ -69,6 +100,10 @@ function stringList(value: unknown): string[] {
 		(item): item is string => typeof item === "string" && item !== "",
 	);
 }
+
+/** The reason inside an unknown thrown value, as a sentence. */
+const messageOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
 
 class PresentTool {
 	/** The wire name the agent calls. */
@@ -83,9 +118,14 @@ class PresentTool {
 		description:
 			"Show Sentry issues to the user as a card under your answer. Use this whenever the user " +
 			"asks to see errors — a shortlist, one issue, what broke in a release — instead of only " +
-			"describing it in prose. Resolve the content by a search query or by issue ids; each row " +
-			"carries its status, assignee, event and user counts, and links to the issue. Call it once " +
-			"per card, then write your answer; do not repeat the card's contents as a list in the text.",
+			"describing it in prose. Resolve the content by a search query or by issue ids or URLs; " +
+			"each row carries its status, assignee, event and user counts, and links to the issue. " +
+			"When `issues` names exactly one id, the card and the summary also carry Sentry's suspect " +
+			"commit — the code change it blames — which is the starting point for asking what broke. " +
+			"Call it once per card, then write your answer; do not repeat the card's contents as a " +
+			"list in the text. A search reads at most `limit` issues (10 by default, 25 at most); " +
+			"the summary says how many matched. The plugin reads the organization selected in " +
+			"Settings; pass `organization` to target another one the account can reach.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -99,47 +139,56 @@ class PresentTool {
 					type: "string",
 					enum: ["auto", "single", "compact", "list"],
 					description:
-						"auto (default) picks by issue count: one issue as a full card, two to four as " +
-						"compact rows, more as a dense list.",
+						"auto (default) picks by item count: one item as a full card, two to four as " +
+						"compact rows, more as a dense list. A card longer than four rows scrolls and " +
+						"shows how many items matched. Force one when the content calls for it.",
 				},
 				query: {
 					type: "string",
 					description:
 						"What to find, in natural language or Sentry search syntax, for example " +
-						'"unresolved errors in checkout from the last day" or "is:unresolved level:error".',
+						'"unresolved errors in checkout from the last day" or "is:unresolved level:error". ' +
+						"Used with project, period, sort, and limit; omit them when showing ids.",
 				},
 				issues: {
 					type: "array",
 					items: { type: "string" },
+					maxItems: MAX_ISSUES,
 					description:
-						'Issue ids to show, for example ["CHECKOUT-13P", "CHECKOUT-177"].',
+						'Issue ids or issue URLs to show, for example ["CHECKOUT-13P", "CHECKOUT-177"]. ' +
+						"At most 25. When exactly one id is given, the card also shows its suspect commit.",
 				},
 				organization: {
 					type: "string",
 					description:
-						"Sentry organization slug. Omit unless the user has several: the plugin remembers it.",
+						"Sentry organization slug. Omit to use the organization selected in Settings.",
 				},
 				project: {
 					type: "string",
-					description: "Project slug to narrow a search to.",
+					description:
+						"Project slug to narrow a search to. Applies only when `query` is given.",
 				},
 				period: {
 					type: "string",
 					enum: ["24h", "7d", "14d", "30d", "90d"],
 					description:
-						"How far back a search looks. Defaults to Sentry's own 30d.",
+						"How far back a search looks; defaults to Sentry's own 30d. Applies only when " +
+						"`query` is given.",
 				},
 				sort: {
 					type: "string",
 					enum: ["date", "freq", "new", "user", "recommended"],
 					description:
-						"Search order: last seen, frequency, first seen, user count, or Sentry's ranking.",
+						"Search order: last seen, frequency, first seen, user count, or Sentry's " +
+						"ranking. Applies only when `query` is given.",
 				},
 				limit: {
 					type: "integer",
 					minimum: 1,
-					maximum: 25,
-					description: "How many issues to show. Defaults to 10.",
+					maximum: MAX_ISSUES,
+					description:
+						"How many issues a search reads. Defaults to 10. Applies only when `query` is " +
+						"given.",
 				},
 			},
 		},
@@ -175,11 +224,12 @@ class PresentTool {
 				...(found.dashboardUrl === undefined
 					? {}
 					: { dashboardUrl: found.dashboardUrl }),
+				organization: found.organization,
 				issues: found.issues,
 				...(found.suspect === undefined ? {} : { suspect: found.suspect }),
 			};
 
-			const viewed = this.describe(presentation);
+			const viewed = this.describe(presentation, found);
 			const summary =
 				found.failed.length === 0
 					? viewed
@@ -203,6 +253,7 @@ class PresentTool {
 
 		const layout = nonEmptyString(args.layout);
 		const limit = Number(args.limit);
+		const issues = stringList(args.issues).map((value) => issueIdOf(value));
 
 		return {
 			title: nonEmptyString(args.title),
@@ -214,7 +265,7 @@ class PresentTool {
 					? layout
 					: undefined,
 			query: nonEmptyString(args.query),
-			issues: stringList(args.issues),
+			issues: issues.slice(0, MAX_ISSUES),
 			organization: nonEmptyString(args.organization),
 			project: nonEmptyString(args.project),
 			period: nonEmptyString(args.period),
@@ -223,6 +274,7 @@ class PresentTool {
 				Number.isInteger(limit) && limit > 0
 					? Math.min(limit, MAX_ISSUES)
 					: undefined,
+			dropped: Math.max(0, issues.length - MAX_ISSUES),
 		};
 	}
 
@@ -232,7 +284,7 @@ class PresentTool {
 
 		if (organization === undefined)
 			throw new Error(
-				"no Sentry organization known yet; sign in first, or pass one",
+				"no Sentry organization known yet; sign in, or run /sentry sync",
 			);
 
 		const requested = args.query !== undefined || args.issues.length > 0;
@@ -246,12 +298,15 @@ class PresentTool {
 		let total: number | undefined;
 		let query: string | undefined;
 		let dashboardUrl: string | undefined;
+		let limit: number | undefined;
 
 		if (args.query !== undefined) {
+			limit = args.limit ?? DEFAULT_LIMIT;
+
 			const value = await deps.bridge.callTool(SEARCH_TOOL, {
 				organizationSlug: organization,
 				query: args.query,
-				limit: args.limit ?? 10,
+				limit,
 				...(args.project === undefined
 					? {}
 					: { projectSlugOrId: args.project }),
@@ -279,8 +334,8 @@ class PresentTool {
 
 				if (issues.length < MAX_ISSUES) issues.push(this.cardOf(detail));
 				suspect = suspect ?? detail.suspect;
-			} catch {
-				failed.push(id);
+			} catch (error) {
+				failed.push(`${id} — ${messageOf(error)}`);
 			}
 		}
 
@@ -296,8 +351,11 @@ class PresentTool {
 			total,
 			query,
 			dashboardUrl,
+			organization,
 			suspect,
 			failed,
+			limit,
+			dropped: args.dropped,
 		};
 	}
 
@@ -348,9 +406,11 @@ class PresentTool {
 	}
 
 	/** The text the model reads: what the card shows, in order. */
-	private describe(presentation: SentryPresentation): string {
+	private describe(presentation: SentryPresentation, found: Found): string {
+		const organization = `Organization: ${presentation.organization}.`;
+
 		if (presentation.issues.length === 0) {
-			const lines = ["No issues matched."];
+			const lines = ["No issues matched.", organization];
 
 			if (presentation.query !== undefined)
 				lines.push(`Query: ${presentation.query}`);
@@ -366,6 +426,7 @@ class PresentTool {
 				: `Shown as a card titled "${presentation.title}"`;
 		const lines = [
 			`${heading}: ${presentation.issues.length} issue${presentation.issues.length === 1 ? "" : "s"}.`,
+			organization,
 		];
 
 		for (const issue of presentation.issues) {
@@ -386,13 +447,37 @@ class PresentTool {
 
 		if (presentation.query !== undefined)
 			lines.push(`Query: ${presentation.query}`);
+
+		if (
+			presentation.total !== undefined &&
+			presentation.total > presentation.issues.length
+		) {
+			lines.push(
+				`Sentry matched ${presentation.total}; the card shows ${presentation.issues.length}.`,
+			);
+		}
+
+		if (found.limit !== undefined) {
+			lines.push(
+				`Search read at most ${found.limit} issue${found.limit === 1 ? "" : "s"}.`,
+			);
+		}
+
 		if (presentation.dashboardUrl !== undefined)
 			lines.push(`All results: ${presentation.dashboardUrl}`);
+
 		if (presentation.suspect !== undefined) {
 			const commit = presentation.suspect;
 
 			lines.push(
 				`Suspect commit: ${commit.sha.slice(0, 12)}${commit.message === undefined ? "" : ` — ${commit.message}`}${commit.issueKey === undefined ? "" : ` (${commit.issueKey})`}`,
+			);
+		}
+
+		if (found.dropped > 0) {
+			lines.push(
+				`${found.dropped} more requested id${found.dropped === 1 ? "" : "s"} ` +
+					`were not looked up: one card reads at most ${MAX_ISSUES}.`,
 			);
 		}
 

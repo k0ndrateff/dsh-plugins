@@ -20,3 +20,9 @@ export const BROWSER_READ_TOOL = "browser_read";
 
 /** Run any other agent-browser command in this session's browser. */
 export const BROWSER_RUN_TOOL = "browser_run";
+
+/** Take a picture of the page, as an image the model can look at. */
+export const BROWSER_SCREENSHOT_TOOL = "browser_screenshot";
+
+/** Close this conversation's browser. */
+export const BROWSER_CLOSE_TOOL = "browser_close";

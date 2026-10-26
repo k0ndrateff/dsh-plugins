@@ -20,5 +20,7 @@ export const atlassianAuthSpec: AuthSpec<AtlassianStatus, SiteFacts> = {
 	status: (base, facts) => ({
 		...base,
 		siteUrl: facts?.siteUrl ?? null,
+		cloudId: facts?.cloudId ?? null,
+		sites: facts?.sites ?? [],
 	}),
 };

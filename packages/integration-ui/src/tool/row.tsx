@@ -68,6 +68,26 @@ const resultText = (block: ToolRowBlock | undefined): string =>
 		.trim();
 
 /**
+ * The call exactly as the harness sees it, for the reader debugging a claim.
+ *
+ * The terse row is the right default — a card is not a transcript — but hiding
+ * the arguments and the answer behind a tooltip makes a failed or surprising
+ * call impossible to inspect. The details are escaped by React and scroll
+ * inside the same code block the rest of the page uses.
+ */
+const rawCall = (block: ToolRowBlock | undefined): string => {
+	const args = block?.argsRaw ?? block?.call?.argsRaw;
+	const answer = resultText(block);
+	const parts: string[] = [];
+
+	if (typeof args === "string" && args.trim() !== "")
+		parts.push(`args: ${args.trim()}`);
+	if (answer !== "") parts.push(answer);
+
+	return parts.join("\n\n") || "The call carried no arguments and no text.";
+};
+
+/**
  * The arguments of a call, when the row can still see them.
  *
  * A preparing call may hold half-written JSON, so a failed parse answers an empty
@@ -135,11 +155,19 @@ export const createToolRow = (
 		}
 
 		return (
-			<div className={styles.toolRow} data-tool={toolName} title={toolName}>
-				<StateDot state={spec.state?.(block) ?? "done"} />
-				<span className={styles.toolLabel}>{name}</span>
-				<span className={styles.caption}>{spec.summarize(block)}</span>
-			</div>
+			<details className={styles.toolDetails}>
+				<summary
+					className={`${styles.toolRow} ${styles.toolSummary}`}
+					data-tool={toolName}
+					title={toolName}
+				>
+					<StateDot state={spec.state?.(block) ?? "done"} />
+					<span className={styles.toolLabel}>{name}</span>
+					<span className={styles.caption}>{spec.summarize(block)}</span>
+				</summary>
+
+				<pre className={styles.code}>{rawCall(block)}</pre>
+			</details>
 		);
 	};
 

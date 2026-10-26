@@ -43,6 +43,10 @@ export interface PanelTarget {
 	readonly iid: number;
 	/** The section to open on; the overview unless a card asked for another. */
 	readonly tab?: PanelTab;
+	/** The thread to focus on, when a card was about one finding. */
+	readonly discussionId?: string;
+	/** The job to open, when a card was about one failed job. */
+	readonly jobId?: number;
 }
 
 /** Whether one string names a section of the panel. */
@@ -154,12 +158,30 @@ export interface PipelineSummary {
 	readonly jobs: readonly PipelineJob[];
 }
 
+/** Who has approved a merge request, and whether that includes the reader. */
+export interface MergeRequestApprovals {
+	/** Whether the signed-in user's own approval is on the merge request. */
+	readonly approvedByViewer: boolean;
+	/** GitLab's own flag: the merge request has every approval it needs. */
+	readonly approved: boolean;
+	/** Everyone whose approval GitLab counts, in its order. */
+	readonly approvedBy: readonly PanelPerson[];
+	/** How many approvals the project requires, when it says. */
+	readonly required?: number;
+	/** How many are still missing, when GitLab says. */
+	readonly left?: number;
+}
+
 /** Everything the panel shows for one merge request. */
 export interface MergeRequestPanel {
 	readonly kind: "merge_request";
 	readonly mr: MergeRequestDetail;
 	readonly diffs: readonly DiffFile[];
 	readonly discussions: readonly Discussion[];
+	/** Who approved, when GitLab answered the approvals read. */
+	readonly approvals?: MergeRequestApprovals;
+	/** Why the approvals read failed, when it did; absence means "read". */
+	readonly approvalsError?: string;
 	/** Whether GitLab had more diff or discussion pages than the panel read. */
 	readonly truncated?: boolean;
 }
@@ -350,6 +372,15 @@ const mergeRequest = object<MergeRequestDetail>({
 const tab: Reader<PanelTab> = (value) =>
 	isPanelTab(value) ? value : undefined;
 
+/** Who approved one merge request, as the panel shows it. */
+const approvals = object<MergeRequestApprovals>({
+	approvedByViewer: required(isTrue),
+	approved: required(isTrue),
+	approvedBy: required(list(person)),
+	required: optional(number),
+	left: optional(number),
+});
+
 /** One review action, as a draft passes it. */
 const action: Reader<ReviewAction> = (value) =>
 	isReviewAction(value) ? value : undefined;
@@ -363,6 +394,8 @@ export const asPanelTarget = object<PanelTarget>({
 	project: required(nonEmptyString),
 	iid: required(number),
 	tab: optional(tab),
+	discussionId: optional(nonEmptyString),
+	jobId: optional(number),
 });
 
 /**
@@ -375,6 +408,8 @@ export const asMergeRequestPanel = object<MergeRequestPanel>({
 	mr: required(mergeRequest),
 	diffs: required(list(diffFile)),
 	discussions: required(list(discussion)),
+	approvals: optional(approvals),
+	approvalsError: optional(nonEmptyString),
 	truncated: optional(trueOnly),
 });
 

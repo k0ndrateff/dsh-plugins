@@ -12,11 +12,13 @@
 
 import { expect, test } from "bun:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Context } from "@deepseek-ai/cordis";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { RuntimeState } from "dsh-integration-host";
 import { GitLabAccount } from "../src/host/account";
 import type { GitLabApi } from "../src/host/api";
 import { PanelApi } from "../src/host/panels/panel";
+import { parseApprovals } from "../src/host/presentation/parse";
 import { ReviewRefusal, ReviewService } from "../src/host/review";
 import { createApiHandler, ROUTE_PREFIX } from "../src/host/surface/http";
 import { presentTool } from "../src/host/tools/present";
@@ -84,6 +86,11 @@ function fakeApi(answers: (call: Call) => unknown): {
 
 	return { api, calls };
 }
+
+/** A host context with just enough surface for the panel's logger. */
+const context = {
+	logger: { info: () => {}, warn: () => {} },
+} as unknown as Context;
 
 /** A runtime state that already knows its account. */
 function signedIn(): RuntimeState<GitLabAccount> {
@@ -185,6 +192,13 @@ const JOB = {
 /** The answer any of the panel's own paths gets. */
 function panelAnswer(call: Call): unknown {
 	if (call.path.endsWith("/diffs")) return DIFFS;
+	if (call.path.endsWith("/approvals"))
+		return {
+			approved: true,
+			approvals_required: 1,
+			approvals_left: 0,
+			approved_by: [{ user: { username: "ada" } }],
+		};
 	if (call.path.endsWith("/discussions")) return DISCUSSIONS;
 	if (call.path.endsWith("/pipelines")) return PIPELINES;
 	if (call.path.endsWith("/jobs")) return JOBS;
@@ -198,7 +212,7 @@ function panelAnswer(call: Call): unknown {
 test("the panel", async () => {
 	{
 		const { api, calls } = fakeApi(panelAnswer);
-		const panel = new PanelApi({ api, state: signedIn() });
+		const panel = new PanelApi({ api, state: signedIn(), ctx: context });
 		const loaded = await panel.mergeRequest("acme/storefront", 12);
 
 		expect(
@@ -220,7 +234,16 @@ test("the panel", async () => {
 			`the panel answers with the merge request, its files and its threads — ${`${loaded.diffs.length}/${loaded.discussions.length}`}`,
 		).toBe(true);
 		expect(
-			calls.length === 3,
+			calls[3]?.path.endsWith("/approvals") === true,
+			`approvals are the fourth read, so the panel knows which action applies — ${String(calls[3]?.path)}`,
+		).toBe(true);
+		expect(
+			loaded.approvals?.approvedByViewer === true &&
+				loaded.approvals?.approvedBy[0]?.username === "ada",
+			`the panel answers with who approved, and whether it was the reader — ${JSON.stringify(loaded.approvals)}`,
+		).toBe(true);
+		expect(
+			calls.length === 4,
 			`the panel does not read the pipeline until it is asked for — ${String(calls.length)}`,
 		).toBe(true);
 
@@ -256,10 +279,11 @@ test("the panel", async () => {
 		const { api: longApi } = fakeApi((call) =>
 			call.path.endsWith("/trace") ? "x".repeat(200_000) : JOB,
 		);
-		const long = await new PanelApi({ api: longApi, state: signedIn() }).jobLog(
-			"acme/storefront",
-			88,
-		);
+		const long = await new PanelApi({
+			api: longApi,
+			state: signedIn(),
+			ctx: context,
+		}).jobLog("acme/storefront", 88);
 
 		expect(
 			long.truncated === true && long.log.length === 64 * 1024,
@@ -269,10 +293,11 @@ test("the panel", async () => {
 		const { api: emptyApi } = fakeApi(() => ({}));
 		let refusal = "";
 		try {
-			await new PanelApi({ api: emptyApi, state: signedIn() }).mergeRequest(
-				"acme/storefront",
-				12,
-			);
+			await new PanelApi({
+				api: emptyApi,
+				state: signedIn(),
+				ctx: context,
+			}).mergeRequest("acme/storefront", 12);
 		} catch (error) {
 			refusal = error instanceof Error ? error.message : String(error);
 		}
@@ -439,7 +464,7 @@ test("the confirmation gate", async () => {
 
 			expect(
 				thrown !== "" && thrown !== "wrong error",
-				String(label) + " — " + thrown,
+				`${String(label)} — ${thrown}`,
 			).toBe(true);
 		}
 	}
@@ -469,9 +494,9 @@ test("the present tool", async () => {
 		expect(
 			calls[0]?.path === "/merge_requests" &&
 				calls[0]?.params?.reviewer_username === "ada" &&
-				calls[0]?.params?.state === "opened" &&
+				calls[0]?.params?.state === "all" &&
 				calls[0]?.params?.per_page === 10,
-			`waiting for my review is asked for as a reviewer filter on open requests — ${JSON.stringify(calls[0]?.params)}`,
+			`waiting for my review is a reviewer filter that keeps every state unless asked otherwise — ${JSON.stringify(calls[0]?.params)}`,
 		).toBe(true);
 		expect(
 			scoped.shown === 1 &&
@@ -567,12 +592,17 @@ test("the present tool", async () => {
 			)) as { shown: number; failed: string[]; summary: string };
 
 		expect(
-			partial.shown === 1 && partial.failed.join(",") === "nope/missing!1,junk",
-			`a reference that cannot be resolved is reported, not thrown — ${JSON.stringify(partial.failed)}`,
+			partial.shown === 1 &&
+				partial.failed.length === 2 &&
+				partial.failed[0]?.startsWith("nope/missing!1 (") &&
+				partial.failed[1]?.includes("not a merge request reference"),
+			`a reference that cannot be resolved is reported with its reason, not thrown — ${JSON.stringify(partial.failed)}`,
 		).toBe(true);
 		expect(
-			partial.summary.includes("Could not resolve: nope/missing!1, junk"),
-			`the text says what could not be resolved — ${partial.summary.split("\n").at(-1)}`,
+			partial.summary.includes("Could not resolve:") &&
+				partial.summary.includes("nope/missing!1 (not found)") &&
+				partial.summary.includes("junk (not a merge request reference)"),
+			`the text says what could not be resolved, and why — ${partial.summary.split("\n").at(-1)}`,
 		).toBe(true);
 
 		const anonymous = presentTool.create({
@@ -722,7 +752,7 @@ test("the route", async () => {
 					return status;
 				},
 			},
-			panel: new PanelApi({ api, state: signedIn() }),
+			panel: new PanelApi({ api, state: signedIn(), ctx: context }),
 			review: new ReviewService(api),
 		});
 
@@ -904,6 +934,83 @@ test("the route", async () => {
 		expect(
 			unknown.status === 404,
 			`an unknown path is a not-found — ${String(unknown.status)}`,
+		).toBe(true);
+	}
+});
+test("a repeated confirm is refused instead of posting the same note twice", async () => {
+	{
+		const { api, calls } = fakeApi(() => ({ id: 501 }));
+		const review = new ReviewService(api);
+		const request = {
+			project: "acme/storefront",
+			iid: 12,
+			action: "comment" as const,
+			body: "Fixed in the latest push.",
+		};
+
+		await review.submit(request, true);
+
+		let repeated = "";
+		try {
+			await review.submit(request, true);
+		} catch (error) {
+			repeated = error instanceof Error ? error.message : String(error);
+		}
+
+		expect(
+			calls.length === 1 && repeated.includes("already sent"),
+			`a second identical confirm is refused, not posted again — ${repeated}`,
+		).toBe(true);
+	}
+});
+test("a timed-out write says the action may already have happened", async () => {
+	{
+		const { api } = fakeApi(() => {
+			throw new Error(
+				"GitLab did not answer POST /approve within 30 s; the request timed out. The same call can be retried.",
+			);
+		});
+		const review = new ReviewService(api);
+
+		let message = "";
+		try {
+			await review.submit(
+				{ project: "acme/storefront", iid: 12, action: "approve" },
+				true,
+			);
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+
+		expect(
+			message.includes("may already have been performed") &&
+				message.includes("re-read the merge request"),
+			`an ambiguous failure warns that repeating could duplicate the action — ${message}`,
+		).toBe(true);
+	}
+});
+test("approvals say whether the reader's own approval is among them", async () => {
+	{
+		const answer = {
+			approved: false,
+			approvals_required: 2,
+			approvals_left: 1,
+			approved_by: [{ user: { username: "grace" } }],
+		};
+
+		const other = parseApprovals(answer, "ada");
+		const mine = parseApprovals(answer, "grace");
+
+		expect(
+			other?.approvedByViewer === false &&
+				other?.approvedBy[0]?.username === "grace" &&
+				other?.required === 2 &&
+				other?.left === 1,
+			`a reader who has not approved is not told that they have — ${JSON.stringify(other)}`,
+		).toBe(true);
+		expect(
+			mine?.approvedByViewer === true,
+			`the reader whose name GitLab lists counts as an approver — ${JSON.stringify(mine)}`,
 		).toBe(true);
 	}
 });

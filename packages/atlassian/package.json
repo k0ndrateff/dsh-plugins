@@ -1,6 +1,6 @@
 {
 	"name": "dsh-atlassian-plugin",
-	"version": "0.4.3",
+	"version": "0.5.0",
 	"type": "module",
 	"description": "Jira and Confluence for DeepSeek Harness: the tools of Atlassian's remote MCP server, a result card, and the issue panel",
 	"license": "MIT",
@@ -30,6 +30,7 @@
 				"@deepseek-ai/dsh-client-ui-chat",
 				"@deepseek-ai/dsh-client-ui-conversation",
 				"@deepseek-ai/dsh-client-ui-settings",
+				"@deepseek-ai/dsh-client-ui-sidebar-right",
 				"@deepseek-ai/dsh-client-ui-tool"
 			]
 		}
@@ -63,9 +64,9 @@
 		}
 	},
 	"devDependencies": {
-		"dsh-integration-host": "^0.3.0",
-		"dsh-integration-ui": "^0.2.2",
-		"dsh-mcp-oauth": "^0.2.0",
+		"dsh-integration-host": "^0.4.0",
+		"dsh-integration-ui": "^0.3.0",
+		"dsh-mcp-oauth": "^0.3.0",
 		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {

@@ -22,6 +22,7 @@ import {
 	describeDays,
 	parseDays,
 } from "../src/host/command";
+import { DigestSave } from "../src/host/save";
 import {
 	DigestSchedule,
 	type ScheduleCreateRequest,
@@ -104,7 +105,13 @@ async function commandFor(name: string, withService = true) {
 	return {
 		service,
 		settings,
-		run: createDigestCommand({ collector, settings, schedule }),
+		schedule,
+		run: createDigestCommand({
+			collector,
+			settings,
+			schedule,
+			save: new DigestSave({ settings, schedule }),
+		}),
 		agent: { id: "session-a" },
 	};
 }
@@ -357,6 +364,104 @@ test("assembling on demand", async () => {
 			`now answers with the collector's text — ${now.text}`,
 		).toBe(true);
 		expect(now.kind === "success", "and binds nothing").toBe(true);
+	}
+});
+test("a typo is an error, not a status", async () => {
+	{
+		const { run } = await commandFor("typo");
+		const typo = await run({ rawInput: "onn", agent: { id: "session-a" } });
+
+		expect(
+			typo.kind === "error" && typo.text.includes("onn"),
+			`an unknown action is refused rather than read as "status" — ${typo.text}`,
+		).toBe(true);
+		expect(
+			typo.text.includes(" | on ") && typo.text.includes("time HH:MM"),
+			`and the refusal lists what the command does have — ${typo.text}`,
+		).toBe(true);
+	}
+});
+test("finding and stopping every bound session", async () => {
+	{
+		const { run, service } = await commandFor("sessions");
+
+		await run({ rawInput: "on", agent: { id: "session-a" } });
+		await run({ rawInput: "on", agent: { id: "session-b" } });
+
+		const status = await run({ rawInput: "", agent: { id: "session-a" } });
+
+		expect(
+			status.kind === "success" &&
+				status.text.includes("session-a") &&
+				status.text.includes("session-b"),
+			`a bare /digest names the sessions it is scheduled in — ${status.text}`,
+		).toBe(true);
+		expect(
+			status.text.includes("/digest off all"),
+			`and how to stop them all — ${status.text}`,
+		).toBe(true);
+
+		const off = await run({ rawInput: "off all", agent: { id: "session-a" } });
+
+		expect(
+			off.kind === "success" && service?.held.length === 0,
+			`off all stops every session, not just this one — ${off.text}`,
+		).toBe(true);
+
+		const again = await run({
+			rawInput: "off all",
+			agent: { id: "session-a" },
+		});
+
+		expect(
+			again.kind === "success" && again.text.includes("No digest"),
+			`and says so when there was nothing to stop — ${again.text}`,
+		).toBe(true);
+	}
+});
+test("the week reads from Monday", async () => {
+	{
+		const { run } = await commandFor("week");
+		const days = await run({
+			rawInput: "days mon,sun",
+			agent: { id: "session-a" },
+		});
+		const status = await run({ rawInput: "", agent: { id: "session-a" } });
+
+		expect(
+			days.kind === "success" && days.text.includes("Mon, Sun"),
+			`Monday leads the week even when Sunday is chosen too — ${days.text}`,
+		).toBe(true);
+		expect(
+			status.kind === "success" && status.text.includes("Mon, Sun"),
+			`and the status prints it the same way — ${status.text}`,
+		).toBe(true);
+	}
+});
+test("a reminder that cannot be re-timed is not a success", async () => {
+	{
+		const { run, service, settings } = await commandFor("retime");
+
+		await run({ rawInput: "on", agent: { id: "session-a" } });
+
+		if (service !== undefined)
+			service.catalog = async () => {
+				throw new Error("the reminder catalog is locked");
+			};
+
+		const retimed = await run({
+			rawInput: "time 06:30",
+			agent: { id: "session-a" },
+		});
+
+		expect(
+			retimed.kind === "error" && retimed.text.includes("rolled back"),
+			`a change that cannot reach the reminders is refused, not reported — ${retimed.text}`,
+		).toBe(true);
+		expect(
+			settings.get().time === "09:00",
+			`and the settings keep the time the reminders still use — ${settings.get().time}`,
+		).toBe(true);
 	}
 
 	await rm(workdir, { recursive: true, force: true });

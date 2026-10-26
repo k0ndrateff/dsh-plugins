@@ -69,7 +69,7 @@ export const EMPTY_SUMMARY: CheckSummary = {
 
 /** One place a check complained about. */
 export interface CheckFailure {
-	/** The path the tool printed, relative to the project root when it printed one. */
+	/** The path the tool printed, relative to the directory the check ran in. */
 	readonly file?: string;
 	/** 1-based line, when the tool names one. */
 	readonly line?: number;
@@ -81,8 +81,18 @@ export interface CheckFailure {
 	readonly severity: "error" | "warning";
 }
 
-/** How one recipe ended. */
-export type CheckStatus = "passed" | "failed" | "errored" | "timedout";
+/**
+ * How one recipe ended.
+ *
+ * `cancelled` is its own state: a run the user stopped did not fail, and saying
+ * "could not run" would blame the recipe for what a person decided.
+ */
+export type CheckStatus =
+	| "passed"
+	| "failed"
+	| "errored"
+	| "timedout"
+	| "cancelled";
 
 /** One recipe's run. */
 export interface CheckResult {
@@ -114,6 +124,14 @@ export interface ChecksReport {
 export interface ChecksCard extends ChecksReport {
 	/** The tool call that produced it; the card's identity. */
 	readonly callId: string;
+	/**
+	 * The directory the recipes ran in.
+	 *
+	 * In a monorepo the session's directory may be one package rather than the
+	 * repository root, so a card that named no directory would leave the reader
+	 * guessing whose checks these are.
+	 */
+	readonly project?: string;
 }
 
 /** How many failures one card draws; the rest are counted, not listed. */
@@ -160,6 +178,10 @@ export function locationLabel(failure: CheckFailure): string | undefined {
  * that nobody parses has to say.
  */
 export function checkLabel(check: CheckResult): string {
+	// A run a person stopped has no verdict: whatever it printed first, the
+	// answer to "how did it go" is that it did not.
+	if (check.status === "cancelled") return "cancelled";
+
 	const { testsPassed, testsFailed, testsSkipped, errors, warnings } =
 		check.summary;
 	const tests = testsPassed + testsFailed + testsSkipped;
@@ -208,6 +230,7 @@ const status = oneOf<CheckStatus>(
 	literal("failed"),
 	literal("errored"),
 	literal("timedout"),
+	literal("cancelled"),
 	literal("passed"),
 );
 
@@ -268,6 +291,7 @@ export function asChecksCard(value: unknown): ChecksCard | undefined {
 	const parsed = object<ChecksCard>({
 		callId: required(nonEmptyString),
 		ok: required(isTrue),
+		project: optional(nonEmptyString),
 		checks: required(list(readCheck)),
 	})(value);
 

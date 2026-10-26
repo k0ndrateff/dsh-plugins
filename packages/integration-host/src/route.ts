@@ -327,6 +327,13 @@ export function createIntegrationRoute<TStatus extends IntegrationStatus>(
 				return;
 			}
 
+			if (url.pathname === `${prefix}/cancel` && method === "POST") {
+				await auth.cancel?.();
+
+				send(200, await auth.getStatus());
+				return;
+			}
+
 			if (url.pathname === `${prefix}/logout` && method === "POST") {
 				await auth.signOut();
 

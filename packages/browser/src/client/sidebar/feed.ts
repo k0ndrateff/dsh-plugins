@@ -49,6 +49,8 @@ const LABELS: Readonly<Record<string, string>> = {
 	tab: "Changed tabs",
 	network: "Checked the network",
 	viewport: "Resized the page",
+	set: "Resized the page",
+	dblclick: "Double-clicked",
 };
 
 /**
@@ -60,6 +62,11 @@ const LABELS: Readonly<Record<string, string>> = {
 const HUMAN_LABELS: Readonly<Record<string, string>> = {
 	click: "You clicked",
 	key: "You pressed",
+	type: "You typed",
+	back: "You went back",
+	forward: "You went forward",
+	reload: "You reloaded the page",
+	resize: "You resized the page",
 };
 
 /** One item's action name, and what it acted on. */

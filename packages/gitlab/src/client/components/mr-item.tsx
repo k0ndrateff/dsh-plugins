@@ -10,6 +10,7 @@ import { Chip, Facts } from "dsh-integration-ui";
 import type { MergeRequestCard } from "../../shared/meta";
 import { mrStateLabel } from "../../shared/tone";
 import * as styles from "../styles/styles.css";
+import { whenText } from "./blocks";
 import { openTarget, RowLink } from "./row-link";
 
 interface Props {
@@ -41,6 +42,13 @@ export const MergeRequestItem = ({ mergeRequest }: Props) => (
 			items={[
 				{ label: "State", value: mrStateLabel(mergeRequest.state) },
 				{ label: "Author", value: mergeRequest.author },
+				{
+					label: "Updated",
+					value:
+						mergeRequest.updatedAt === undefined
+							? undefined
+							: whenText(mergeRequest.updatedAt),
+				},
 				{
 					label: "Reviewers",
 					value:

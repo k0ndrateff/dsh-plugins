@@ -53,7 +53,8 @@ export const GitLabSection = createSettingsSection<GitLabStatus>({
 	blurb:
 		"Merge requests, review threads and pipelines, through GitLab’s REST API.",
 	checking: "Checking the GitLab token…",
-	unreachable: "The GitLab host half is not reachable.",
+	unreachable:
+		"The GitLab connection is not available yet. Try again in a moment.",
 	credentials: "typed",
 	syncLabel: "Check the token",
 	api: hostApi,
@@ -63,6 +64,8 @@ export const GitLabSection = createSettingsSection<GitLabStatus>({
 		hint:
 			"Create one with the api scope in GitLab → Preferences → Access tokens, " +
 			"and paste it here. It is kept in the harness credential store.",
+		hintUrl: "https://gitlab.com/-/user_settings/personal_access_tokens",
+		hintLinkLabel: "Create a token",
 		saveLabel: "Save token",
 		replaceLabel: "Replace token",
 		clearLabel: "Forget token",

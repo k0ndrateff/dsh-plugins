@@ -9,7 +9,12 @@
  *
  * Writes are one step at a time: run it, and the host answers with the issue as
  * it now stands, so the panel never renders an assumption about what a change
- * did.
+ * did. Only the actions that apply to the issue's current status are offered,
+ * each says what it is doing, and the panel says what changed afterwards.
+ *
+ * The panel opens on the organization the card was read from, not on whatever
+ * default the settings happen to hold: an issue id is only unique inside one
+ * organization.
  */
 
 import {
@@ -39,16 +44,27 @@ import { SuspectRow } from "../components/suspect-row";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
 import { asPanelTarget, type PanelTarget } from "./definition";
+import {
+	applicableStatusActions,
+	type IssueStatusAction,
+	STATUS_ACTION_LABELS,
+	statusText,
+} from "./status-actions";
+import { type PanelWriter, usePanelWriter } from "./write";
 
-/** One date as the reader's own locale writes it. */
+/** One moment as the reader's own locale and time zone write it. */
 function whenText(value: string): string {
 	const time = Date.parse(value);
 
 	return Number.isNaN(time)
 		? value
 		: new Date(time).toLocaleString(undefined, {
-				dateStyle: "medium",
-				timeStyle: "short",
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				timeZoneName: "short",
 			});
 }
 
@@ -64,7 +80,7 @@ function locationText(code: CodeLocation): string {
 	return `${file}:${code.line}`;
 }
 
-/** One titled block. */
+/** One titled block; the title is a heading so the panel can be navigated by them. */
 const Section = ({
 	title,
 	children,
@@ -73,7 +89,9 @@ const Section = ({
 	children: ReactNode;
 }) => (
 	<section className={styles.panelSection}>
-		<span className={styles.panelSectionTitle}>{title}</span>
+		<h3 className={`${styles.panelSectionTitle} ${styles.sectionHeading}`}>
+			{title}
+		</h3>
 		{children}
 	</section>
 );
@@ -83,53 +101,110 @@ interface Actions {
 	run: PanelActions<PanelTarget>["run"];
 }
 
-/** The status changes Sentry's own vocabulary offers. */
-const StatusActions = ({ actions }: { actions: Actions }) => (
-	<Section title="Status">
-		<div className={styles.actions}>
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={actions.busy}
-				onClick={() => {
-					actions.run((target) => hostApi.setStatus(target.id, "resolved"));
-				}}
-			>
-				Resolve
-			</Button>
+/** One status change the panel offers right now, with its call and its receipt. */
+interface StatusAction {
+	readonly id: IssueStatusAction;
+	readonly label: string;
+	/** What the panel says once the server confirmed it. */
+	readonly changed: string;
+	write(target: PanelTarget): Promise<unknown>;
+}
 
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={actions.busy}
-				onClick={() => {
-					actions.run((target) =>
-						hostApi.setStatus(target.id, "ignored", "untilEscalating"),
-					);
-				}}
-			>
-				Ignore
-			</Button>
+/** The write behind each status change, and the sentence it leaves behind. */
+const STATUS_WRITES: Readonly<
+	Record<
+		IssueStatusAction,
+		{ readonly changed: string; write(target: PanelTarget): Promise<unknown> }
+	>
+> = {
+	resolve: {
+		changed: "Resolved. Sentry now shows this issue as resolved.",
+		write: (target) =>
+			hostApi.setStatus(target.id, "resolved", undefined, target.organization),
+	},
+	ignore: {
+		changed:
+			"Ignored until it escalates. Sentry will reopen it if it escalates.",
+		write: (target) =>
+			hostApi.setStatus(
+				target.id,
+				"ignored",
+				"untilEscalating",
+				target.organization,
+			),
+	},
+	reopen: {
+		changed: "Reopened. Sentry now shows this issue as unresolved.",
+		write: (target) =>
+			hostApi.setStatus(
+				target.id,
+				"unresolved",
+				undefined,
+				target.organization,
+			),
+	},
+};
 
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={actions.busy}
-				onClick={() => {
-					actions.run((target) => hostApi.setStatus(target.id, "unresolved"));
-				}}
-			>
-				Reopen
-			</Button>
-		</div>
-	</Section>
-);
+/** The status the issue is in, and the actions that apply to it. */
+const StatusSection = ({
+	issue,
+	actions,
+	writer,
+}: {
+	issue: IssueDetail;
+	actions: Actions;
+	writer: PanelWriter;
+}) => {
+	const offered: readonly StatusAction[] = applicableStatusActions(
+		issue.status,
+	).map((id) => ({
+		id,
+		label: STATUS_ACTION_LABELS[id],
+		...STATUS_WRITES[id],
+	}));
+
+	return (
+		<Section title="Status">
+			<span className={styles.caption}>
+				{`Sentry shows this issue as ${statusText(issue.status) ?? "unknown"}.`}
+			</span>
+
+			<div className={styles.actions}>
+				{offered.map((action) => (
+					<Button
+						key={action.id}
+						size="sm"
+						variant="outline"
+						disabled={actions.busy}
+						onClick={() => {
+							writer.run(action.id, action.changed, action.write);
+						}}
+					>
+						{writer.pending === action.id ? `${action.label}…` : action.label}
+					</Button>
+				))}
+			</div>
+
+			<span className={styles.caption}>
+				An ignored issue is reopened by Sentry when it escalates again.
+			</span>
+		</Section>
+	);
+};
 
 /** References used in this page's session, so the second assignment is one click. */
 const remembered: string[] = [];
 
 /** How many remembered references the menu offers. */
 const REMEMBERED_LIMIT = 4;
+
+/** A stored Sentry reference, as a person reads it in the menu. */
+const assigneeLabel = (reference: string): string => {
+	if (reference.startsWith("user:")) return `User ${reference.slice(5)}`;
+	if (reference.startsWith("team:")) return `Team ${reference.slice(5)}`;
+
+	return reference;
+};
 
 /** Remember one reference, most recent first. */
 function remember(reference: string): void {
@@ -139,6 +214,12 @@ function remember(reference: string): void {
 	remembered.length = Math.min(remembered.length, REMEMBERED_LIMIT);
 }
 
+/** The members page that shows the id a `user:` reference needs. */
+const membersUrl = (organizationUrl: string | undefined): string | undefined =>
+	isWebUrl(organizationUrl)
+		? `${organizationUrl.replace(/\/+$/u, "")}/settings/members/`
+		: undefined;
+
 /**
  * Hand the issue to somebody.
  *
@@ -147,22 +228,18 @@ function remember(reference: string): void {
  * should have to type the same reference twice. The name that stands for the
  * reader is one call and one click, the references used in this session are
  * remembered, and the field itself appears only when a new person has to be
- * named by hand.
+ * named by hand; it then says where the numeric id comes from.
  */
-/** A stored Sentry reference, as a person reads it in the menu. */
-const assigneeLabel = (reference: string): string => {
-	if (reference.startsWith("user:")) return `User ${reference.slice(5)}`;
-	if (reference.startsWith("team:")) return `Team ${reference.slice(5)}`;
-
-	return reference;
-};
-
 const Assignee = ({
 	issue,
 	actions,
+	writer,
+	organizationUrl,
 }: {
 	issue: IssueDetail;
 	actions: Actions;
+	writer: PanelWriter;
+	organizationUrl: string | undefined;
 }) => {
 	const [open, setOpen] = useState(false);
 	const [manual, setManual] = useState(false);
@@ -188,6 +265,7 @@ const Assignee = ({
 	}, []);
 
 	const reference = value.trim();
+	const members = membersUrl(organizationUrl);
 
 	const assign = (assignedTo: string | null): void => {
 		if (assignedTo !== null) {
@@ -197,7 +275,13 @@ const Assignee = ({
 
 		setValue("");
 		setManual(false);
-		actions.run((target) => hostApi.assign(target.id, assignedTo));
+		writer.run(
+			assignedTo === null ? "unassign" : "assign",
+			assignedTo === null
+				? "Unassigned."
+				: `Assigned to ${assigneeLabel(assignedTo)}.`,
+			(target) => hostApi.assign(target.id, assignedTo, target.organization),
+		);
 	};
 
 	const entries: MenuEntry[] = [
@@ -264,7 +348,7 @@ const Assignee = ({
 								setOpen(!open);
 							}}
 						>
-							Change
+							{writer.pending === "assign" ? "Assigning…" : "Change"}
 						</Button>
 					}
 				/>
@@ -277,6 +361,7 @@ const Assignee = ({
 							className={styles.assignField}
 							value={value}
 							placeholder="user:123456 or team:backend"
+							aria-label="Assignee reference, for example user:123456"
 							disabled={actions.busy}
 							onChange={(event) => {
 								setValue(event.target.value);
@@ -312,8 +397,20 @@ const Assignee = ({
 					</div>
 
 					<span className={styles.caption}>
-						Sentry's own reference: user:&lt;id&gt; or team:&lt;slug&gt;.
+						A user reference is Sentry’s numeric member id: user:&lt;id&gt;. A
+						team reference is a slug: team:&lt;slug&gt;.
 					</span>
+
+					{members === undefined ? null : (
+						<a
+							className={styles.link}
+							href={members}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Where to find a member id
+						</a>
+					)}
 				</>
 			) : null}
 		</Section>
@@ -383,6 +480,13 @@ const IssueView = ({
 	actions: Actions;
 }) => {
 	const issue = panel.issue;
+	const writer = usePanelWriter(
+		actions,
+		`${panel.organization ?? ""}:${issue.id}`,
+	);
+	// The status the document was read with is what the offered actions and the
+	// labels are chosen from; it must be the one the buttons act on.
+	const shownStatus = issue.status;
 
 	return (
 		<>
@@ -406,8 +510,35 @@ const IssueView = ({
 
 				<Facts
 					items={[
-						{ label: "Status", value: issue.status },
+						{
+							label: "Status",
+							value: statusText(shownStatus),
+						},
 						{ label: "Substatus", value: issue.substatus },
+						{
+							label: "Organization",
+							value:
+								panel.organization === null ? undefined : (
+									<>
+										{panel.organization}
+
+										{!isWebUrl(panel.organizationUrl) ? null : (
+											<>
+												{" · "}
+
+												<a
+													className={styles.link}
+													href={panel.organizationUrl}
+													target="_blank"
+													rel="noreferrer"
+												>
+													Open in Sentry
+												</a>
+											</>
+										)}
+									</>
+								),
+						},
 						{ label: "Project", value: issue.project },
 						{ label: "Platform", value: issue.platform },
 						{ label: "Occurrences", value: issue.occurrences },
@@ -430,8 +561,19 @@ const IssueView = ({
 				/>
 			</header>
 
-			<StatusActions actions={actions} />
-			<Assignee issue={issue} actions={actions} />
+			{writer.changed === null ? null : (
+				<p className={styles.changed} role="status">
+					{writer.changed}
+				</p>
+			)}
+
+			<StatusSection issue={issue} actions={actions} writer={writer} />
+			<Assignee
+				issue={issue}
+				actions={actions}
+				writer={writer}
+				organizationUrl={panel.organizationUrl}
+			/>
 
 			{issue.code === undefined ? null : <Location code={issue.code} />}
 
@@ -451,9 +593,10 @@ const IssueView = ({
 const provider: PanelProvider<IssuePanel, PanelTarget> = {
 	emptyMessage: "This panel was opened without an issue.",
 	parseParams: (value) => asPanelTarget(value),
-	identity: (target) => target.id,
+	identity: (target) => `${target.organization ?? ""}:${target.id}`,
 	title: (target) => target.id,
-	fetch: async (target, signal) => await hostApi.issue(target.id, signal),
+	fetch: async (target, signal) =>
+		await hostApi.issue(target.id, target.organization, signal),
 	parse: (value) => asIssuePanel(value),
 	view: ({ data, actions }) => <IssueView panel={data} actions={actions} />,
 };

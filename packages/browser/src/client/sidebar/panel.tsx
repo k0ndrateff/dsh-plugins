@@ -5,20 +5,24 @@
  * inside the harness's panel and follows its theme. What to watch arrives in the
  * tab's navigation parameters, and everything after that arrives by asking the
  * host: the page's title and address, which frame to draw, what the agent did,
- * and whatever the host refuses.
+ * and how the browser is doing.
+ *
+ * A browser that is not on screen right now is the normal case, not a fault:
+ * not opened yet, closed, paused while nobody looked, and reconnecting each have
+ * their own neutral sentence, and only a real connection failure is red. The
+ * person is never asked to fix a browser that is merely closed.
  *
  * The picture is also the person's way in. A click on it is measured against the
- * page's own size and sent as one act, a wheel is collected into one message per
- * gesture, and the keys go where the page's would — which is what makes a
- * screenshot something a person can take over rather than only watch. The three
- * buttons above the picture are the navigations the page cannot perform for
- * itself from a picture.
+ * page's own size and sent as the press and release the page expects, so a drag
+ * selects text and a double click works; a wheel is collected into one message
+ * per gesture; keys go where the page's would. Because the picture swallows
+ * keystrokes, there is an explicit keyboard mode: in it Tab belongs to the page,
+ * and Escape is always the way back to the harness.
  *
  * Frames are event-driven rather than a stream, so the picture is the newest one
- * the host has and may be older than it looks; the activity beside it is what
- * says whether anything is happening at all. Before the first frame the panel
- * says which of the two waits it is in — no browser yet, or a browser that has
- * not painted — because those send the reader to different places.
+ * the host has and may be older than it looks; the activity beside it says
+ * whether anything is happening, and a paused live view keeps both instead of
+ * making a person forget what happened.
  */
 
 import { Button, StateDot } from "@deepseek-ai/dsh-client-ui-primitives";
@@ -30,7 +34,12 @@ import type {
 	ReactNode,
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { frameUrl, type PanelInput } from "../../shared/panel";
+import {
+	frameUrl,
+	type PanelInput,
+	type PanelPhase,
+	type PanelSnapshot,
+} from "../../shared/panel";
 import { sessionNameOf } from "../../shared/session";
 import * as styles from "../styles/styles.css";
 import { type CloseAnswer, closeBrowser } from "./close";
@@ -38,15 +47,23 @@ import { asBrowserTabParams } from "./definition";
 import { feedLines } from "./feed";
 import {
 	buttonOf,
+	MoveCoalescer,
 	modifiersOf,
+	type PagePoint,
 	pagePointOf,
+	requestRetry,
 	sendInput,
 	WheelCoalescer,
 } from "./input";
 import { type BrowserPanelState, useBrowserPanel } from "./stream";
+import { readPageText } from "./text";
 
 /** How many of the host's activity items the panel shows. */
 const ACTIVITY_SHOWN = 12;
+
+/** How close two presses must be, and how soon, to be a double click. */
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_SLOP = 2;
 
 /**
  * The page sizes a person can ask for.
@@ -65,25 +82,69 @@ const PAGE_SIZES: readonly {
 	{ label: "Phone 390×844", width: 390, height: 844 },
 ];
 
+/** No modifier keys held, as a synthetic event reports them. */
+const NO_MODIFIERS = { alt: false, ctrl: false, meta: false, shift: false };
+
 /** The reason inside an unknown thrown value, as a sentence. */
 const messageOf = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
+
+/** What a phase reads as in the small state line. */
+const STATE_WORD: Readonly<Record<PanelPhase, string>> = {
+	none: "Not open",
+	starting: "Connecting…",
+	live: "Live",
+	closed: "Closed",
+	paused: "Paused",
+	unreachable: "Not connected",
+};
+
+/** What the connection indicator dot says. */
+const dotOf = (
+	snapshot: PanelSnapshot | undefined,
+): "done" | "idle" | "warning" | "error" => {
+	if (snapshot === undefined) return "idle";
+	if (snapshot.phase === "unreachable") return "error";
+	if (snapshot.phase === "live") return "done";
+
+	return "idle";
+};
 
 /** The page's name, or what the panel is still waiting for. */
 const headingOf = (panel: BrowserPanelState): string => {
 	const snapshot = panel.snapshot;
 
 	if (snapshot === undefined) return "Waiting for the browser";
+	if (snapshot.title !== "") return snapshot.title;
+	if (snapshot.phase === "live" || snapshot.phase === "paused")
+		return "Untitled page";
+	if (snapshot.phase === "closed") return "Browser closed";
 
-	return snapshot.title === "" ? "Untitled page" : snapshot.title;
+	return "No page open";
 };
 
 /** What stands in the frame's place before there is one. */
 const waitingFor = (panel: BrowserPanelState): string => {
-	if (panel.snapshot?.connected !== true)
-		return "No live browser for this session yet. It opens when the agent calls browser_open.";
+	const snapshot = panel.snapshot;
 
-	return "Waiting for the first frame.";
+	if (snapshot === undefined) return "Waiting for the host…";
+
+	switch (snapshot.phase) {
+		case "closed":
+			return snapshot.message;
+		case "none":
+			return snapshot.message;
+		case "starting":
+			return snapshot.message === ""
+				? "Connecting to the browser…"
+				: snapshot.message;
+		case "unreachable":
+			return "The live view could not connect to the browser.";
+		case "paused":
+			return "The live view is paused; the last picture is below.";
+		case "live":
+			return "Waiting for the first frame.";
+	}
 };
 
 /** One session's viewport: its page, its picture, its activity, and its actions. */
@@ -99,19 +160,36 @@ const BrowserView = ({
 	const [notice, setNotice] = useState<CloseAnswer | undefined>(undefined);
 	const [isClosing, setIsClosing] = useState(false);
 	const [failedSeq, setFailedSeq] = useState<number | null>(null);
+	const [frameAttempt, setFrameAttempt] = useState(0);
+	const [hintHidden, setHintHidden] = useState(false);
+	const [keyboardMode, setKeyboardMode] = useState(false);
+	const [textMode, setTextMode] = useState(false);
+	const [pageText, setPageText] = useState<string | undefined>(undefined);
+	const [textError, setTextError] = useState<string | undefined>(undefined);
+	const [textLoading, setTextLoading] = useState(false);
 
 	const stage = useRef<HTMLDivElement | null>(null);
 	const picture = useRef<HTMLImageElement | null>(null);
-	const downAt = useRef<{ readonly x: number; readonly y: number } | undefined>(
-		undefined,
-	);
+	const drag = useRef<
+		{ readonly point: PagePoint; readonly clickCount: number } | undefined
+	>(undefined);
+	const lastClick = useRef<
+		| { readonly at: number; readonly point: PagePoint; readonly count: number }
+		| undefined
+	>(undefined);
+	const feedBox = useRef<HTMLUListElement | null>(null);
 
 	const snapshot = panel.snapshot;
+	const phase: PanelPhase = snapshot?.phase ?? "none";
 	const url = snapshot?.url ?? "";
+	const title = snapshot?.title ?? "";
+	const tabs = snapshot?.tabs ?? [];
 	const connected = snapshot?.connected === true;
+	const open = snapshot?.open === true;
 	const page = snapshot?.page;
 	const feed = feedLines(snapshot?.activity ?? []).slice(-ACTIVITY_SHOWN);
-	const failure = panel.error ?? snapshot?.error;
+	const failure = snapshot?.error ?? panel.error;
+	const retryable = snapshot?.retryable === true;
 
 	// The picker shows the page's own size: one of the three, or what the agent
 	// left it at, so a person can see that the layout they are looking at is not
@@ -124,16 +202,18 @@ const BrowserView = ({
 	const act = useCallback(
 		(input: PanelInput): void => {
 			sendInput(session, input)
-				.then((answer) =>
-					setNotice(
-						answer.ok
-							? undefined
-							: {
-									text: answer.text ?? "The host refused that action.",
-									isError: true,
-								},
-					),
-				)
+				.then((answer) => {
+					if (answer.ok) {
+						setHintHidden(true);
+
+						return;
+					}
+
+					setNotice({
+						text: answer.text ?? "The host refused that action.",
+						isError: true,
+					});
+				})
 				.catch((error: unknown) => {
 					setNotice({
 						text: `That did not reach the host: ${messageOf(error)}`,
@@ -148,6 +228,23 @@ const BrowserView = ({
 	// One collector for the whole panel: a gesture's deltas are summed before a
 	// message is sent, so a trackpad's scroll is a couple of requests, not sixty.
 	const wheels = useMemo(() => new WheelCoalescer(act), [act]);
+
+	// Dragging across the picture is how text is selected: the pointer reports a
+	// position per pixel, so they are collected the same way a wheel's are.
+	const moves = useMemo(
+		() =>
+			new MoveCoalescer((point) =>
+				act({
+					type: "mouse",
+					event: "move",
+					x: point.x,
+					y: point.y,
+					button: "left",
+					modifiers: NO_MODIFIERS,
+				}),
+			),
+		[act],
+	);
 
 	// The two numbers, not the object: a poll brings a new page object every
 	// quarter second, and rebinding the wheel listener that often would cut one
@@ -179,8 +276,8 @@ const BrowserView = ({
 
 			if (point === undefined) return;
 
-			// The picture is the page: the wheel belongs to it, not to the panel
-			// that happens to be holding it.
+			// Only a wheel over the page is the page's: over the strip beside a
+			// narrower layout the panel scrolls as it normally would.
 			event.preventDefault();
 			wheels.add(point, event.deltaX, event.deltaY);
 		};
@@ -190,50 +287,113 @@ const BrowserView = ({
 		return () => {
 			element.removeEventListener("wheel", onWheel);
 			wheels.flush();
+			moves.flush();
 		};
-	}, [pointOf, wheels]);
+	}, [pointOf, wheels, moves]);
 
-	const focus = (event: ReactMouseEvent<HTMLDivElement>): void => {
-		// Focus follows the pointer into the page, so the keys a person types next
-		// land there rather than on the harness around the panel. The click itself
-		// waits for the release, so a drag selects text instead of clicking.
-		event.preventDefault();
-		event.currentTarget.focus();
-		downAt.current = { x: event.clientX, y: event.clientY };
-	};
+	// New activity scrolls its own list, not the whole panel: the picture stays
+	// where it is and the newest lines are the ones a person sees.
+	useEffect(() => {
+		const box = feedBox.current;
+
+		if (box !== null) box.scrollTop = box.scrollHeight;
+	}, [feed.length]);
+
+	const loadText = useCallback((): void => {
+		setTextLoading(true);
+		readPageText(session)
+			.then((answer) => {
+				setPageText(answer.text);
+				setTextError(answer.error);
+			})
+			.catch((error: unknown) => setTextError(messageOf(error)))
+			.finally(() => setTextLoading(false));
+	}, [session]);
+
+	useEffect(() => {
+		if (textMode) loadText();
+	}, [textMode, loadText]);
 
 	const press = (event: ReactMouseEvent<HTMLDivElement>): void => {
-		const down = downAt.current;
-
-		downAt.current = undefined;
-
-		if (
-			down !== undefined &&
-			Math.abs(event.clientX - down.x) + Math.abs(event.clientY - down.y) > 6
-		)
-			return;
+		// Focus follows the pointer into the page, so the keys a person types next
+		// land there rather than on the harness around the panel.
+		event.preventDefault();
+		event.currentTarget.focus();
 
 		const point = pointOf(event);
 
-		if (point === undefined) return;
+		if (point === undefined) {
+			setNotice({ text: "That point is outside the page.", isError: false });
 
+			return;
+		}
+
+		const now = Date.now();
+		const previous = lastClick.current;
+		const count =
+			previous !== undefined &&
+			now - previous.at <= DOUBLE_CLICK_MS &&
+			Math.abs(previous.point.x - point.x) <= DOUBLE_CLICK_SLOP &&
+			Math.abs(previous.point.y - point.y) <= DOUBLE_CLICK_SLOP
+				? Math.min(2, previous.count + 1)
+				: 1;
+
+		lastClick.current = { at: now, point, count };
+		drag.current = { point, clickCount: count };
+
+		// The press is sent on its own, so a drag selects text on the page; the
+		// release completes it, and the click is the two of them.
 		act({
 			type: "mouse",
-			event: "click",
+			event: "down",
 			x: point.x,
 			y: point.y,
 			button: buttonOf(event.button),
+			clickCount: count,
 			modifiers: modifiersOf(event),
 		});
+	};
+
+	const release = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		const started = drag.current;
+
+		drag.current = undefined;
+		moves.flush();
+
+		if (started === undefined) return;
+
+		const released = pointOf(event);
+		const point = released ?? started.point;
+
+		if (released === undefined)
+			setNotice({ text: "That point is outside the page.", isError: false });
+
+		act({
+			type: "mouse",
+			event: "up",
+			x: point.x,
+			y: point.y,
+			button: buttonOf(event.button),
+			clickCount: started.clickCount,
+			modifiers: modifiersOf(event),
+		});
+	};
+
+	const dragOver = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		if (drag.current === undefined) return;
+
+		const point = pointOf(event);
+
+		if (point !== undefined) moves.move(point);
 	};
 
 	const key = (
 		event: ReactKeyboardEvent<HTMLDivElement>,
 		isDown: boolean,
 	): void => {
-		// Tab belongs to the harness: a keyboard user must be able to leave the
-		// picture. Every other key goes to the page first.
-		if (event.key === "Tab") return;
+		// Tab belongs to the harness unless keyboard mode is on: a keyboard user
+		// must always be able to leave the picture.
+		if (event.key === "Tab" && !keyboardMode) return;
 
 		event.preventDefault();
 
@@ -245,16 +405,24 @@ const BrowserView = ({
 			modifiers: modifiersOf(event),
 		});
 
-		// Escape is the way out of the page: the page gets it, and so does the
-		// panel, so a person is never trapped in a focused picture.
-		if (isDown && event.key === "Escape") event.currentTarget.blur();
+		// Escape is the way out of the page in both modes: the page gets it, and
+		// the focus returns to the harness, so a person is never trapped.
+		if (isDown && event.key === "Escape") {
+			setKeyboardMode(false);
+			event.currentTarget.blur();
+		}
 	};
 
 	const close = (): void => {
 		setIsClosing(true);
 
 		closeBrowser(session)
-			.then(setNotice)
+			.then((answer) => {
+				// A close that worked is the host's state, not a sentence: the next
+				// poll moves the panel into "closed" and there is nothing to fix.
+				setNotice(answer.isError ? answer : undefined);
+				refresh();
+			})
 			.catch((error: unknown) => {
 				setNotice({
 					text: `The close request did not reach the host: ${messageOf(error)}`,
@@ -266,16 +434,79 @@ const BrowserView = ({
 			});
 	};
 
+	const retry = (): void => {
+		setNotice(undefined);
+
+		requestRetry(session)
+			.then((answer) => {
+				if (!answer.ok)
+					setNotice({
+						text: answer.text ?? "The host refused the retry.",
+						isError: true,
+					});
+			})
+			.catch((error: unknown) => {
+				setNotice({
+					text: `The retry did not reach the host: ${messageOf(error)}`,
+					isError: true,
+				});
+			})
+			.finally(refresh);
+	};
+
+	const copy = (text: string): void => {
+		if (navigator.clipboard === undefined) {
+			setNotice({ text: "This page cannot use the clipboard.", isError: true });
+
+			return;
+		}
+
+		navigator.clipboard
+			.writeText(text)
+			.then(() => setNotice({ text: "Copied the address.", isError: false }))
+			.catch(() =>
+				setNotice({ text: "The address could not be copied.", isError: true }),
+			);
+	};
+
+	// What a screen reader hears when the panel changes: the state, and the
+	// newest thing that happened, without reading the whole feed.
+	const newest = feed.at(-1);
+	const announcement = [
+		STATE_WORD[phase],
+		newest === undefined
+			? ""
+			: `${newest.label}${newest.detail === "" ? "" : ` ${newest.detail}`}`,
+	]
+		.filter((part) => part !== "")
+		.join(". ");
+	const tabNames = tabs
+		.map(
+			(tab) =>
+				`${tab.active ? "• " : ""}${tab.title === "" ? tab.url : tab.title}`,
+		)
+		.join("\n");
+
 	return (
 		<div className={styles.viewer}>
 			<header className={styles.viewerHead}>
 				<div className={styles.viewerTitleRow}>
-					<h2 className={styles.viewerTitle}>{headingOf(panel)}</h2>
+					<h2
+						className={styles.viewerTitle}
+						title={title === "" ? undefined : title}
+					>
+						{headingOf(panel)}
+					</h2>
 
-					<span className={styles.viewerState}>
-						<StateDot state={connected ? "done" : "idle"} />
+					{tabs.length > 1 ? (
+						<span className={styles.viewerTabs} title={tabNames}>
+							{tabs.length} tabs
+						</span>
+					) : null}
 
-						{connected ? "Live" : "Not connected"}
+					<span className={styles.viewerState} role="status" aria-live="polite">
+						<StateDot state={dotOf(snapshot)} />
+						{STATE_WORD[phase]}
 					</span>
 				</div>
 
@@ -314,52 +545,161 @@ const BrowserView = ({
 					</Button>
 
 					{url === "" ? null : (
-						<span className={styles.viewerAddress}>{url}</span>
+						<>
+							<span className={styles.viewerAddress} title={url}>
+								{url}
+							</span>
+
+							<Button
+								size="sm"
+								variant="ghost"
+								title="Copy the address"
+								aria-label="Copy the address"
+								onClick={() => copy(url)}
+							>
+								⧉
+							</Button>
+						</>
 					)}
 				</div>
 			</header>
 
 			<div className={styles.viewerScroll}>
-				<div className={styles.stage} ref={stage}>
-					{snapshot === undefined || snapshot.seq === 0 ? (
-						<span className={styles.placeholder}>{waitingFor(panel)}</span>
-					) : failedSeq === snapshot.seq ? (
-						<span className={styles.frameMissing}>
-							The frame the host has could not be shown.
+				<div className={styles.hintBar}>
+					{hintHidden ? null : (
+						<span className={styles.hintText}>
+							{keyboardMode
+								? "Keyboard goes to the page. Escape returns to the panel."
+								: "Click and type into the page; Escape leaves it."}
 						</span>
-					) : (
-						<div
-							className={styles.surface}
-							// biome-ignore lint/a11y/noNoninteractiveTabindex: the picture is the page, and focus is how it receives keys
-							tabIndex={0}
-							role="application"
-							aria-label={`The browser's viewport on ${headingOf(panel)}`}
-							onMouseDown={focus}
-							onMouseUp={press}
-							onKeyDown={(event) => key(event, true)}
-							onKeyUp={(event) => key(event, false)}
+					)}
+
+					<Button
+						size="sm"
+						variant={keyboardMode ? "primary" : "ghost"}
+						aria-pressed={keyboardMode}
+						onClick={() => setKeyboardMode((on) => !on)}
+					>
+						Keyboard to page
+					</Button>
+
+					<Button
+						size="sm"
+						variant={textMode ? "primary" : "ghost"}
+						aria-pressed={textMode}
+						onClick={() => setTextMode((on) => !on)}
+					>
+						{textMode ? "Picture" : "Text"}
+					</Button>
+
+					{textMode ? (
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={textLoading}
+							onClick={loadText}
 						>
-							<img
-								ref={picture}
-								className={styles.frame}
-								src={frameUrl(session, snapshot.seq)}
-								alt={`The browser's viewport on ${headingOf(panel)}`}
-								draggable={false}
-								onError={() => setFailedSeq(snapshot.seq)}
-							/>
-						</div>
+							{textLoading ? "Reading…" : "Refresh text"}
+						</Button>
+					) : null}
+
+					{hintHidden ? null : (
+						<Button
+							size="sm"
+							variant="ghost"
+							aria-label="Hide this hint"
+							title="Hide this hint"
+							onClick={() => setHintHidden(true)}
+						>
+							×
+						</Button>
 					)}
 				</div>
 
+				{textMode ? (
+					<pre className={styles.pageText} aria-live="polite">
+						{textLoading
+							? "Reading the page…"
+							: (textError ?? pageText ?? "No text yet.")}
+					</pre>
+				) : (
+					<div className={styles.stage} ref={stage}>
+						{snapshot === undefined || snapshot.seq === 0 ? (
+							<span className={styles.placeholder}>{waitingFor(panel)}</span>
+						) : failedSeq === snapshot.seq ? (
+							<div className={styles.frameMissing}>
+								<span>The frame the host has could not be shown.</span>
+
+								<Button
+									size="sm"
+									onClick={() => {
+										setFailedSeq(null);
+										setFrameAttempt((attempt) => attempt + 1);
+									}}
+								>
+									Try again
+								</Button>
+							</div>
+						) : (
+							<div
+								className={styles.surface}
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: the picture is the page, and focus is how it receives keys
+								tabIndex={0}
+								role="application"
+								aria-label={`The browser's viewport on ${headingOf(panel)}. Click and type into it; Escape leaves it.`}
+								onMouseDown={press}
+								onMouseUp={release}
+								onMouseMove={dragOver}
+								onKeyDown={(event) => key(event, true)}
+								onKeyUp={(event) => key(event, false)}
+							>
+								<img
+									ref={picture}
+									className={styles.frame}
+									src={`${frameUrl(session, snapshot.seq)}&r=${String(frameAttempt)}`}
+									alt={`The browser's viewport on ${headingOf(panel)}`}
+									draggable={false}
+									onError={() => setFailedSeq(snapshot.seq)}
+								/>
+							</div>
+						)}
+					</div>
+				)}
+
+				{snapshot === undefined ||
+				phase === "live" ||
+				snapshot.message === "" ||
+				snapshot.seq === 0 ? null : (
+					<p className={styles.answer}>{snapshot.message}</p>
+				)}
+
+				{snapshot?.retryable === true && failure === undefined ? (
+					<div className={styles.failureRow}>
+						<Button size="sm" onClick={retry}>
+							Retry
+						</Button>
+					</div>
+				) : null}
+
 				{failure === undefined ? null : (
-					<p className={`${styles.answer} ${styles.answerError}`}>{failure}</p>
+					<div className={styles.failureRow} role="alert">
+						<p className={`${styles.answer} ${styles.answerError}`}>
+							{failure}
+						</p>
+
+						{retryable ? (
+							<Button size="sm" onClick={retry}>
+								Retry
+							</Button>
+						) : null}
+					</div>
 				)}
 
 				{feed.length === 0 ? null : (
 					<section className={styles.activity}>
 						<span className={styles.activityTitle}>Activity</span>
 
-						<ul className={styles.activityList}>
+						<ul className={styles.activityList} ref={feedBox}>
 							{feed.map((line, index) => (
 								<li key={`${line.at}-${index}`} className={styles.activityItem}>
 									<span className={styles.activityLabel}>{line.label}</span>
@@ -385,7 +725,7 @@ const BrowserView = ({
 					className={styles.pageSize}
 					aria-label="Page size"
 					title="The size the page is laid out at"
-					disabled={!connected}
+					disabled={!connected || !open}
 					value={sizeKey}
 					onChange={(event) => {
 						const size = PAGE_SIZES[Number(event.target.value)];
@@ -424,7 +764,7 @@ const BrowserView = ({
 				<Button
 					size="sm"
 					variant="outline"
-					disabled={isClosing}
+					disabled={!open || isClosing}
 					onClick={close}
 				>
 					Close browser
@@ -432,6 +772,7 @@ const BrowserView = ({
 
 				{notice === undefined ? null : (
 					<span
+						role={notice.isError ? "alert" : "status"}
 						className={
 							notice.isError
 								? `${styles.answer} ${styles.answerError}`
@@ -442,6 +783,10 @@ const BrowserView = ({
 					</span>
 				)}
 			</footer>
+
+			<div className={styles.srOnly} role="status" aria-live="polite">
+				{announcement}
+			</div>
 		</div>
 	);
 };

@@ -33,6 +33,7 @@ export const INDEX = {
 			token: { title: "Paste a token" },
 			"no-credential": { title: "No credential" },
 			"read-only": { title: "Reads only" },
+			"runs-commands": { title: "Runs project commands" },
 			writes: { title: "Can write" },
 		},
 	},
@@ -104,7 +105,7 @@ export const PLUGINS = {
 	},
 	"dsh-devkit-plugin": {
 		category: "developer",
-		labels: ["read-only"],
+		labels: ["read-only", "runs-commands"],
 		keywords: ["checks", "lint", "typecheck", "tests", "build", "recipes"],
 	},
 	"dsh-browser-plugin": {

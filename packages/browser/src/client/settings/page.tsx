@@ -19,7 +19,11 @@ import {
 	settingsTextField,
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
+import { isRecord } from "dsh-integration-host/shape";
 import type { ReactNode } from "react";
+import { useState } from "react";
+import type { DoctorCheckView } from "../../shared/doctor";
+import { doctorUrl } from "../../shared/panel";
 import * as styles from "../styles/styles.css";
 import { settingsListField, settingsSwitchField } from "./fields";
 
@@ -56,23 +60,31 @@ const COPY = {
 		"How much of one answer the model may read; the rest is cut at a line boundary.",
 	headed: "Show the window",
 	headedHint:
-		"Run a visible browser instead of headless. Takes effect when this session's browser next starts.",
+		"Run a visible browser instead of headless. Applies the next time this conversation's browser starts.",
 	chromeProfile: "Chrome profile",
 	chromeProfileHint:
-		"Reuse a real Chrome profile by name or path so the browser starts signed in. Empty means a throwaway profile.",
+		"Reuse a real Chrome profile by name or path so the browser starts signed in. Empty means a throwaway profile. Applies the next time this conversation's browser starts.",
+	chromeProfileRisk:
+		"Risk: the agent can then see and change every site you are already signed in to, and a page it opens can act as you.",
 	allowedDomains: "Allowed domains",
 	allowedDomainsHint:
-		"Comma-separated patterns the CLI itself allows, such as example.com or *.example.com. Empty means no restriction.",
+		"Comma-separated patterns the CLI itself allows, such as example.com or *.example.com. Empty means no restriction. Applies the next time this conversation's browser starts.",
 	streamQuality: "Frame quality",
 	streamQualityHint:
-		"JPEG quality of the live view, 1 to 100. 60 is about 31 KB a frame at 1280 wide.",
+		"JPEG quality of the live view, 1 to 100. 60 is about 31 KB a frame at 1280 wide. Applies the next time this conversation's browser starts.",
 	streamMaxWidth: "Frame width (px)",
-	streamMaxWidthHint: "The widest frame the live view encodes.",
+	streamMaxWidthHint:
+		"The widest frame the live view encodes. Applies the next time this conversation's browser starts.",
 	streamMaxHeight: "Frame height (px)",
-	streamMaxHeightHint: "The tallest frame the live view encodes.",
+	streamMaxHeightHint:
+		"The tallest frame the live view encodes. Applies the next time this conversation's browser starts.",
 	streamMaxFps: "Frames per second",
 	streamMaxFpsHint:
-		"The most frames per second one open panel asks the screencast for.",
+		"The most frames per second one open panel asks the screencast for. Applies the next time the panel connects.",
+	check: "Check this machine",
+	checking: "Checking…",
+	checkFailed:
+		"The check could not be made. Is the host half of the plugin loaded?",
 } as const;
 
 /** What the page reads: the form's shell plus every staged field. */
@@ -223,7 +235,8 @@ const FieldControl = ({
 			</div>
 		);
 
-	return (
+	const risky = name === "chromeProfile";
+	const control = (
 		<SettingsValueField
 			id={`plugin-config-browser-${name}`}
 			label={label}
@@ -243,6 +256,139 @@ const FieldControl = ({
 			onEdit={edit}
 			onReset={reset}
 		/>
+	);
+
+	if (!risky) return control;
+
+	return (
+		<div className={styles.configRow}>
+			{control}
+
+			<p className={styles.configRiskText}>{COPY.chromeProfileRisk}</p>
+		</div>
+	);
+};
+
+/** How one check's status reads without a legend. */
+const MARK: Readonly<Record<string, string>> = {
+	pass: "✓",
+	fail: "✗",
+	warn: "!",
+};
+
+/** What the doctor route answered. */
+interface DoctorAnswer {
+	readonly ok: boolean;
+	readonly version: string;
+	readonly chrome: string;
+	readonly checks: readonly DoctorCheckView[];
+	readonly error: string | undefined;
+}
+
+/** Whether one item is a check this page can draw. */
+const isCheckView = (value: unknown): value is DoctorCheckView =>
+	isRecord(value) &&
+	typeof value.label === "string" &&
+	typeof value.status === "string" &&
+	typeof value.message === "string";
+
+/** One answer from the route, or nothing when it is not one. */
+const asDoctorAnswer = (value: unknown): DoctorAnswer | undefined => {
+	if (!isRecord(value)) return undefined;
+
+	const checks = Array.isArray(value.checks)
+		? value.checks.filter(isCheckView)
+		: [];
+
+	return {
+		ok: value.ok === true,
+		version: typeof value.version === "string" ? value.version : "",
+		chrome: typeof value.chrome === "string" ? value.chrome : "",
+		checks,
+		error: typeof value.error === "string" ? value.error : undefined,
+	};
+};
+
+/**
+ * The machine check: is the CLI there, is Chrome there, what failed.
+ *
+ * The Executable field accepts any string, and without this the first answer a
+ * person got was a failed tool call in the chat. This is the same `doctor` the
+ * browser itself runs, asked on demand from the page that configures it.
+ */
+const MachineCheck = (): ReactNode => {
+	const [checking, setChecking] = useState(false);
+	const [answer, setAnswer] = useState<DoctorAnswer | undefined>(undefined);
+
+	const run = (): void => {
+		setChecking(true);
+
+		fetch(doctorUrl(), { headers: { accept: "application/json" } })
+			.then(async (response) => {
+				const body = (await response.text()).trim();
+				let parsed: unknown;
+
+				try {
+					parsed = JSON.parse(body) as unknown;
+				} catch {
+					parsed = undefined;
+				}
+
+				const read = asDoctorAnswer(parsed);
+
+				setAnswer(
+					read ?? {
+						ok: false,
+						version: "",
+						chrome: "",
+						checks: [],
+						error: COPY.checkFailed,
+					},
+				);
+			})
+			.catch((error: unknown) =>
+				setAnswer({
+					ok: false,
+					version: "",
+					chrome: "",
+					checks: [],
+					error: error instanceof Error ? error.message : String(error),
+				}),
+			)
+			.finally(() => setChecking(false));
+	};
+
+	return (
+		<div className={styles.checkSection}>
+			<Button size="sm" disabled={checking} onClick={run}>
+				{checking ? COPY.checking : COPY.check}
+			</Button>
+
+			{answer === undefined ? null : answer.error !== undefined ? (
+				<p className={`${styles.configHint} ${styles.answerError}`}>
+					{answer.error}
+				</p>
+			) : (
+				<>
+					<span className={styles.configHint}>
+						{answer.version === "" ? "" : `agent-browser ${answer.version}. `}
+						{answer.chrome === "" ? "" : `Chrome: ${answer.chrome}.`}
+					</span>
+
+					<ul className={styles.checkList}>
+						{answer.checks.map((check) => (
+							<li key={check.id} className={styles.checkLine}>
+								<span>{MARK[check.status] ?? "·"}</span>
+
+								<strong>{check.label}</strong>
+
+								<span>{check.message}</span>
+							</li>
+						))}
+					</ul>
+				</>
+			)}
+		</div>
 	);
 };
 
@@ -272,6 +418,8 @@ export const BrowserSettingsPage = (
 			{FIELDS.map((name) => (
 				<FieldControl key={name} name={name} state={state} props={page} />
 			))}
+
+			<MachineCheck />
 		</SettingsForm>
 	);
 };

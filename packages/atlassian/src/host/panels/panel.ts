@@ -9,12 +9,18 @@
  * Every read is best-effort around the edges. A transition list that fails to
  * load, or a comment section the server declines, leaves the rest of the
  * document intact: a panel missing one section still answers the question the
- * user clicked on. Writes are the opposite — a write that fails is reported,
- * because silence there would look like success.
+ * user clicked on. What failed is carried in the document, so the panel can say
+ * so instead of letting a missing section read as an empty one. Writes are the
+ * opposite — a write that fails is reported, because silence there would look
+ * like success.
+ *
+ * A write or a read may name its own site; the panel then works with that
+ * site's cloud id rather than the selected default, so a card from site B never
+ * opens site A's issue.
  */
 
 import type { RuntimeState } from "dsh-integration-host";
-import type { McpBridge } from "dsh-mcp-oauth";
+import type { GrantStore, McpBridge } from "dsh-mcp-oauth";
 import { asRecord, mcpJson, pickNumber, pickString } from "dsh-mcp-oauth";
 import type {
 	IssuePanel,
@@ -24,7 +30,7 @@ import type {
 	PanelTransition,
 } from "../../shared/panel";
 import { extractor, formatDuration } from "../presentation/extract";
-import type { SiteFacts } from "../store/site";
+import { type SiteFacts, siteFacts } from "../store/site";
 
 /** How many comments to show on one panel. */
 const COMMENT_LIMIT = 25;
@@ -35,7 +41,25 @@ const PEOPLE_LIMIT = 8;
 export interface PanelDeps {
 	readonly bridge: McpBridge;
 	readonly state: RuntimeState<SiteFacts>;
+	/** Where a selected default site is remembered, when the host passes it. */
+	readonly store?: Pick<GrantStore, "remember">;
 }
+
+/** One comment section, and what the server said about the whole thread. */
+interface CommentSection {
+	readonly comments: readonly PanelComment[];
+	readonly total?: number;
+	readonly truncated: boolean;
+}
+
+/** The outcome of the optional workflow read. */
+type Workflow =
+	| { readonly transitions: readonly PanelTransition[] }
+	| { readonly error: string };
+
+/** The reason inside an unknown thrown value, as a sentence. */
+const messageOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
 
 export class PanelApi {
 	constructor(private readonly deps: PanelDeps) {}
@@ -58,26 +82,29 @@ export class PanelApi {
 		"timeoriginalestimate",
 	];
 
-	/** Everything one issue panel shows. */
-	issue = async (key: string): Promise<IssuePanel> => {
-		const cloudId = this.cloudId();
+	/** Everything one issue panel shows, read from one site. */
+	issue = async (key: string, cloudId?: string): Promise<IssuePanel> => {
+		const site = this.site(cloudId);
 
 		// The transitions are a second call, and one that may legitimately fail
-		// (a workflow the token cannot read): the issue is what matters.
-		const [detail, transitions] = await Promise.all([
+		// (a workflow the token cannot read): the issue is what matters, and the
+		// failure is carried along so the panel can say the list is missing.
+		const [detail, workflow] = await Promise.all([
 			this.deps.bridge.callTool("getJiraIssue", {
-				cloudId,
+				cloudId: site.cloudId,
 				issueIdOrKey: key,
 				fields: [...this.ISSUE_FIELDS, "comment"],
 				responseContentFormat: "markdown",
 			}),
 			this.deps.bridge
 				.callTool("getTransitionsForJiraIssue", {
-					cloudId,
+					cloudId: site.cloudId,
 					issueIdOrKey: key,
 				})
-				.then((value) => this.transitionsOf(value))
-				.catch(() => [] as PanelTransition[]),
+				.then(
+					(value): Workflow => ({ transitions: this.transitionsOf(value) }),
+					(error): Workflow => ({ error: messageOf(error) }),
+				),
 		]);
 
 		const record = this.issueRecord(detail);
@@ -87,6 +114,9 @@ export class PanelApi {
 		const fields = asRecord(record.fields) ?? record;
 		const identity = pickString(record, "key") ?? key;
 		const summary = extractor.text(pickString(fields, "summary"));
+		const comments = this.commentsOf(fields.comment);
+		const url =
+			site.url === undefined ? undefined : `${site.url}/browse/${identity}`;
 
 		return {
 			kind: "issue",
@@ -114,28 +144,28 @@ export class PanelApi {
 			created: pickString(fields, "created"),
 			updated: pickString(fields, "updated"),
 			description: extractor.text(fields.description),
-			url:
-				this.deps.state.facts?.siteUrl === undefined
-					? undefined
-					: `${this.deps.state.facts?.siteUrl}/browse/${identity}`,
-			comments: this.commentsOf(fields.comment),
-			transitions,
+			...(url === undefined ? {} : { url }),
+			comments: comments.comments,
+			...(comments.total === undefined ? {} : { commentTotal: comments.total }),
+			...(comments.truncated ? { commentsTruncated: true } : {}),
+			transitions: "transitions" in workflow ? workflow.transitions : [],
+			...("error" in workflow ? { transitionsError: workflow.error } : {}),
 		};
 	};
 
-	/** Everything one page panel shows. */
-	page = async (id: string): Promise<PagePanel> => {
-		const cloudId = this.cloudId();
+	/** Everything one page panel shows, read from one site. */
+	page = async (id: string, cloudId?: string): Promise<PagePanel> => {
+		const site = this.site(cloudId);
 
 		const [detail, comments] = await Promise.all([
 			this.deps.bridge.callTool("getConfluencePage", {
-				cloudId,
+				cloudId: site.cloudId,
 				pageId: id,
 				contentFormat: "markdown",
 			}),
 			this.deps.bridge
 				.callTool("getConfluencePageFooterComments", {
-					cloudId,
+					cloudId: site.cloudId,
 					pageId: id,
 					limit: COMMENT_LIMIT,
 				})
@@ -148,27 +178,31 @@ export class PanelApi {
 
 		const title = pickString(record, "title") ?? id;
 		const webui = pickString(asRecord(record._links), "webui");
+		const url =
+			webui === undefined
+				? site.url === undefined
+					? undefined
+					: `${site.url}/wiki/pages/viewpage.action?pageId=${id}`
+				: this.wikiUrl(webui, site.url);
+		const thread = this.commentsOf(comments);
 
 		return {
 			kind: "page",
 			id: pickString(record, "id") ?? id,
 			title,
 			space: pickString(asRecord(record.space) ?? record.space, "name", "key"),
-			url:
-				webui === undefined
-					? this.deps.state.facts?.siteUrl === undefined
-						? undefined
-						: `${this.deps.state.facts?.siteUrl}/wiki/pages/viewpage.action?pageId=${id}`
-					: this.wikiUrl(webui, this.deps.state.facts?.siteUrl),
+			...(url === undefined ? {} : { url }),
 			body: extractor.text(record.body),
-			comments: this.commentsOf(this.firstRecord(comments)?.results),
+			comments: thread.comments,
+			...(thread.total === undefined ? {} : { commentTotal: thread.total }),
+			...(thread.truncated ? { commentsTruncated: true } : {}),
 		};
 	};
 
 	/** People the site matches to one search string. */
-	people = async (query: string): Promise<PanelPerson[]> => {
+	people = async (query: string, cloudId?: string): Promise<PanelPerson[]> => {
 		const value = await this.deps.bridge.callTool("lookupJiraAccountId", {
-			cloudId: this.cloudId(),
+			cloudId: this.site(cloudId).cloudId,
 			searchString: query,
 			showAvatar: false,
 		});
@@ -200,31 +234,74 @@ export class PanelApi {
 	};
 
 	/** Move one issue through a workflow transition. */
-	transition = async (key: string, transitionId: string): Promise<void> => {
+	transition = async (
+		key: string,
+		transitionId: string,
+		cloudId?: string,
+	): Promise<void> => {
 		await this.deps.bridge.callTool("transitionJiraIssue", {
-			cloudId: this.cloudId(),
+			cloudId: this.site(cloudId).cloudId,
 			issueIdOrKey: key,
 			transition: { id: transitionId },
 		});
 	};
 
 	/** Set or clear one issue's assignee. */
-	assign = async (key: string, accountId: string | null): Promise<void> => {
+	assign = async (
+		key: string,
+		accountId: string | null,
+		cloudId?: string,
+	): Promise<void> => {
 		await this.deps.bridge.callTool("editJiraIssue", {
-			cloudId: this.cloudId(),
+			cloudId: this.site(cloudId).cloudId,
 			issueIdOrKey: key,
 			fields: { assignee: accountId === null ? null : { accountId } },
 		});
 	};
 
-	/** The connected site's cloud id, or a message the user can act on. */
-	private cloudId = (): string => {
-		if (this.deps.state.facts?.cloudId === undefined)
+	/**
+	 * Make one of the account's sites the default.
+	 *
+	 * The selection is remembered beside the tokens, so it survives a restart
+	 * without a new sign-in — the reason a multi-site account does not have to
+	 * sign out to switch sites.
+	 * @param cloudId - a site from the account's own list.
+	 * @returns the facts as the rest of the plugin now sees them.
+	 * @throws when no sites are known yet, or the id names none of them.
+	 */
+	selectSite = async (cloudId: string): Promise<SiteFacts> => {
+		const current = this.deps.state.facts;
+
+		if (current === undefined)
 			throw new Error(
-				"no Atlassian site known yet — sign in from Settings, then try again",
+				"no Atlassian sites known yet — sign in, or run /atlassian sync",
 			);
 
-		return this.deps.state.facts?.cloudId;
+		const next = current.withSelection(cloudId);
+
+		if (next === undefined)
+			throw new Error(`unknown Atlassian site: ${cloudId}`);
+
+		this.deps.state.facts = next;
+		await this.deps.store?.remember(siteFacts.remember(next));
+
+		return next;
+	};
+
+	/** The site one read or write works with. */
+	private site = (
+		cloudId: string | undefined,
+	): { readonly cloudId: string; readonly url: string | undefined } => {
+		const facts = this.deps.state.facts;
+
+		if (cloudId !== undefined) return { cloudId, url: facts?.urlOf(cloudId) };
+
+		if (facts?.cloudId === undefined)
+			throw new Error(
+				"no Atlassian site known yet — sign in from Settings or run /atlassian sync, then try again",
+			);
+
+		return { cloudId: facts.cloudId, url: facts.urlOf(undefined) };
 	};
 
 	/** Jira's own estimate words, or a duration rendered from raw seconds. */
@@ -287,25 +364,39 @@ export class PanelApi {
 		return undefined;
 	};
 
-	/** The comment list one issue or page carries. */
-	private commentsOf = (value: unknown): PanelComment[] => {
+	/**
+	 * The comment thread one issue or page carries.
+	 *
+	 * Jira nests it under the comment field as `{comments, total}`; Confluence
+	 * answers with a page of `{results, total, _links}`. Both are read here, and
+	 * the total is what lets the panel say "25 of 87" instead of passing a page
+	 * of comments off as the whole thread.
+	 */
+	private commentsOf = (value: unknown): CommentSection => {
+		// A page's comments arrive as a whole MCP result; an issue's arrive as
+		// `fields.comment`, which is already the payload. Reading the JSON roots
+		// first accepts both without the caller unwrapping one of them.
+		const root = mcpJson(value)[0];
+		const record = root === undefined ? asRecord(value) : asRecord(root);
 		const list = Array.isArray(value)
 			? value
-			: Array.isArray(asRecord(value)?.comments)
-				? (asRecord(value)?.comments as unknown[])
-				: [];
+			: Array.isArray(record?.comments)
+				? (record?.comments as unknown[])
+				: Array.isArray(record?.results)
+					? (record?.results as unknown[])
+					: [];
 
 		const comments: PanelComment[] = [];
 
 		for (const item of list) {
-			const record = asRecord(item);
-			if (record === undefined) continue;
+			const entry = asRecord(item);
+			if (entry === undefined) continue;
 
-			const body = extractor.text(record.body);
+			const body = extractor.text(entry.body);
 			if (body === undefined) continue;
 
 			const author = pickString(
-				asRecord(record.author) ?? record.author,
+				asRecord(entry.author) ?? entry.author,
 				"displayName",
 				"publicName",
 				"name",
@@ -314,15 +405,25 @@ export class PanelApi {
 			comments.push({
 				body,
 				...(author === undefined ? {} : { author }),
-				...(pickString(record, "created") === undefined
+				...(pickString(entry, "created") === undefined
 					? {}
-					: { created: pickString(record, "created") }),
+					: { created: pickString(entry, "created") }),
 			});
 
 			if (comments.length >= COMMENT_LIMIT) break;
 		}
 
-		return comments;
+		const total = pickNumber(record, "total");
+		const hasNext = pickString(asRecord(record?._links), "next") !== undefined;
+
+		return {
+			comments,
+			...(total === undefined ? {} : { total }),
+			truncated:
+				hasNext ||
+				(total !== undefined && total > comments.length) ||
+				(total === undefined && list.length >= COMMENT_LIMIT),
+		};
 	};
 
 	/** The transitions a workflow currently offers. */

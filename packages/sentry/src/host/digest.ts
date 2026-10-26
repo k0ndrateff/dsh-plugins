@@ -56,7 +56,9 @@ export const sentryDigestSource = (deps: DigestDeps): DigestSource => ({
 	blocks: [
 		{
 			id: "sentry-errors",
-			title: "Sentry · New errors in the window",
+			// The block promises errors that first appeared in the window, so the
+			// query filters on first sight rather than on "not yet resolved".
+			title: "Sentry · Errors first seen in the last 24 hours",
 			defaultOn: true,
 		},
 	],
@@ -73,7 +75,7 @@ export const sentryDigestSource = (deps: DigestDeps): DigestSource => ({
 
 		const value = await deps.bridge.callTool(SEARCH_TOOL, {
 			organizationSlug: organization,
-			query: "is:unresolved",
+			query: "is:unresolved firstSeen:-24h",
 			period: "24h",
 			sort: "new",
 			limit: options.limit,

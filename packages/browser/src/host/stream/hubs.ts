@@ -58,7 +58,13 @@ export class StreamHubs {
 	 */
 	state(session: string): PanelState {
 		return (
-			this.hubs.get(session)?.state() ?? { open: false, url: "", title: "" }
+			this.hubs.get(session)?.state() ?? {
+				phase: "none",
+				open: false,
+				url: "",
+				title: "",
+				connected: false,
+			}
 		);
 	}
 

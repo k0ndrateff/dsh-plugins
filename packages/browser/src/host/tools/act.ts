@@ -15,6 +15,7 @@ import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import { BROWSER_ACT_TOOL } from "../../shared/tools";
 import { fieldOf, isText, modelData } from "../envelope";
 import { type BrowserToolDeps, runForSession } from "./deps";
+import { failureOf } from "./failure";
 
 /** The verbs this tool accepts. */
 const ACTIONS = [
@@ -48,6 +49,8 @@ interface ActArgs {
 	readonly action: Action;
 	readonly target: string;
 	readonly value: string | undefined;
+	/** The options of a multiple `select`, each one exactly as the page labels it. */
+	readonly values: readonly string[] | undefined;
 }
 
 class ActTool {
@@ -64,7 +67,8 @@ class ActTool {
 			"Act on the page: click, fill, press, select, hover, scroll or wait. Address an " +
 			"element with the `@eN` reference a snapshot gave you, or with a CSS selector. " +
 			"References go stale as soon as the page changes, so take a fresh snapshot instead " +
-			"of reusing one; after an action that navigates, the answer carries the new address.",
+			"of reusing one; after an action that navigates, the answer carries the new address, " +
+			"or says that it could not be read.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -85,9 +89,16 @@ class ActTool {
 				value: {
 					type: "string",
 					description:
-						"The text to type for `fill` (required there), the option or options to pick " +
-						"for `select` (required there, space-separated), and how many pixels to scroll " +
-						"for `scroll` (optional).",
+						"The text to type for `fill` (required there), the one option to pick for " +
+						"`select` (required there; spaces are part of the option's value or label), " +
+						"and how many pixels to scroll for `scroll` (optional).",
+				},
+				values: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"For `select` only: several options to pick, each as one entry. Use it instead " +
+						"of `value` when the page accepts more than one choice.",
 				},
 			},
 		},
@@ -99,14 +110,26 @@ class ActTool {
 					action: { type: "string" },
 					target: { type: "string" },
 					url: { type: "string" },
+					addressUnread: { type: "boolean" },
 				},
-				required: ["action", "target", "url"],
+				required: ["action", "target", "url", "addressUnread"],
 			},
 			render: (_args, value) => {
-				const done = value as { action: Action; target: string; url: string };
+				const done = value as {
+					action: Action;
+					target: string;
+					url: string;
+					addressUnread: boolean;
+				};
 				const lines = [`${VERBS[done.action]} \`${done.target}\`.`];
 
-				if (done.url !== "") lines.push(`The page is at ${done.url}.`);
+				// "The page did not move" and "the address could not be read" look the
+				// same when both are an empty string, and they mean opposite things.
+				if (done.addressUnread)
+					lines.push(
+						"The page's address could not be read after this action, so whether it moved is unknown.",
+					);
+				else if (done.url !== "") lines.push(`The page is at ${done.url}.`);
 
 				return [{ type: "text", text: lines.join("\n") }];
 			},
@@ -115,14 +138,23 @@ class ActTool {
 			const args = this.parseArgs(rawArgs);
 			const { outcome } = await runForSession(deps, exec, this.argv(args));
 
-			if (!outcome.ok) throw new Error(outcome.error);
+			if (!outcome.ok) throw failureOf(outcome);
+
+			if (!NAVIGATES.includes(args.action))
+				return {
+					action: args.action,
+					target: args.target,
+					url: "",
+					addressUnread: false,
+				};
+
+			const address = await this.addressAfter(deps, exec);
 
 			return {
 				action: args.action,
 				target: args.target,
-				url: NAVIGATES.includes(args.action)
-					? await this.urlAfter(deps, exec)
-					: "",
+				url: address.url,
+				addressUnread: address.unread,
 			};
 		},
 	});
@@ -146,6 +178,12 @@ class ActTool {
 				"browser_act needs a target: an `@eN` reference or a selector",
 			);
 
+		const values = Array.isArray(args.values)
+			? args.values.filter(
+					(entry): entry is string => typeof entry === "string" && entry !== "",
+				)
+			: undefined;
+
 		return {
 			action: action as Action,
 			target: target.trim(),
@@ -153,6 +191,7 @@ class ActTool {
 				typeof args.value === "string" && args.value !== ""
 					? args.value
 					: undefined,
+			values: values === undefined || values.length === 0 ? undefined : values,
 		};
 	}
 
@@ -173,7 +212,7 @@ class ActTool {
 				return [
 					"select",
 					args.target,
-					...this.requireValue(args, "the option to pick").split(/\s+/u),
+					...(args.values ?? [this.requireValue(args, "the option to pick")]),
 				];
 			case "hover":
 				return ["hover", args.target];
@@ -198,16 +237,24 @@ class ActTool {
 		return args.value;
 	}
 
-	/** Where the page is now, or nothing when that could not be read. */
-	private async urlAfter(
+	/**
+	 * Where the page is now, and whether the question could be answered at all.
+	 *
+	 * A failed `get url` is not "the page did not move": the address is unknown,
+	 * and the answer has to say which of the two happened.
+	 */
+	private async addressAfter(
 		deps: BrowserToolDeps,
 		exec: Parameters<typeof runForSession>[1],
-	): Promise<string> {
+	): Promise<{ url: string; unread: boolean }> {
 		const { outcome } = await runForSession(deps, exec, ["get", "url"]);
 
-		return outcome.ok
-			? (fieldOf(modelData(outcome.data), "url", isText) ?? "")
-			: "";
+		if (!outcome.ok) return { url: "", unread: true };
+
+		return {
+			url: fieldOf(modelData(outcome.data), "url", isText) ?? "",
+			unread: false,
+		};
 	}
 }
 

@@ -78,9 +78,10 @@ test("the block asks Sentry's search for the digest's window", async () => {
 		call?.args.organizationSlug === "acme",
 		"for the known organization",
 	).toBe(true);
-	expect(call?.args.query === "is:unresolved", "for unresolved issues").toBe(
-		true,
-	);
+	expect(
+		call?.args.query === "is:unresolved firstSeen:-24h",
+		"for unresolved issues first seen in the window",
+	).toBe(true);
 	expect(call?.args.period === "24h", "within the digest's window").toBe(true);
 	expect(
 		call?.args.sort === "new" && call?.args.limit === 10,

@@ -7,11 +7,16 @@
  *
  * Both reads and writes go through the MCP bridge, which is the same channel
  * the agent's own tools use — the panel has no second path to Sentry.
+ *
+ * A card from organization B opens organization B's panel: the navigation
+ * target may name its own organization, and only a target without one falls
+ * back to the selected default.
  */
 
 import type { RuntimeState } from "dsh-integration-host";
 import {
 	asRecord,
+	type GrantStore,
 	type McpBridge,
 	mcpJson,
 	mcpText,
@@ -19,7 +24,10 @@ import {
 } from "dsh-mcp-oauth";
 import type { IssueDetail, IssuePanel } from "../../shared/meta";
 import { parseIssueDetail } from "../presentation/parse";
-import type { OrganizationFacts } from "../store/organization";
+import {
+	type OrganizationFacts,
+	organizationFacts,
+} from "../store/organization";
 
 /** The tool that reads one issue. */
 const RESOURCE_TOOL = "get_sentry_resource";
@@ -34,6 +42,8 @@ const WHOAMI_TOOL = "whoami";
 export interface PanelDeps {
 	readonly bridge: McpBridge;
 	readonly state: RuntimeState<OrganizationFacts>;
+	/** Where a selected default organization is remembered, when the host passes it. */
+	readonly store?: Pick<GrantStore, "remember">;
 }
 
 export class PanelApi {
@@ -42,9 +52,17 @@ export class PanelApi {
 	/**
 	 * Load one issue with everything the panel draws.
 	 * @param id - Sentry's short id, such as `CHECKOUT-13P`.
+	 * @param organization - the organization a card named, when it named one.
 	 */
-	async issue(id: string): Promise<IssuePanel> {
-		return { issue: await this.read(id), organization: this.organization() };
+	async issue(id: string, organization?: string): Promise<IssuePanel> {
+		const slug = this.organizationOf(organization);
+		const url = this.deps.state.facts?.urlOf(slug);
+
+		return {
+			issue: await this.read(id, slug),
+			organization: slug,
+			...(url === undefined ? {} : { organizationUrl: url }),
+		};
 	}
 
 	/**
@@ -52,35 +70,42 @@ export class PanelApi {
 	 * @param id - the issue's short id.
 	 * @param status - `resolved`, `unresolved`, or `ignored`.
 	 * @param ignoreMode - how an ignored issue behaves, when the caller chose.
+	 * @param organization - the organization a card named, when it named one.
 	 */
 	async setStatus(
 		id: string,
 		status: string,
 		ignoreMode?: string,
+		organization?: string,
 	): Promise<IssuePanel> {
 		await this.deps.bridge.callTool(UPDATE_TOOL, {
-			organizationSlug: this.requireOrganization(),
+			organizationSlug: this.organizationOf(organization),
 			issueId: id,
 			status,
 			...(ignoreMode === undefined ? {} : { ignoreMode }),
 		});
 
-		return await this.issue(id);
+		return await this.issue(id, organization);
 	}
 
 	/**
 	 * Hand one issue to a user or a team.
 	 * @param id - the issue's short id.
 	 * @param assignedTo - `user:<id>` or `team:<id|slug>`, or null to unassign.
+	 * @param organization - the organization a card named, when it named one.
 	 */
-	async assign(id: string, assignedTo: string | null): Promise<IssuePanel> {
+	async assign(
+		id: string,
+		assignedTo: string | null,
+		organization?: string,
+	): Promise<IssuePanel> {
 		await this.deps.bridge.callTool(UPDATE_TOOL, {
-			organizationSlug: this.requireOrganization(),
+			organizationSlug: this.organizationOf(organization),
 			issueId: id,
 			assignedTo,
 		});
 
-		return await this.issue(id);
+		return await this.issue(id, organization);
 	}
 
 	/**
@@ -100,6 +125,35 @@ export class PanelApi {
 		return id === undefined ? null : `user:${id}`;
 	}
 
+	/**
+	 * Make one of the account's organizations the default.
+	 *
+	 * The choice is remembered beside the tokens, so switching organizations
+	 * needs no sign-out — which is what a multi-organization account otherwise
+	 * has to do.
+	 * @param slug - an organization from the account's own list.
+	 * @returns the facts as the rest of the plugin now sees them.
+	 * @throws when no organizations are known yet, or the slug names none.
+	 */
+	async selectOrganization(slug: string): Promise<OrganizationFacts> {
+		const current = this.deps.state.facts;
+
+		if (current === undefined)
+			throw new Error(
+				"no Sentry organizations known yet; sign in, or run /sentry sync",
+			);
+
+		const next = current.withSelection(slug);
+
+		if (next === undefined)
+			throw new Error(`unknown Sentry organization: ${slug}`);
+
+		this.deps.state.facts = next;
+		await this.deps.store?.remember(organizationFacts.remember(next));
+
+		return next;
+	}
+
 	/** The caller's numeric id, from whichever shape the answer arrived in. */
 	private userIdOf(value: unknown): string | undefined {
 		for (const root of mcpJson(value)) {
@@ -113,10 +167,10 @@ export class PanelApi {
 		return /"id"\s*:\s*"?(\d+)"?/.exec(mcpText(value).join("\n"))?.[1];
 	}
 
-	/** Read one issue document and read its fields out. */
-	private async read(id: string): Promise<IssueDetail> {
+	/** Read one issue document from one organization. */
+	private async read(id: string, organization: string): Promise<IssueDetail> {
 		const value = await this.deps.bridge.callTool(RESOURCE_TOOL, {
-			organizationSlug: this.requireOrganization(),
+			organizationSlug: organization,
 			resourceType: "issue",
 			resourceId: id,
 		});
@@ -129,18 +183,13 @@ export class PanelApi {
 		return detail;
 	}
 
-	/** The organization slug, when the plugin has learned one. */
-	private organization(): string | null {
-		return this.deps.state.facts?.slug ?? null;
-	}
+	/** The organization a read or write must name. */
+	private organizationOf(explicit: string | undefined): string {
+		const organization = explicit ?? this.deps.state.facts?.slug;
 
-	/** The organization slug a tool call must name. */
-	private requireOrganization(): string {
-		const organization = this.organization();
-
-		if (organization === null)
+		if (organization === undefined)
 			throw new Error(
-				"no Sentry organization known yet; sign in again or run /sentry sync",
+				"no Sentry organization known yet; sign in, or run /sentry sync",
 			);
 
 		return organization;

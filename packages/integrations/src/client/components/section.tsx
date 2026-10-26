@@ -66,8 +66,9 @@ export const IntegrationsSection = ({
 
 			{tabs.length === 0 ? (
 				<p className={styles.empty}>
-					No integration is installed. Install one as a plugin, and its settings
-					appear on this page.
+					No integration is installed. Add one from Settings → Plugins → Add
+					plugin — `dsh-workflow-plugin` installs the whole suite, and every
+					integration also works on its own.
 				</p>
 			) : only !== undefined ? (
 				<div className={styles.panel}>
@@ -75,6 +76,12 @@ export const IntegrationsSection = ({
 				</div>
 			) : (
 				<>
+					<p className={styles.empty}>
+						{tabs.length === 1
+							? "One integration is installed. Open its tab to connect it."
+							: `${tabs.length} integrations are installed. Open a tab to check or change its connection.`}
+					</p>
+
 					<div className={styles.tabs} role="tablist" aria-label="Integrations">
 						{tabs.map((tab, index) => {
 							const selected = tab.id === activeId;
@@ -130,6 +137,11 @@ export const IntegrationsSection = ({
 							);
 						})}
 					</div>
+
+					<p className={styles.empty}>
+						Digest and Browser keep their own sections — Settings → Digest and
+						Settings → Plugins → Browser.
+					</p>
 
 					{tabs
 						.filter((tab) => tab.id === activeId || visitedIds.has(tab.id))

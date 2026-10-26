@@ -2,8 +2,8 @@
  * dsh-digest — the Web Client half.
  *
  * It contributes four things to the page:
- *  - a **Daily digest** section in Settings, where the blocks, the days and the
- *    time are chosen and one digest can be assembled on demand;
+ *  - a **Digest** section in Settings, where the blocks, the days and the time
+ *    are chosen and one digest can be assembled on demand;
  *  - one keyed tool view for `digest`, so a call renders as one line instead of
  *    the report behind it;
  *  - a turn tail seat, so the digest lands under the agent's answer rather than

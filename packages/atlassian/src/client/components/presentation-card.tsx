@@ -53,15 +53,47 @@ export const atlassianCard: CardProvider<AtlassianPresentation> = {
 				<IssueItem
 					key={item.issue.key ?? `issue-${index}`}
 					issue={item.issue}
+					cloudId={presentation.cloudId}
 				/>
 			) : (
-				<PageItem key={item.page.id ?? `page-${index}`} page={item.page} />
+				<PageItem
+					key={item.page.id ?? `page-${index}`}
+					page={item.page}
+					cloudId={presentation.cloudId}
+				/>
 			),
 		),
-	footer: (presentation) =>
-		presentation.truncated === true ? (
+	footer: (presentation) => {
+		const summarized = presentation.items.some((item) =>
+			item.kind === "issue"
+				? item.issue.description !== undefined
+				: item.page.excerpt !== undefined,
+		);
+		const notes = [
+			presentation.siteUrl === undefined
+				? undefined
+				: `Read from ${presentation.siteUrl.replace(/^https?:\/\//u, "")}.`,
+			presentation.truncated === true
+				? "The search had more results than this card read."
+				: undefined,
+			// The one-sentence summaries are a model call, not a field of the
+			// provider's answer; saying so keeps the card honest about its cost.
+			summarized
+				? "Each description was summarized into one sentence by the conversation's model."
+				: undefined,
+		].filter((note): note is string => note !== undefined);
+
+		if (notes.length === 0) return null;
+
+		return (
 			<span className={styles.caption}>
-				The search had more results than this card read.
+				{notes.map((note, index) => (
+					<span key={note}>
+						{index === 0 ? null : " "}
+						{note}
+					</span>
+				))}
 			</span>
-		) : null,
+		);
+	},
 };

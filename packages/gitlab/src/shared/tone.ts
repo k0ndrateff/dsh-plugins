@@ -51,6 +51,27 @@ export function jobStatusLabel(status: string): string {
 	return status.replaceAll("_", " ");
 }
 
+/** GitLab's own `failure_reason` values, as a person reads them. */
+const FAILURE_REASON_LABELS: Readonly<Record<string, string>> = {
+	script_failure: "the job script failed",
+	runner_system_failure: "the runner failed",
+	runner_unsupported: "the runner is unsupported",
+	stuck_or_timeout_failure: "the job got stuck or timed out",
+	job_execution_timeout: "the job timed out",
+	missing_dependency_failure: "a dependency was missing",
+	unmet_prerequisites: "its prerequisites were not met",
+	api_failure: "GitLab's API failed",
+	archived_failure: "the job is archived",
+	data_integrity_failure: "the job data was corrupt",
+	scheduler_failure: "the scheduler failed",
+	unknown_failure: "GitLab gave no further reason",
+};
+
+/** One job's failure reason as a person reads it, rather than an enum. */
+export function jobFailureReasonLabel(reason: string): string {
+	return FAILURE_REASON_LABELS[reason] ?? reason.replaceAll("_", " ");
+}
+
 /** The tone one CI job status is drawn with. */
 export function jobTone(status: string): TagTone {
 	if (status === "success") return "success";

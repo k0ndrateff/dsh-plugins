@@ -108,3 +108,45 @@ export function pickNumber(
 
 	return undefined;
 }
+
+/**
+ * The provider's own words when an MCP result is a failure.
+ *
+ * `isError` is the protocol's one unambiguous failure flag; a server may answer
+ * with prose, JSON or no content at all. The text blocks are the message the
+ * provider wrote for a person reading its own UI, so they are used verbatim;
+ * `structuredContent` is the fallback when no block says anything.
+ * @param value - one result as the transport returned it.
+ * @param what - what to name in the last-resort sentence.
+ * @returns the failure message, or undefined when the result is not a failure.
+ */
+export function mcpFailure(
+	value: unknown,
+	what = "the MCP tool",
+): string | undefined {
+	const record = asRecord(value);
+
+	if (record?.isError !== true) return undefined;
+
+	const text = mcpText(value)
+		.map((block) => block.trim())
+		.filter((block) => block !== "")
+		.join("\n")
+		.trim();
+
+	if (text !== "") return text;
+
+	const structured = record.structuredContent;
+
+	if (structured !== undefined) {
+		try {
+			const json = JSON.stringify(structured);
+
+			if (json !== undefined && json !== "{}") return json;
+		} catch {
+			// A value that cannot be represented still failed; the sentence below says so.
+		}
+	}
+
+	return `${what} failed`;
+}

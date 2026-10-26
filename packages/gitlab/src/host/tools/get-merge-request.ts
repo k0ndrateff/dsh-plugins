@@ -40,6 +40,9 @@ const MAX_DIFF_PATCH_CHARS = 48_000;
 /** The most threads one answer lists. */
 const MAX_THREADS = 50;
 
+/** How much text the whole discussion section may take. */
+const MAX_DISCUSSION_CHARS = 40_000;
+
 /** The most notes one answer lists from a thread. */
 const MAX_NOTES_PER_THREAD = 20;
 
@@ -85,7 +88,10 @@ class GetMergeRequestTool {
 			"branches, merge status and URL, and on request its diff, its review discussions and its " +
 			"newest pipeline with jobs. Name it as `group/project!12` or by its URL. Use this to " +
 			"inspect a merge request instead of running `glab` or `curl`; the token stays in the " +
-			"harness.",
+			"harness. The answer is bounded: a very long diff, description or discussion list is " +
+			"cut and says what was left out, and the discussion section names the next thread to " +
+			"read one at a time (for example with gitlab_read on " +
+			"`/projects/<project>/merge_requests/<iid>/discussions/<discussionId>`).",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -200,7 +206,7 @@ class GetMergeRequestTool {
 				(thread) => thread.resolvable && !thread.resolved,
 			).length;
 			facets.discussions = args.unresolvedOnly
-				? threads.filter((thread) => thread.resolved === false)
+				? threads.filter((thread) => thread.resolvable && !thread.resolved)
 				: threads;
 		}
 
@@ -284,6 +290,7 @@ class GetMergeRequestTool {
 			const block = this.discussionBlock(
 				facets.discussions,
 				facets.unresolved ?? 0,
+				mr,
 			);
 
 			if (block.truncated) truncated = true;
@@ -398,29 +405,62 @@ class GetMergeRequestTool {
 		return { text: lines.join("\n"), truncated };
 	}
 
-	/** The review threads, opening note first and replies under it. */
+	/**
+	 * The review threads, opening note first and replies under it.
+	 *
+	 * A large merge request can hold hundreds of threads and thousands of notes,
+	 * so the section has a budget of its own: filling the model's context with
+	 * one review leaves no room to reason about the diff. What is not shown is
+	 * named, with the id of the first thread left out, so the model can read it
+	 * one at a time instead of concluding the list ended.
+	 */
 	private discussionBlock(
 		threads: readonly Discussion[],
 		unresolved: number,
+		mr: MergeRequestDetail,
 	): { readonly text: string; readonly truncated: boolean } {
 		if (threads.length === 0)
 			return { text: "Discussions: none", truncated: false };
 
-		const shown = threads.slice(0, MAX_THREADS);
 		const lines = [
 			`Discussions: ${threads.length} thread${threads.length === 1 ? "" : "s"}, ${unresolved} unresolved`,
 		];
-		let truncated = shown.length < threads.length;
+		let truncated = false;
+		let used = lines[0]?.length ?? 0;
+		let shown = 0;
 
-		for (const thread of shown) {
+		for (const thread of threads.slice(0, MAX_THREADS)) {
 			const rendered = this.threadLines(thread);
+			const size = rendered.lines.reduce(
+				(sum, line) => sum + line.length + 1,
+				0,
+			);
+
+			// One thread is always printed: the budget bounds the answer, it does not
+			// make the first thread invisible.
+			if (shown > 0 && used + size > MAX_DISCUSSION_CHARS) {
+				truncated = true;
+
+				break;
+			}
 
 			if (rendered.truncated) truncated = true;
 			lines.push(...rendered.lines);
+			used += size;
+			shown += 1;
 		}
 
-		if (shown.length < threads.length)
-			lines.push(`… (only the first ${MAX_THREADS} threads are shown)`);
+		if (shown < threads.length) {
+			truncated = true;
+			const rest = threads.length - shown;
+			const next = threads[shown];
+
+			lines.push(
+				`… (${rest} more thread${rest === 1 ? "" : "s"} and their notes are not shown: the answer budget is ${MAX_DISCUSSION_CHARS} characters. Read one thread at a time with gitlab_read on /projects/${encodeURIComponent(mr.project)}/merge_requests/${mr.iid}/discussions/${
+					next === undefined ? "<discussionId>" : encodeURIComponent(next.id)
+				}.)`,
+			);
+		}
 
 		return { text: lines.join("\n"), truncated };
 	}

@@ -17,7 +17,7 @@ import type {
 	CorrelationRef,
 } from "dsh-integration-host/correlation";
 import type { ChainResolver } from "../src/host/chain";
-import { correlateTool } from "../src/host/tool";
+import { chainSummary, correlateTool } from "../src/host/tool";
 import { asChainReport } from "../src/shared/meta";
 
 /** The chain the fake integrations answer with. */
@@ -172,18 +172,26 @@ test("the tool", async () => {
 		execution("call-2"),
 	)) as {
 		summary: string;
-		report: { hops: unknown[]; breaks: { reason: string }[] };
+		report: {
+			title: string;
+			hops: unknown[];
+			breaks: { reason: string; cause?: string; depth: number }[];
+		};
 	};
 
 	expect(
 		missing.report.hops.length === 0 &&
-			missing.report.breaks[0]?.reason === "nothing found",
+			missing.report.breaks[0]?.cause === "empty",
 		`an id nothing answered with is an empty chain, and says why — ${JSON.stringify(missing.report)}`,
 	).toBe(true);
 	expect(
-		missing.summary.includes("Not followed:") &&
-			missing.summary.includes("nothing found"),
+		missing.summary.includes("not followed (nothing found)") &&
+			missing.summary.includes("the provider knows no such reference"),
 		`the text says the same thing, in as many words — ${missing.summary}`,
+	).toBe(true);
+	expect(
+		missing.report.title === "Error NOPE-1",
+		`and the card's title is the id it recognized — ${missing.report.title}`,
 	).toBe(true);
 
 	const unknown = await definition
@@ -227,13 +235,25 @@ test("reading the record back", () => {
 				depth: 0,
 			},
 		],
-		breaks: [{ kind: "task", label: "Ticket", reason: "not connected" }],
+		breaks: [
+			{
+				kind: "task",
+				label: "Ticket",
+				reason: "not connected",
+				cause: "missing",
+				depth: 1,
+				parent: "sentry:CHECKOUT-13P",
+			},
+		],
 	});
 
 	expect(
 		good?.hops.length === 1 &&
 			good.hops[0]?.url === "https://acme.sentry.io/issues/CHECKOUT-13P" &&
-			good.breaks[0]?.reason === "not connected",
+			good.breaks[0]?.reason === "not connected" &&
+			good.breaks[0]?.cause === "missing" &&
+			good.breaks[0]?.depth === 1 &&
+			good.breaks[0]?.parent === "sentry:CHECKOUT-13P",
 		`a well-formed record is read whole — ${JSON.stringify(good)}`,
 	).toBe(true);
 
@@ -260,5 +280,88 @@ test("reading the record back", () => {
 			partial.hops[0]?.label === "task" &&
 			partial.breaks[0]?.label === "commit",
 		`a hop of a kind this version cannot draw is dropped, not guessed — ${JSON.stringify(partial)}`,
+	).toBe(true);
+});
+
+test("what the text says about a chain that was cut", () => {
+	const report = asChainReport({
+		callId: "call-cut",
+		title: "Error CHECKOUT-13P",
+		provider: "Sentry",
+		hops: [
+			{
+				id: "sentry:CHECKOUT-13P",
+				kind: "error",
+				label: "Error",
+				provider: "Sentry",
+				title: "CHECKOUT-13P",
+				depth: 0,
+			},
+			{
+				id: "gitlab:acme/storefront@7c50a1e5",
+				kind: "commit",
+				label: "Commit",
+				provider: "GitLab",
+				title: "7c50a1e5",
+				depth: 1,
+				parent: "sentry:CHECKOUT-13P",
+			},
+		],
+		breaks: [
+			{
+				kind: "change",
+				label: "Merge request",
+				reason: "the chain is capped at 4 levels below the anchor",
+				cause: "limit",
+				depth: 2,
+				parent: "gitlab:acme/storefront@7c50a1e5",
+			},
+			{
+				kind: "task",
+				label: "Ticket",
+				reason: "the account has no access",
+				cause: "auth",
+				depth: 1,
+				parent: "sentry:CHECKOUT-13P",
+			},
+		],
+		limits: { depth: 4, facts: 40 },
+		coverage: [
+			{
+				kind: "commit",
+				providers: ["GitLab", "Gitea"],
+				answeredBy: "GitLab",
+			},
+		],
+	});
+
+	const summary = chainSummary(report as never);
+
+	expect(
+		summary.includes("2 hops, 2 not followed"),
+		`the text ends with how much of the chain it holds — ${summary}`,
+	).toBe(true);
+	expect(
+		summary.includes("(capped)") && summary.includes("(access denied)"),
+		`each break carries the class of its failure — ${summary}`,
+	).toBe(true);
+	expect(
+		summary.indexOf("Ticket not followed") < summary.indexOf("Commit · GitLab"),
+		`a break of the anchor comes before the hops that follow it — ${summary}`,
+	).toBe(true);
+	expect(
+		summary.indexOf("2. Commit") <
+			summary.indexOf("Merge request not followed"),
+		`a break sits after the hop that named it — ${summary}`,
+	).toBe(true);
+	expect(
+		summary.includes("capped at 4 levels and 40 hops"),
+		`the walk's caps are named with their numbers — ${summary}`,
+	).toBe(true);
+	expect(
+		summary.includes(
+			"commit references can be resolved by GitLab, Gitea; GitLab answered, Gitea was not asked.",
+		),
+		`when two integrations could answer a kind, the text says which one did — ${summary}`,
 	).toBe(true);
 });

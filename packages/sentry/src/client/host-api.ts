@@ -30,19 +30,49 @@ export const hostApi = {
 		return await request("/logout", "POST");
 	},
 
+	/** Abandon the sign-in attempt that is waiting for the browser. */
+	cancel: async (): Promise<SentryStatus> => {
+		return await request("/cancel", "POST");
+	},
+
 	/** Reconnect and re-publish the Sentry tools. */
 	sync: async (): Promise<SentryStatus> => {
 		return await request("/sync", "POST");
 	},
 
-	/** Everything the panel shows for one issue. */
-	issue: async (id: string, signal?: AbortSignal): Promise<IssuePanel> => {
+	/**
+	 * Everything the panel shows for one issue, on the organization it names.
+	 * @param organization - the organization the card was read from, when it named one.
+	 */
+	issue: async (
+		id: string,
+		organization?: string,
+		signal?: AbortSignal,
+	): Promise<IssuePanel> => {
+		const scope =
+			organization === undefined
+				? ""
+				: `&organization=${encodeURIComponent(organization)}`;
+
 		return await request(
-			`/issue?id=${encodeURIComponent(id)}`,
+			`/issue?id=${encodeURIComponent(id)}${scope}`,
 			"GET",
 			undefined,
 			signal,
 		);
+	},
+
+	/**
+	 * Make one of the account's organizations the default, without signing out.
+	 * @param organization - an organization from the account's own list.
+	 */
+	selectOrganization: async (
+		organization: string,
+	): Promise<{
+		organization: string | null;
+		organizationUrl: string | null;
+	}> => {
+		return await request("/organization", "POST", { organization });
 	},
 
 	/**
@@ -64,11 +94,13 @@ export const hostApi = {
 		id: string,
 		status: string,
 		ignoreMode?: string,
+		organization?: string,
 	): Promise<IssuePanel> => {
 		return await request("/issue/status", "POST", {
 			id,
 			status,
 			...(ignoreMode === undefined ? {} : { ignoreMode }),
+			...(organization === undefined ? {} : { organization }),
 		});
 	},
 
@@ -76,7 +108,12 @@ export const hostApi = {
 	assign: async (
 		id: string,
 		assignedTo: string | null,
+		organization?: string,
 	): Promise<IssuePanel> => {
-		return await request("/issue/assign", "POST", { id, assignedTo });
+		return await request("/issue/assign", "POST", {
+			id,
+			assignedTo,
+			...(organization === undefined ? {} : { organization }),
+		});
 	},
 };

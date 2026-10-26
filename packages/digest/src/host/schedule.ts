@@ -19,6 +19,7 @@
  */
 
 import type { Context } from "@deepseek-ai/cordis";
+import { errorText } from "dsh-mcp-oauth";
 import {
 	canonicalTimeZone,
 	type DigestSettings,
@@ -31,8 +32,15 @@ export const PROMPT_MARKER = "[dsh-digest]";
 /** The title every digest reminder carries, as the harness UI shows it. */
 export const TASK_TITLE = "Work digest";
 
-/** What a digest reminder tells the model when it fires. */
-export const TASK_PROMPT = `${PROMPT_MARKER} Assemble today's digest with the digest tool and present it. This is a read-only run: do not write to any external system.`;
+/**
+ * What a digest reminder tells the model when it fires.
+ *
+ * "Configured", not "daily": the schedule may be Monday, Wednesday and Friday.
+ * "Show the result", not "present it": `present` is the harness deliverable
+ * tool's own name, and a reminder that says it invites a file nobody asked for —
+ * the card is drawn by the tool itself.
+ */
+export const TASK_PROMPT = `${PROMPT_MARKER} Assemble the digest with the digest tool and show the result to the user. This is a read-only run: do not write to any external system.`;
 
 /** A wall-clock time in one zone, as the schedule service takes it. */
 export interface ScheduleClock {
@@ -122,6 +130,18 @@ export const timingOf = (settings: DigestSettings): DigestTiming => {
 export const isDigestReminder = (record: ScheduleRecord): boolean =>
 	record.prompt?.startsWith(PROMPT_MARKER) === true;
 
+/** Every digest reminder, and the reason the catalog could not be read. */
+export interface DigestReminders {
+	readonly entries: readonly ScheduleCatalogEntry[];
+	/**
+	 * Why the catalog could not be read, when it could not.
+	 *
+	 * Absent means the list is the answer; present means nobody knows how many
+	 * reminders exist, which is not the same fact as "none".
+	 */
+	readonly error?: string;
+}
+
 /**
  * The digest's reminders, as one object that owns reading and replacing them.
  *
@@ -145,15 +165,18 @@ export class DigestSchedule {
 	/**
 	 * Every digest reminder, across every session.
 	 *
-	 * A failing catalog read answers "none" rather than failing the caller: this
-	 * is asked while drawing a settings card, and a card that cannot say how many
-	 * reminders exist is better than one that cannot be drawn.
+	 * A failing catalog read answers an empty list *and* the reason, rather than
+	 * failing the caller: this is asked while drawing a settings card, and a card
+	 * that cannot say how many reminders exist is better than one that cannot be
+	 * drawn. The reason travels with it so no surface can print "none" for
+	 * "unknown", and every mutation goes through {@link entries} instead, where a
+	 * failed read must stop the write rather than look like an empty catalog.
 	 */
-	async bound(): Promise<readonly ScheduleCatalogEntry[]> {
+	async bound(): Promise<DigestReminders> {
 		try {
-			return await this.entries();
-		} catch {
-			return [];
+			return { entries: await this.entries() };
+		} catch (error) {
+			return { entries: [], error: errorText(error) };
 		}
 	}
 
@@ -221,6 +244,38 @@ export class DigestSchedule {
 	}
 
 	/**
+	 * Drop every digest reminder, wherever it lives.
+	 *
+	 * The counterpart of `/digest off` for a user who enabled the digest in
+	 * sessions they no longer have open: one command has to be able to stop them
+	 * all, or the only way out is visiting each session in turn.
+	 * @returns how many reminders were removed.
+	 * @throws when the catalog or a delete failed; the message says how far it got.
+	 */
+	async unbindAll(): Promise<number> {
+		const service = this.service;
+
+		if (service === undefined) return 0;
+
+		const mine = await this.entries();
+
+		for (const [index, entry] of mine.entries()) {
+			try {
+				await service.delete({
+					sessionId: entry.sessionId,
+					id: entry.id,
+				});
+			} catch (error) {
+				throw new Error(
+					`stopped ${index} of ${mine.length} reminders: ${errorText(error)}`,
+				);
+			}
+		}
+
+		return mine.length;
+	}
+
+	/**
 	 * Re-time every bound reminder, wherever it lives.
 	 *
 	 * Changing the time in the settings card has to reach reminders created by
@@ -228,15 +283,18 @@ export class DigestSchedule {
 	 * `/digest on` ever reads.
 	 * @param settings - the time, zone and days now in force.
 	 * @returns how many reminders were re-created.
+	 * @throws when the catalog could not be read or a reminder could not be
+	 *   re-created; the message names how far it got, so the caller can say
+	 *   whether some sessions already moved to the new time.
 	 */
 	async rebindAll(settings: DigestSettings): Promise<number> {
 		const service = this.service;
 
 		if (service === undefined) return 0;
 
-		const mine = await this.bound();
+		const mine = await this.entries();
 
-		for (const entry of mine) {
+		for (const [index, entry] of mine.entries()) {
 			const created = await service.create(entry.sessionId, {
 				prompt: TASK_PROMPT,
 				title: TASK_TITLE,
@@ -248,7 +306,9 @@ export class DigestSchedule {
 			} catch (error) {
 				await service.delete({ sessionId: entry.sessionId, id: created.id });
 
-				throw error;
+				throw new Error(
+					`re-timed ${index} of ${mine.length} reminders, then failed: ${errorText(error)}`,
+				);
 			}
 		}
 

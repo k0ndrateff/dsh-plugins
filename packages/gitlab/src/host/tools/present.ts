@@ -6,6 +6,10 @@
  * presentation for the turn, and answers the model with a text summary. The card
  * is presentation only: the model reads the text result, and the record is what
  * the browser half renders under the closing prose.
+ *
+ * Every list here is bounded, so every list says how many matched in total and
+ * whether the card shows all of them. A card that silently dropped the rest
+ * would let the model report a truncated list as complete.
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
@@ -38,6 +42,13 @@ import { findingLine, mrLine } from "./text";
 /** Never put more than this many rows on one card. */
 const MAX_ITEMS = 25;
 
+/** A scope as a person reads it, rather than GitLab's own enum value. */
+const SCOPE_LABELS: Readonly<Record<string, string>> = {
+	review_requested: "waiting for your review",
+	assigned_to_me: "assigned to you",
+	created_by_me: "created by you",
+};
+
 /** The merge request scopes GitLab resolves relative to the signed-in user. */
 const SCOPES = ["review_requested", "assigned_to_me", "created_by_me"] as const;
 
@@ -67,10 +78,16 @@ interface Found {
 	readonly items: readonly PresentationItem[];
 	readonly total: number | undefined;
 	readonly query: string | undefined;
+	readonly filters: readonly string[];
 	readonly subject: string | undefined;
 	readonly truncated: boolean;
+	/** One line per reference GitLab would not resolve, with the reason. */
 	readonly failed: readonly string[];
 }
+
+/** The reason inside an unknown thrown value, as a sentence. */
+const reasonOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
 
 function stringList(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
@@ -98,8 +115,10 @@ class PresentTool {
 			"references, by scope, by search, or by naming a merge request's findings or failed jobs. " +
 			"Each row links to the item and carries its state, author, reviewers and pipeline. Call it " +
 			"once per card, then write your answer; do not repeat the card's contents as a list in the text. " +
-			"Reading merge request data for your own reasoning is gitlab_list_merge_requests or " +
-			"gitlab_get_merge_request; gitlab_present is for showing a card.",
+			"A card shows at most 25 rows; its text answer says how many matched in total and whether " +
+			"more exist, so do not report a bounded card as complete. Reading merge request data for " +
+			"your own reasoning is gitlab_list_merge_requests or gitlab_get_merge_request; " +
+			"gitlab_present is for showing a card.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -107,7 +126,7 @@ class PresentTool {
 				title: {
 					type: "string",
 					description:
-						'Optional heading for the card, such as "Ждут моего ревью". Omit for an untitled card.',
+						'Optional heading for the card, such as "Waiting for my review". Omit for an untitled card.',
 				},
 				layout: {
 					type: "string",
@@ -143,7 +162,8 @@ class PresentTool {
 					type: "string",
 					enum: ["opened", "closed", "merged", "locked", "all"],
 					description:
-						"Merge request state to list. Omit to include any state.",
+						"Merge request state to list. Omit to include any state: the list then asks " +
+						'GitLab for state "all" instead of quietly narrowing it to open requests.',
 				},
 				search: {
 					type: "string",
@@ -153,8 +173,10 @@ class PresentTool {
 				limit: {
 					type: "integer",
 					minimum: 1,
-					maximum: 25,
-					description: "How many merge requests to show. Defaults to 10.",
+					maximum: MAX_ITEMS,
+					description:
+						"How many merge requests to show. Defaults to 10; the card never holds more " +
+						"than 25.",
 				},
 				findings: {
 					type: "array",
@@ -177,6 +199,8 @@ class PresentTool {
 				additionalProperties: false,
 				properties: {
 					shown: { type: "integer" },
+					total: { type: "integer" },
+					truncated: { type: "boolean" },
 					summary: { type: "string" },
 					failed: { type: "array", items: { type: "string" } },
 					presentation: { type: "object", additionalProperties: true },
@@ -200,6 +224,7 @@ class PresentTool {
 				layout: this.resolveLayout(args.layout, found.items.length),
 				...(found.total === undefined ? {} : { total: found.total }),
 				...(found.query === undefined ? {} : { query: found.query }),
+				...(found.filters.length === 0 ? {} : { filters: found.filters }),
 				...(found.subject === undefined ? {} : { subject: found.subject }),
 				...(found.truncated ? { truncated: true } : {}),
 				items: found.items,
@@ -209,10 +234,12 @@ class PresentTool {
 			const summary =
 				found.failed.length === 0
 					? viewed
-					: `${viewed}\nCould not resolve: ${found.failed.join(", ")}`;
+					: `${viewed}\nCould not resolve:\n- ${found.failed.join("\n- ")}`;
 
 			return {
 				shown: found.items.length,
+				...(found.total === undefined ? {} : { total: found.total }),
+				...(found.truncated ? { truncated: true } : {}),
 				summary,
 				failed: [...found.failed],
 				presentation,
@@ -228,7 +255,15 @@ class PresentTool {
 				: {};
 
 		const layout = nonEmptyString(args.layout);
-		const limit = Number(args.limit);
+		const limit = args.limit === undefined ? undefined : Number(args.limit);
+
+		if (
+			limit !== undefined &&
+			(!Number.isInteger(limit) || limit < 1 || limit > MAX_ITEMS)
+		)
+			throw new Error(
+				`"${String(args.limit)}" is not a row count; pass a whole number from 1 to ${MAX_ITEMS}, or omit it for 10`,
+			);
 
 		return {
 			title: nonEmptyString(args.title),
@@ -247,10 +282,7 @@ class PresentTool {
 			group: nonEmptyString(args.group),
 			state: nonEmptyString(args.state),
 			search: nonEmptyString(args.search),
-			limit:
-				Number.isInteger(limit) && limit > 0
-					? Math.min(limit, MAX_ITEMS)
-					: undefined,
+			limit,
 		};
 	}
 
@@ -272,17 +304,24 @@ class PresentTool {
 
 		const failed: string[] = [];
 		const items: PresentationItem[] = [];
+		const subjects: string[] = [];
 		let total: number | undefined;
 		let query: string | undefined;
-		let subject: string | undefined;
+		let filters: readonly string[] = [];
+		let matched = 0;
 		let truncated = false;
 
 		if (args.mergeRequests.length > 0) {
-			for (const reference of args.mergeRequests) {
+			const wanted = args.mergeRequests.slice(0, MAX_ITEMS);
+
+			total = args.mergeRequests.length;
+			truncated = args.mergeRequests.length > MAX_ITEMS;
+
+			for (const reference of wanted) {
 				const ref = parseReference(reference);
 
 				if (ref === undefined) {
-					failed.push(reference);
+					failed.push(`${reference} (not a merge request reference)`);
 
 					continue;
 				}
@@ -294,12 +333,16 @@ class PresentTool {
 
 					if (card === undefined) throw new Error("no merge request");
 
-					if (items.length < MAX_ITEMS)
-						items.push({ kind: "merge_request", mergeRequest: card });
-				} catch {
-					failed.push(reference);
+					items.push({ kind: "merge_request", mergeRequest: card });
+					matched += 1;
+				} catch (error) {
+					failed.push(`${reference} (${reasonOf(error)})`);
 				}
 			}
+
+			// A failed reference is already named as failed; saying "1 of 2" here
+			// would claim a row was held back when it never arrived.
+			total = failed.length === 0 ? args.mergeRequests.length : matched;
 		} else if (
 			args.scope !== undefined ||
 			args.project !== undefined ||
@@ -315,15 +358,18 @@ class PresentTool {
 			for (const card of listed.items.slice(0, MAX_ITEMS))
 				items.push({ kind: "merge_request", mergeRequest: card });
 
+			matched = listed.items.length;
 			total = answer.total ?? listed.total;
+			truncated = listed.items.length > MAX_ITEMS;
 			query = this.queryOf(args);
+			filters = this.filtersOf(args);
 		}
 
 		for (const reference of args.findings) {
 			const ref = parseReference(reference);
 
 			if (ref === undefined) {
-				failed.push(reference);
+				failed.push(`${reference} (not a merge request reference)`);
 
 				continue;
 			}
@@ -333,18 +379,17 @@ class PresentTool {
 					`${this.mrPath(ref.project, ref.iid)}/discussions`,
 				);
 				const discussions = parseDiscussions(discussionsPage.items);
+				const findings = this.findingsOf(discussions, ref);
+
+				matched += findings.length;
+				subjects.push(`${ref.project}!${ref.iid}`);
 
 				if (discussionsPage.truncated) truncated = true;
+				if (findings.length > MAX_ITEMS - items.length) truncated = true;
 
-				subject = `${ref.project}!${ref.iid}`;
-				items.push(
-					...this.findingsOf(discussions, ref).slice(
-						0,
-						Math.max(0, MAX_ITEMS - items.length),
-					),
-				);
-			} catch {
-				failed.push(reference);
+				items.push(...findings.slice(0, Math.max(0, MAX_ITEMS - items.length)));
+			} catch (error) {
+				failed.push(`${reference} (${reasonOf(error)})`);
 			}
 		}
 
@@ -352,7 +397,7 @@ class PresentTool {
 			const ref = parseReference(reference);
 
 			if (ref === undefined) {
-				failed.push(reference);
+				failed.push(`${reference} (not a merge request reference)`);
 
 				continue;
 			}
@@ -360,21 +405,41 @@ class PresentTool {
 			try {
 				const jobs = await this.failedJobs(deps, ref);
 
-				subject = `${ref.project}!${ref.iid}`;
+				matched += jobs.length;
+				subjects.push(`${ref.project}!${ref.iid}`);
+
+				if (jobs.length > MAX_ITEMS - items.length) truncated = true;
+
 				items.push(
 					...jobs
 						.slice(0, Math.max(0, MAX_ITEMS - items.length))
 						.map((job): PresentationItem => ({ kind: "job", job })),
 				);
-			} catch {
-				failed.push(reference);
+			} catch (error) {
+				failed.push(`${reference} (${reasonOf(error)})`);
 			}
 		}
+
+		const subject =
+			subjects.length === 0 ? undefined : [...new Set(subjects)].join(", ");
+
+		// When only references were named, the answer counted them itself; a list
+		// endpoint reported the real total and is left alone.
+		const resolvedTotal =
+			total ?? (matched > items.length ? matched : undefined);
 
 		// An empty list is an answer: nothing is waiting, or the search matched
 		// nothing. The caller already knows it sent a query.
 
-		return { items, total, query, subject, truncated, failed };
+		return {
+			items,
+			total: resolvedTotal,
+			query,
+			filters,
+			subject,
+			truncated,
+			failed,
+		};
 	}
 
 	/** The API path of one merge request. */
@@ -436,12 +501,27 @@ class PresentTool {
 			}));
 	}
 
-	/** The scope or search one list ran, for the card's own meta line. */
+	/** The scope or search one list ran, as a human label for the card. */
 	private queryOf(args: PresentArgs): string | undefined {
-		if (args.search !== undefined) return args.search;
-		if (args.scope !== undefined) return args.scope;
+		if (args.search !== undefined) return `search "${args.search}"`;
+		if (args.scope !== undefined) return SCOPE_LABELS[args.scope] ?? args.scope;
 
 		return args.project ?? args.group;
+	}
+
+	/** Every filter the list applied, so the card names them all. */
+	private filtersOf(args: PresentArgs): readonly string[] {
+		const filters: string[] = [];
+
+		if (args.scope !== undefined)
+			filters.push(`scope: ${SCOPE_LABELS[args.scope] ?? args.scope}`);
+		if (args.project !== undefined) filters.push(`project: ${args.project}`);
+		if (args.group !== undefined) filters.push(`group: ${args.group}`);
+		if (args.state !== undefined) filters.push(`state: ${args.state}`);
+		if (args.search !== undefined) filters.push(`search: ${args.search}`);
+		if (args.limit !== undefined) filters.push(`limit: ${args.limit}`);
+
+		return filters;
 	}
 
 	/** Pick the layout the caller asked for, or infer one from the row count. */
@@ -459,11 +539,19 @@ class PresentTool {
 
 	/** The text the model reads: what the card shows, in order. */
 	private describe(presentation: GitLabPresentation): string {
-		if (presentation.items.length === 0) {
+		const count = presentation.items.length;
+		const total =
+			presentation.total !== undefined && presentation.total > count
+				? presentation.total
+				: undefined;
+
+		if (count === 0) {
 			const lines = ["No merge requests, findings or jobs matched."];
 
 			if (presentation.query !== undefined)
 				lines.push(`Query: ${presentation.query}`);
+			if (presentation.filters !== undefined)
+				lines.push(`Filters: ${presentation.filters.join(" · ")}`);
 			if (presentation.subject !== undefined)
 				lines.push(`Merge request: ${presentation.subject}`);
 			if (presentation.truncated === true)
@@ -476,11 +564,6 @@ class PresentTool {
 			presentation.title === undefined
 				? "Shown as a card"
 				: `Shown as a card titled "${presentation.title}"`;
-		const count = presentation.items.length;
-		const total =
-			presentation.total !== undefined && presentation.total > count
-				? presentation.total
-				: undefined;
 		const lines = [
 			`${heading}: ${total === undefined ? count : `${count} of ${total}`} item${(total ?? count) === 1 ? "" : "s"}.`,
 		];
@@ -499,10 +582,18 @@ class PresentTool {
 			}
 		}
 
+		if (total !== undefined)
+			lines.push(
+				`…${total - count} more matched than the card shows; narrow the query or read the list with gitlab_list_merge_requests.`,
+			);
 		if (presentation.query !== undefined)
 			lines.push(`Query: ${presentation.query}`);
+		if (presentation.filters !== undefined)
+			lines.push(`Filters: ${presentation.filters.join(" · ")}`);
 		if (presentation.subject !== undefined)
 			lines.push(`Merge request: ${presentation.subject}`);
+		if (presentation.truncated === true && total === undefined)
+			lines.push("GitLab had more rows than this answer read.");
 
 		return lines.join("\n");
 	}

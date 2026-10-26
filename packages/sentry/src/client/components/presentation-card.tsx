@@ -36,17 +36,26 @@ export const sentryCard: CardProvider<SentryPresentation> = {
 	layout: (presentation) => presentation.layout,
 	items: (presentation) =>
 		presentation.issues.map((issue) => (
-			<IssueItem key={issue.id} issue={issue} />
+			<IssueItem
+				key={issue.id}
+				issue={issue}
+				organization={presentation.organization}
+			/>
 		)),
 	meta: (presentation) => {
 		const hasMeta =
 			presentation.query !== undefined ||
-			presentation.dashboardUrl !== undefined;
+			presentation.dashboardUrl !== undefined ||
+			presentation.organization !== undefined;
 
 		if (!hasMeta) return null;
 
 		return (
 			<div className={styles.cardMeta}>
+				{presentation.organization === undefined ? null : (
+					<span className={styles.caption}>{presentation.organization}</span>
+				)}
+
 				{presentation.query === undefined ? null : (
 					<code className={styles.query}>{presentation.query}</code>
 				)}

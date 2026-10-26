@@ -11,10 +11,19 @@ import type { IntegrationStatus } from "dsh-integration-host/status";
 
 export type { StatusNotice } from "dsh-integration-host/status";
 
+/** One organization the account belongs to, as the settings card offers it. */
+export interface SentryOrganizationRef {
+	readonly slug: string;
+	/** Base URL, when Sentry named one. */
+	readonly webUrl?: string;
+}
+
 /** Everything the settings card needs to draw itself. */
 export interface SentryStatus extends IntegrationStatus {
 	/** The organization slug the plugin works with, once known. */
 	readonly organization: string | null;
 	/** That organization's web URL, when Sentry names one. */
 	readonly organizationUrl: string | null;
+	/** Every organization the account named, so a multi-org account can switch. */
+	readonly organizations: readonly SentryOrganizationRef[];
 }

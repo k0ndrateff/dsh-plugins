@@ -37,8 +37,9 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 			return false;
 
 		const key = route.url.searchParams.get("key") ?? "";
+		const cloudId = route.url.searchParams.get("cloudId") ?? undefined;
 
-		await route.sendData(() => panel.issue(key));
+		await route.sendData(() => panel.issue(key, cloudId));
 
 		return true;
 	},
@@ -48,8 +49,9 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 			return false;
 
 		const id = route.url.searchParams.get("id") ?? "";
+		const cloudId = route.url.searchParams.get("cloudId") ?? undefined;
 
-		await route.sendData(() => panel.page(id));
+		await route.sendData(() => panel.page(id, cloudId));
 
 		return true;
 	},
@@ -62,8 +64,9 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 			return false;
 
 		const query = route.url.searchParams.get("q") ?? "";
+		const cloudId = route.url.searchParams.get("cloudId") ?? undefined;
 
-		await route.sendData(() => panel.people(query));
+		await route.sendData(() => panel.people(query, cloudId));
 
 		return true;
 	},
@@ -91,11 +94,12 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 		const body = await route.read();
 		const key = body.required("key");
 		const transitionId = body.required("transitionId");
+		const cloudId = optionalString(body.fields?.cloudId, '"cloudId"');
 
 		await route.sendData(async () => {
-			await panel.transition(key, transitionId);
+			await panel.transition(key, transitionId, cloudId);
 
-			return await panel.issue(key);
+			return await panel.issue(key, cloudId);
 		});
 
 		return true;
@@ -111,19 +115,48 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 		const body = await route.read();
 		const key = body.required("key");
 		const accountId = body.fields?.accountId;
+		const cloudId = optionalString(body.fields?.cloudId, '"cloudId"');
 
 		if (accountId !== null && typeof accountId !== "string")
 			throw new BadRequest('the request needs an "accountId" or null');
 
 		await route.sendData(async () => {
-			await panel.assign(key, accountId);
+			await panel.assign(key, accountId, cloudId);
 
-			return await panel.issue(key);
+			return await panel.issue(key, cloudId);
+		});
+
+		return true;
+	},
+
+	async (route) => {
+		if (
+			route.url.pathname !== `${ROUTE_PREFIX}/site` ||
+			route.method !== "POST"
+		)
+			return false;
+
+		const body = await route.read();
+		const cloudId = body.required("cloudId");
+
+		await route.sendData(async () => {
+			const facts = await panel.selectSite(cloudId);
+
+			return { cloudId: facts.cloudId ?? null, siteUrl: facts.siteUrl ?? null };
 		});
 
 		return true;
 	},
 ];
+
+/** Read one optional string field, refusing a value of another type. */
+function optionalString(value: unknown, name: string): string | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "string" || value === "")
+		throw new BadRequest(`${name} must be a non-empty string`);
+
+	return value;
+}
 
 /**
  * Build the request handler.

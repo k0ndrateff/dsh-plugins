@@ -30,8 +30,16 @@ export const digestHostApi = {
 		return await request("/settings", "POST", { settings: patch });
 	},
 
-	/** Assemble a digest right now, without scheduling anything. */
-	now: async (): Promise<DigestReport> => {
-		return await request("/now", "POST");
+	/**
+	 * Assemble a digest right now, without scheduling anything.
+	 * @param preview - the draft to assemble under; the saved settings when
+	 *   omitted. Nothing is written either way.
+	 */
+	now: async (preview?: Partial<DigestSettings>): Promise<DigestReport> => {
+		return await request(
+			"/now",
+			"POST",
+			preview === undefined ? {} : { settings: preview },
+		);
 	},
 };

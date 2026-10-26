@@ -10,7 +10,12 @@
  */
 
 import { expect, test } from "bun:test";
-import { parseDoctor, summarizeDoctor } from "../src/host/status";
+import {
+	failingChecks,
+	parseDoctor,
+	summarizeDoctor,
+} from "../src/host/status";
+import { doctorLabelOf } from "../src/shared/doctor";
 
 const report_ = JSON.stringify({
 	checks: [
@@ -49,7 +54,12 @@ test("doctor's own report", async () => {
 		summary.chrome?.startsWith("Google Chrome 155") === true,
 		"Chrome is named as doctor named it",
 	).toBe(true);
-	expect(summary.failing.length === 0, "nothing failed").toBe(true);
+	expect(failingChecks(summary).length === 0, "nothing failed").toBe(true);
+	expect(summary.checks.length === 3, "every check is kept").toBe(true);
+	expect(
+		summary.checks[1]?.label === "Socket directory",
+		"and named the way a person reads it",
+	).toBe(true);
 });
 test("a machine something is wrong with", async () => {
 	const broken = summarizeDoctor(
@@ -72,10 +82,12 @@ test("a machine something is wrong with", async () => {
 			}),
 		) ?? { checks: [] },
 	);
+	const failed = failingChecks(broken);
 	expect(
-		broken.failing.length === 1 &&
-			broken.failing[0] === "chrome.installed: no Chrome found",
-		"only failures are carried",
+		failed.length === 1 &&
+			failed[0]?.label === "Chrome" &&
+			failed[0]?.message === "no Chrome found",
+		"a failed check is carried with a human name, not a raw id",
 	).toBe(true);
 	expect(broken.version === undefined, "a missing version is undefined").toBe(
 		true,
@@ -83,6 +95,19 @@ test("a machine something is wrong with", async () => {
 	expect(broken.chrome === undefined, "a missing Chrome is undefined").toBe(
 		true,
 	);
+});
+test("checks named the way a person reads them", async () => {
+	expect(doctorLabelOf("chrome.installed") === "Chrome", "a known id").toBe(
+		true,
+	);
+	expect(
+		doctorLabelOf("providers.browserless") === "Browserless provider",
+		"a provider names itself",
+	).toBe(true);
+	expect(
+		doctorLabelOf("something.new_check") === "Something New Check",
+		"and an unknown id is still words, not a raw id",
+	).toBe(true);
 });
 test("answers that are not a report", async () => {
 	expect(

@@ -24,6 +24,8 @@ export interface MergeRequestListQuery {
 	readonly author?: string;
 	readonly reviewer?: string;
 	readonly limit?: number;
+	/** Which page of the list to read; the first unless the model says otherwise. */
+	readonly page?: number;
 }
 
 /**
@@ -52,12 +54,17 @@ export const listParamsOf = (
 	state: RuntimeState<GitLabAccount>,
 	query: MergeRequestListQuery,
 ): Record<string, Param> => {
-	const params: Record<string, Param> = { per_page: query.limit ?? 10 };
+	const params: Record<string, Param> = {
+		per_page: query.limit ?? 10,
+		// The schema says "omit to include any state", so an omitted state asks for
+		// every state rather than quietly narrowing to open requests.
+		state: query.state ?? "all",
+	};
 
-	if (query.state !== undefined) params.state = query.state;
 	if (query.search !== undefined) params.search = query.search;
 	if (query.labels !== undefined) params.labels = query.labels;
 	if (query.author !== undefined) params.author_username = query.author;
+	if (query.page !== undefined) params.page = query.page;
 
 	if (query.scope === "review_requested") {
 		const username = query.reviewer ?? state.facts?.username;
@@ -66,7 +73,6 @@ export const listParamsOf = (
 			throw new Error("the GitLab account is not known yet; run /gitlab sync");
 
 		params.reviewer_username = username;
-		params.state = query.state ?? "opened";
 
 		return params;
 	}

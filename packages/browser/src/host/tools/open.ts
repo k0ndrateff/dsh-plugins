@@ -11,7 +11,9 @@ import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import type { PanelOpenMeta } from "../../shared/panel";
 import { BROWSER_OPEN_TOOL } from "../../shared/tools";
 import { fieldOf, isText, modelData } from "../envelope";
+import { browserUrlOf } from "../url";
 import { type BrowserToolDeps, runForSession } from "./deps";
+import { failureOf } from "./failure";
 
 /** The arguments the model may send, after validation. */
 interface OpenArgs {
@@ -32,8 +34,13 @@ class OpenTool {
 			"Open a URL in this conversation's own browser and answer with the page's title and " +
 			"address. The browser is a real Chrome that keeps its cookies and tabs between calls, " +
 			"so this is how to reach the page you are working on; call browser_snapshot next to " +
-			"see what is on it. Prefer this over running agent-browser through `bash`: the " +
-			"browser stays pinned to this conversation.",
+			"see what is on it. Use this browser when the task needs the rendered page, the app's " +
+			"own UI, a local dev server, or anything you will click and type into; for a static " +
+			"document or an API response, web_fetch or curl through `bash` is cheaper and leaves " +
+			"this browser alone. Prefer it over running agent-browser through `bash`: the browser " +
+			"stays pinned to this conversation. The person at the panel watches the same page and " +
+			"can take over, so say what you are doing when you navigate somewhere meaningful or " +
+			"touch signed-in data.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -86,7 +93,7 @@ class OpenTool {
 				args.url,
 			]);
 
-			if (!outcome.ok) throw new Error(outcome.error);
+			if (!outcome.ok) throw failureOf(outcome);
 
 			const data = modelData(outcome.data);
 
@@ -104,12 +111,11 @@ class OpenTool {
 			rawArgs !== null && typeof rawArgs === "object"
 				? (rawArgs as Record<string, unknown>)
 				: {};
-		const url = args.url;
+		const reading = browserUrlOf(args.url);
 
-		if (typeof url !== "string" || url.trim() === "")
-			throw new Error("browser_open needs a url");
+		if (!reading.ok) throw new Error(reading.reason);
 
-		return { url: url.trim() };
+		return { url: reading.url };
 	}
 }
 

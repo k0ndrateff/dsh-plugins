@@ -27,6 +27,7 @@ import type {
 import { discover } from "./discovery";
 import type { GrantStore } from "./grant";
 import { errorText, loggerOf } from "./log";
+import { mcpFailure } from "./payload";
 import {
 	accountLabel,
 	needsOAuth,
@@ -38,6 +39,9 @@ import { publicToolName } from "./tool-name";
 
 /** How long one MCP tool call may take. */
 const TOOL_CALL_TIMEOUT_MS = 60_000;
+
+/** How much of one published MCP answer the model reads, in characters. */
+const MODEL_CONTENT_MAX_CHARS = 48_000;
 
 export interface McpBridgeOptions {
 	/** The provider account whose server this bridge talks to. */
@@ -174,7 +178,8 @@ export class McpBridge {
 	 * Call one tool of the connected server by its own name.
 	 * @param name - the server's tool name, without any published prefix.
 	 * @param args - tool arguments.
-	 * @throws when the connection is not open.
+	 * @throws when the connection is not open, or when the server marks the
+	 *   result as a failure; the message is the server's own.
 	 */
 	async callTool(
 		name: string,
@@ -191,6 +196,13 @@ export class McpBridge {
 			{ name, arguments: args },
 			{ timeout: TOOL_CALL_TIMEOUT_MS },
 		);
+
+		const failure = mcpFailure(
+			result,
+			`the ${this.options.profile.label} tool ${name}`,
+		);
+
+		if (failure !== undefined) throw new Error(failure);
 
 		if (this.options.profile.debug)
 			this.logger?.info(
@@ -245,6 +257,52 @@ export class McpBridge {
 		this.ready = true;
 	}
 
+	/**
+	 * Cap the text one published tool hands the model.
+	 *
+	 * A vendor tool can answer with a whole search page or stack trace, and the
+	 * context it burns is paid for on every later turn. The internal callers that
+	 * draw a panel or parse a result read `callTool` directly and keep the full
+	 * answer; only the model-facing copy is cut, with a sentence that says so.
+	 */
+	private capped(definition: ToolDefinition): ToolDefinition {
+		return {
+			...definition,
+			finalizeContent: (exec, result) => {
+				const content =
+					definition.finalizeContent?.(exec, result) ?? result.content;
+				const trimmed: typeof content = [];
+				let left = MODEL_CONTENT_MAX_CHARS;
+
+				for (const block of content) {
+					if (block.type !== "text") {
+						trimmed.push(block);
+						continue;
+					}
+
+					if (left <= 0) break;
+
+					if (block.text.length <= left) {
+						trimmed.push(block);
+						left -= block.text.length;
+						continue;
+					}
+
+					trimmed.push({
+						type: "text",
+						text:
+							`${block.text.slice(0, left)}\n… (cut at ${MODEL_CONTENT_MAX_CHARS} characters; ` +
+							"narrow the request or read the item in its own tool)",
+					});
+
+					break;
+				}
+
+				return trimmed;
+			},
+		};
+	}
+
 	/** Publish every server tool, replacing the previous generation. */
 	private async publishTools(ctx: Context): Promise<string[]> {
 		const client = this.client;
@@ -279,7 +337,11 @@ export class McpBridge {
 				const base = createMcpToolDefinition(ctx, {
 					name,
 					rawName: tool.name,
-					description: tool.description ?? `MCP tool ${tool.name}`,
+					description:
+						tool.description ??
+						`MCP tool ${tool.name} from ${this.options.profile.label}. Its input ` +
+							"schema names the arguments it accepts; call it only when the user's " +
+							"request needs this provider, not for data another tool already answers.",
 					inputSchema: (tool.inputSchema ?? {
 						type: "object",
 						properties: {},
@@ -301,12 +363,9 @@ export class McpBridge {
 						),
 				});
 
-				disposers.set(
-					name,
-					ctx.tools.register(
-						this.options.decorate?.(base, tool as Tool) ?? base,
-					),
-				);
+				const decorated = this.options.decorate?.(base, tool as Tool) ?? base;
+
+				disposers.set(name, ctx.tools.register(this.capped(decorated)));
 				names.push(name);
 			}
 		} catch (error) {

@@ -26,7 +26,9 @@ import type {
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { BrowserSettings } from "../src/host/config";
 import { AgentBrowserRunner } from "../src/host/runner";
+import { ScreenshotFiles } from "../src/host/screenshots";
 import { SessionScope } from "../src/host/session";
+import { failingChecks } from "../src/host/status";
 import { connectStream } from "../src/host/stream/connect";
 import { askStreamStatus } from "../src/host/stream/facts";
 import { StreamHub } from "../src/host/stream/hub";
@@ -35,6 +37,7 @@ import { actTool } from "../src/host/tools/act";
 import { openTool } from "../src/host/tools/open";
 import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
+import { screenshotTool } from "../src/host/tools/screenshot";
 import { snapshotTool } from "../src/host/tools/snapshot";
 
 const live = process.env.DSH_BROWSER_LIVE === "1";
@@ -161,7 +164,13 @@ setTimeout(() => { throw new Error('fixture: thrown on purpose'); }, 10);
 		markLive: (session: string) => live.push(session),
 		markClosed: (session: string) => live.splice(live.indexOf(session), 1),
 	} as unknown as StreamHubs;
-	const deps = { runner, sessions: new SessionScope(ctx), config, hubs };
+	const deps = {
+		runner,
+		sessions: new SessionScope(ctx),
+		config,
+		hubs,
+		images: new ScreenshotFiles({ store: () => undefined }),
+	};
 	const exec = (): ToolRunContext =>
 		({
 			signal: new AbortController().signal,
@@ -282,8 +291,12 @@ setTimeout(() => { throw new Error('fixture: thrown on purpose'); }, 10);
 			process.exit(0);
 		}
 
-		if (status.failing.some((line) => line.startsWith("chrome."))) {
-			console.log(`skipped: ${status.failing.join("; ")}`);
+		const failed = failingChecks(status);
+
+		if (failed.some((check) => check.label === "Chrome")) {
+			console.log(
+				`skipped: ${failed.map((check) => `${check.label}: ${check.message}`).join("; ")}`,
+			);
 			process.exit(0);
 		}
 
@@ -350,6 +363,14 @@ setTimeout(() => { throw new Error('fixture: thrown on purpose'); }, 10);
 				Number(thrown.count) > 0,
 				`the page's own error is read — ${String(thrown.text).slice(0, 60)}`,
 			).toBe(true);
+			const shot = await call(screenshotTool.create(deps), {});
+			const shotPath = String(shot.path);
+			expect(
+				shotPath.endsWith(".png") && Number(shot.bytes) > 100,
+				`a screenshot really is a picture — ${String(shot.bytes)} bytes`,
+			).toBe(true);
+			rmSync(shotPath, { force: true });
+
 			const watched = await watchOnce("dsh-dryrun");
 			expect(
 				watched.connected,

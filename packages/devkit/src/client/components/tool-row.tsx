@@ -50,6 +50,17 @@ export const ChecksToolRow = createToolRow({
 
 		return card === undefined ? "done" : summarizeCard(card);
 	},
-	state: (block) =>
-		asChecksCard(block?.meta)?.ok === false ? "error" : "done",
+	// A cancelled run is not a red row: the person who stopped it knows why,
+	// and a failure tint would say the recipe broke.
+	state: (block) => {
+		const card = asChecksCard(block?.meta);
+
+		if (card === undefined) return "done";
+
+		return card.checks.some(
+			(check) => check.status !== "passed" && check.status !== "cancelled",
+		)
+			? "error"
+			: "done";
+	},
 });

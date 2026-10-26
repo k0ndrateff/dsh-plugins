@@ -19,7 +19,7 @@ import {
 } from "../src/account";
 import { Grant } from "../src/grant";
 import { jsonSafe } from "../src/json";
-import { mcpJson } from "../src/payload";
+import { mcpFailure, mcpJson } from "../src/payload";
 import {
 	accountLabel,
 	credentialKeyOf,
@@ -246,6 +246,26 @@ test("reading a tool result", async () => {
 		mcpJson({ content: [{ type: "text", text: "# Heading\n\nprose" }] })
 			.length === 0 && mcpJson(undefined).length === 0,
 		"prose alone yields nothing to walk",
+	).toBe(true);
+	expect(
+		mcpFailure({
+			isError: true,
+			content: [{ type: "text", text: "the JQL is not valid" }],
+		}) === "the JQL is not valid",
+		"a failed result is the server's own sentence",
+	).toBe(true);
+	expect(
+		mcpFailure({ isError: true, structuredContent: { code: "denied" } }) ===
+			'{"code":"denied"}',
+		"a failed result without text falls back to its structured answer",
+	).toBe(true);
+	expect(
+		mcpFailure({ isError: true }, "Sentry search") === "Sentry search failed",
+		"a failed result that says nothing still names what failed",
+	).toBe(true);
+	expect(
+		mcpFailure({ content: [{ type: "text", text: "pong" }] }) === undefined,
+		"a successful result is not a failure",
 	).toBe(true);
 });
 test("the stored grant", async () => {

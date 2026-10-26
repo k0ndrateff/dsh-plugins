@@ -37,8 +37,10 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 			return false;
 
 		const id = route.url.searchParams.get("id") ?? "";
+		const organization =
+			route.url.searchParams.get("organization") ?? undefined;
 
-		await route.sendData(() => panel.issue(id));
+		await route.sendData(() => panel.issue(id, organization));
 
 		return true;
 	},
@@ -65,11 +67,17 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 		const id = body.required("id");
 		const status = body.required("status");
 		const ignoreMode = body.fields?.ignoreMode;
+		const organization = optionalString(
+			body.fields?.organization,
+			'"organization"',
+		);
 
 		if (ignoreMode !== undefined && typeof ignoreMode !== "string")
 			throw new BadRequest('"ignoreMode" must be a string');
 
-		await route.sendData(() => panel.setStatus(id, status, ignoreMode));
+		await route.sendData(() =>
+			panel.setStatus(id, status, ignoreMode, organization),
+		);
 
 		return true;
 	},
@@ -84,15 +92,50 @@ const panelRoutes = (panel: PanelApi): readonly RouteHandler[] => [
 		const body = await route.read();
 		const id = body.required("id");
 		const assignedTo = body.fields?.assignedTo;
+		const organization = optionalString(
+			body.fields?.organization,
+			'"organization"',
+		);
 
 		if (assignedTo !== null && typeof assignedTo !== "string")
 			throw new BadRequest('the request needs an "assignedTo" or null');
 
-		await route.sendData(() => panel.assign(id, assignedTo));
+		await route.sendData(() => panel.assign(id, assignedTo, organization));
+
+		return true;
+	},
+
+	async (route) => {
+		if (
+			route.url.pathname !== `${ROUTE_PREFIX}/organization` ||
+			route.method !== "POST"
+		)
+			return false;
+
+		const body = await route.read();
+		const slug = body.required("organization");
+
+		await route.sendData(async () => {
+			const facts = await panel.selectOrganization(slug);
+
+			return {
+				organization: facts.slug ?? null,
+				organizationUrl: facts.webUrl ?? null,
+			};
+		});
 
 		return true;
 	},
 ];
+
+/** Read one optional string field, refusing a value of another type. */
+function optionalString(value: unknown, name: string): string | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "string" || value === "")
+		throw new BadRequest(`${name} must be a non-empty string`);
+
+	return value;
+}
 
 /**
  * Build the request handler.

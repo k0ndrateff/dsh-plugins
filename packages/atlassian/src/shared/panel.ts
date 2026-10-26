@@ -14,17 +14,30 @@ import {
 	literal,
 	nonEmptyString,
 	notFalse,
+	number,
 	object,
 	oneOf,
 	optional,
 	required,
 	string,
+	trueOnly,
 } from "dsh-integration-host/shape";
 
-/** What a panel is opened on. */
+/**
+ * What a panel is opened on.
+ *
+ * `cloudId` is the site the card named; a card built from a search knows which
+ * site answered, and the panel must open *that* issue rather than the default
+ * site's. Without it the panel uses the selected default.
+ */
 export type PanelTarget =
-	| { readonly kind: "issue"; readonly key: string }
-	| { readonly kind: "page"; readonly id: string; readonly title?: string };
+	| { readonly kind: "issue"; readonly key: string; readonly cloudId?: string }
+	| {
+			readonly kind: "page";
+			readonly id: string;
+			readonly title?: string;
+			readonly cloudId?: string;
+	  };
 
 /** One comment on an issue or a page, in the site's own words. */
 export type PanelComment = {
@@ -80,7 +93,13 @@ export type IssuePanel = {
 	/** The issue in the browser. */
 	readonly url?: string;
 	readonly comments: readonly PanelComment[];
+	/** How many comments the server holds, when it said. */
+	readonly commentTotal?: number;
+	/** Whether the server held back another page of comments. */
+	readonly commentsTruncated?: boolean;
 	readonly transitions: readonly PanelTransition[];
+	/** Why the workflow could not be read, when the request failed. */
+	readonly transitionsError?: string;
 };
 
 /** Everything the panel shows for one Confluence page. */
@@ -93,6 +112,10 @@ export type PagePanel = {
 	/** The body as Markdown, bounded. */
 	readonly body?: string;
 	readonly comments: readonly PanelComment[];
+	/** How many comments the server holds, when it said. */
+	readonly commentTotal?: number;
+	/** Whether the server held back another page of comments. */
+	readonly commentsTruncated?: boolean;
 };
 
 /** One panel's document. */
@@ -138,7 +161,10 @@ const issuePanel = object<IssuePanel>({
 	description: optional(nonEmptyString),
 	url: optional(nonEmptyString),
 	comments: required(list(comment)),
+	commentTotal: optional(number),
+	commentsTruncated: optional(trueOnly),
 	transitions: required(list(transition)),
+	transitionsError: optional(nonEmptyString),
 });
 
 /** One Confluence page, as the panel draws it. */
@@ -150,6 +176,8 @@ const pagePanel = object<PagePanel>({
 	url: optional(nonEmptyString),
 	body: optional(nonEmptyString),
 	comments: required(list(comment)),
+	commentTotal: optional(number),
+	commentsTruncated: optional(trueOnly),
 });
 
 /** A target a sidebar passes to the panel. */
@@ -157,11 +185,13 @@ const panelTarget = oneOf<PanelTarget>(
 	object<Extract<PanelTarget, { kind: "issue" }>>({
 		kind: required(literal("issue")),
 		key: required(nonEmptyString),
+		cloudId: optional(nonEmptyString),
 	}),
 	object<Extract<PanelTarget, { kind: "page" }>>({
 		kind: required(literal("page")),
 		id: required(nonEmptyString),
 		title: optional(nonEmptyString),
+		cloudId: optional(nonEmptyString),
 	}),
 );
 

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	jobFailureReasonLabel,
 	jobStatusLabel,
 	mergeStatusLabel,
 	mrStateLabel,
@@ -13,4 +14,12 @@ test("GitLab states and statuses are drawn as words", () => {
 	expect(jobStatusLabel("success")).toBe("Passed");
 	expect(jobStatusLabel("failed")).toBe("Failed");
 	expect(jobStatusLabel("waiting_for_resource")).toBe("waiting for resource");
+});
+
+test("a job's failure reason is read as a sentence, not an enum", () => {
+	expect(jobFailureReasonLabel("script_failure")).toBe("the job script failed");
+	expect(jobFailureReasonLabel("stuck_or_timeout_failure")).toBe(
+		"the job got stuck or timed out",
+	);
+	expect(jobFailureReasonLabel("something_new")).toBe("something new");
 });

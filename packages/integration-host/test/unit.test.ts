@@ -292,6 +292,9 @@ test("the integration host", async () => {
 
 					return {};
 				},
+				cancel: async () => {
+					seen.push("cancel");
+				},
 				signOut: async () => {
 					seen.push("signOut");
 				},
@@ -403,6 +406,13 @@ test("the integration host", async () => {
 			`login starts an attempt and answers with the running state — ${`${login.status}: ${JSON.stringify(seen)}`}`,
 		).toBe(true);
 
+		const cancel = await call("POST", "/dsh-example/cancel");
+
+		expect(
+			cancel.status === 200 && seen.includes("cancel"),
+			`cancel stops the running browser flow — ${JSON.stringify(seen)}`,
+		).toBe(true);
+
 		const logout = await call("POST", "/dsh-example/logout");
 
 		expect(
@@ -492,7 +502,7 @@ test("the integration host", async () => {
 
 		expect(
 			statusAnswer.kind === "success" &&
-				statusAnswer.text.startsWith("Signed in to Example.") &&
+				statusAnswer.text.startsWith("Connected to Example.") &&
 				statusAnswer.text.includes("Account: acme.") &&
 				statusAnswer.text.includes("1 tools loaded."),
 			`the status answer names the provider, the token and the account — ${statusAnswer.text}`,
@@ -524,9 +534,10 @@ test("the integration host", async () => {
 		const unknown = await run({ rawInput: "whatever" });
 
 		expect(
-			unknown.kind === "success" &&
-				unknown.text.startsWith("Signed in to Example."),
-			`anything unrecognized reports status — ${unknown.text}`,
+			unknown.kind === "error" &&
+				unknown.text.includes("Unknown action") &&
+				unknown.text.includes("status|login|logout|sync"),
+			`an unrecognized action names the accepted ones — ${unknown.text}`,
 		).toBe(true);
 
 		const failing = createIntegrationCommand<TestStatus>(

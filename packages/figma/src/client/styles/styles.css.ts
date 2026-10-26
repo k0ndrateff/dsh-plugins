@@ -13,22 +13,62 @@ import { theme } from "dsh-integration-ui/styles";
 
 export * from "dsh-integration-ui/styles";
 
-/** The frame's picture: as wide as the panel, never taller than it is useful. */
+/** The picture's own stage: it scrolls when the picture is shown at full size. */
+export const frameStage = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "6px",
+	maxHeight: "70vh",
+	overflow: "hidden",
+});
+
+export const frameStageZoomed = style({
+	overflow: "auto",
+});
+
+/** The picture is a control: clicking it toggles fit and actual size. */
+export const frameButton = style({
+	display: "block",
+	width: "100%",
+	padding: 0,
+	border: "none",
+	background: "none",
+	cursor: "zoom-in",
+});
+
+/** The frame's picture: fit to the panel's width, never taller than it is useful. */
 export const frameImage = style({
 	display: "block",
-	maxWidth: "100%",
+	width: "100%",
 	maxHeight: "460px",
-	margin: "0 auto",
 	objectFit: "contain",
 	border: `0.5px solid ${theme.color.borderSubtle}`,
 	borderRadius: theme.radius.md,
 	background: theme.color.codeFill,
 });
 
-/** What stands in for the picture when the server sent none. */
+/** The same picture at its own size, which is how small labels become readable. */
+export const frameImageZoomed = style({
+	width: "auto",
+	maxWidth: "none",
+	maxHeight: "none",
+	cursor: "zoom-out",
+});
+
+export const frameActions = style({
+	display: "flex",
+	alignItems: "baseline",
+	justifyContent: "space-between",
+	gap: "8px",
+	flexWrap: "wrap",
+});
+
+/** What stands in for the picture when the server sent none, with its reason. */
 export const frameMissing = style({
 	display: "flex",
-	alignItems: "center",
+	flexDirection: "column",
+	alignItems: "flex-start",
+	gap: "8px",
 	justifyContent: "center",
 	minHeight: "96px",
 	padding: "12px",
@@ -38,12 +78,24 @@ export const frameMissing = style({
 	color: theme.color.labelTertiary,
 });
 
-/** One layer of the node's structure. */
+export const frameMissingText = style({
+	overflowWrap: "anywhere",
+});
+
+/** One layer of the node's structure; a button, because it opens that layer. */
 export const layer = style({
 	display: "flex",
 	alignItems: "baseline",
 	gap: "8px",
-	padding: "3px 0",
+	width: "100%",
+	padding: "3px 4px",
+	border: "none",
+	background: "none",
+	textAlign: "left",
+	cursor: "pointer",
+	selectors: {
+		"&:hover": { background: theme.color.hoverFill },
+	},
 });
 
 export const layerName = style({

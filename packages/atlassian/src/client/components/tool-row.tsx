@@ -20,6 +20,7 @@
 
 import { createToolRow, type ToolRowBlock } from "dsh-integration-ui";
 import { asAtlassianMeta } from "../../shared/meta";
+import { asPresentation } from "../../shared/presentation";
 
 /**
  * What the tools a reader meets are about.
@@ -29,6 +30,7 @@ import { asAtlassianMeta } from "../../shared/meta";
  * what the call found either way.
  */
 const TOOL_LABELS: Readonly<Record<string, string>> = {
+	atlassian_present: "Atlassian card",
 	atlassianUserInfo: "Atlassian account",
 	getJiraCurrentUser: "Atlassian account",
 	getJiraUser: "Jira person",
@@ -95,8 +97,31 @@ const found = (
 		: `found ${count} of ${total} ${noun}${plural}`;
 };
 
+/** One short phrase describing what `atlassian_present` put on the card. */
+const summarizeCard = (block: ToolRowBlock | undefined): string => {
+	const card = asPresentation(block?.meta);
+	if (card === undefined) return "done";
+
+	const issues = card.items.filter((item) => item.kind === "issue").length;
+	const pages = card.items.length - issues;
+	const shown = [
+		issues === 0 ? undefined : `${issues} issue${issues === 1 ? "" : "s"}`,
+		pages === 0 ? undefined : `${pages} page${pages === 1 ? "" : "s"}`,
+	]
+		.filter((part): part is string => part !== undefined)
+		.join(" · ");
+
+	if (shown === "") return "nothing";
+
+	return card.total !== undefined && card.total > card.items.length
+		? `${shown} of ${card.total}`
+		: shown;
+};
+
 /** One short phrase describing what a settled call found. */
 const summarize = (block: ToolRowBlock | undefined): string => {
+	if (asPresentation(block?.meta) !== undefined) return summarizeCard(block);
+
 	const meta = asAtlassianMeta(block?.meta);
 	if (meta === undefined) return "done";
 

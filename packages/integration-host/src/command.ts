@@ -11,6 +11,14 @@ import { errorText } from "dsh-mcp-oauth";
 import type { IntegrationAuthFace } from "./auth";
 import type { IntegrationStatus } from "./status";
 
+/** One instant as a person reads it, with the zone that makes it unambiguous. */
+const expiryText = (time: number): string =>
+	new Date(time).toLocaleString(undefined, {
+		dateStyle: "medium",
+		timeStyle: "short",
+		timeZoneName: "short",
+	});
+
 /** What the command accepts after its name. */
 const ACTIONS = ["status", "login", "logout", "sync"] as const;
 
@@ -46,19 +54,33 @@ export const createIntegrationCommand = <TStatus extends IntegrationStatus>(
 	spec: CommandSpec<TStatus>,
 	auth: IntegrationAuthFace<TStatus>,
 ): ((invocation: { rawInput?: unknown }) => Promise<CommandResult>) => {
-	const parseAction = (rawInput: unknown): Action => {
+	const parseAction = (rawInput: unknown): Action | undefined => {
 		const first =
 			String(rawInput ?? "")
 				.trim()
 				.split(/\s+/u)[0] ?? "";
 
+		if (first === "") return "status";
+
 		return (ACTIONS as readonly string[]).includes(first)
 			? (first as Action)
-			: "status";
+			: undefined;
 	};
 
 	return async ({ rawInput }) => {
 		const action = parseAction(rawInput);
+
+		if (action === undefined) {
+			const first =
+				String(rawInput ?? "")
+					.trim()
+					.split(/\s+/u)[0] ?? "";
+
+			return {
+				kind: "error",
+				text: `Unknown action "${first}". Use /${spec.name} ${ACTIONS.join("|")}.`,
+			};
+		}
 
 		try {
 			if (action === "login") {
@@ -67,9 +89,16 @@ export const createIntegrationCommand = <TStatus extends IntegrationStatus>(
 
 				const status = await auth.getStatus();
 
-				return status.error === null
-					? { kind: "success", text: auth.loginMessage(status) }
-					: { kind: "error", text: status.error };
+				if (status.error !== null) return { kind: "error", text: status.error };
+
+				const text = auth.loginMessage(status);
+
+				return {
+					kind: "success",
+					text: status.inFlight
+						? `${text}\nRun /${spec.name} status when you have approved it.`
+						: text,
+				};
 			}
 
 			if (action === "logout") {
@@ -102,25 +131,25 @@ export const createIntegrationCommand = <TStatus extends IntegrationStatus>(
 			if (!status.signedIn)
 				return {
 					kind: "success",
-					text: `Not signed in to ${spec.label}. Run /${spec.name} login.`,
+					text: `Not connected to ${spec.label}. Run /${spec.name} login to connect.`,
 				};
 
 			if (!status.connected)
 				return {
 					kind: "success",
-					text: `${spec.label} is signed in but not connected. Run /${spec.name} sync.`,
+					text: `${spec.label} is connected with a stored credential but not answering. Run /${spec.name} sync.`,
 				};
 
 			const until =
 				status.expiresAt === null
-					? "unknown"
-					: new Date(status.expiresAt).toLocaleString();
+					? ""
+					: ` Token valid until ${expiryText(status.expiresAt)}.`;
 			const extra = spec.describe?.(status) ?? "";
 			const tail = extra === "" ? "" : ` ${extra}`;
 
 			return {
 				kind: "success",
-				text: `Signed in to ${spec.label}. Token valid until ${until}.${tail} ${status.tools.length} tools loaded.`,
+				text: `Connected to ${spec.label}.${until}${tail} ${status.tools.length} tools loaded.`,
 			};
 		} catch (error) {
 			return { kind: "error", text: `${spec.label}: ${errorText(error)}` };

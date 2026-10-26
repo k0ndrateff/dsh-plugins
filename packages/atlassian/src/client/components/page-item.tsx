@@ -12,9 +12,11 @@ import * as styles from "../styles/styles.css";
 
 interface Props {
 	page: PageCard;
+	/** The site the card was resolved on, so the panel opens the same one. */
+	cloudId?: string;
 }
 
-export const PageItem = ({ page }: Props) => {
+export const PageItem = ({ page, cloudId }: Props) => {
 	return (
 		<li className={styles.item}>
 			<div className={styles.itemHead}>
@@ -35,6 +37,7 @@ export const PageItem = ({ page }: Props) => {
 									kind: "page",
 									id: page.id,
 									title: page.title,
+									cloudId,
 								})
 							)
 								event.preventDefault();

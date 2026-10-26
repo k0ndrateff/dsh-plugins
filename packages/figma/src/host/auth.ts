@@ -12,12 +12,12 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { IntegrationAuthFace, RuntimeState } from "dsh-integration-host";
 import { loggerOf, type McpBridge } from "dsh-mcp-oauth";
+import { CONNECTION_FAILURE, DEV_MODE_HELP } from "../shared/connection";
 import type { FigmaStatus } from "../shared/status";
 import type { FigmaConfig } from "./config";
 
 /** The line the command and the card show when there is nothing to sign in to. */
-const NO_SIGN_IN =
-	"Figma’s Dev Mode MCP server needs no sign-in: start the Figma desktop app and turn on “Enable Dev Mode MCP Server” in its preferences.";
+const NO_SIGN_IN = `Figma's Dev Mode MCP server needs no sign-in. ${DEV_MODE_HELP}`;
 
 /** Everything the auth needs, wired once at apply time. */
 export interface AuthDeps {
@@ -68,9 +68,7 @@ export class FigmaAuth implements IntegrationAuthFace<FigmaStatus> {
 				bridge.lastFailure,
 			);
 
-		state.error = ready
-			? undefined
-			: `Figma's Dev Mode MCP server did not answer at ${this.deps.config.endpoint}. Start the Figma desktop app and turn on “Enable Dev Mode MCP Server” in its preferences.`;
+		state.error = ready ? undefined : CONNECTION_FAILURE;
 
 		if (ready) state.notice = undefined;
 

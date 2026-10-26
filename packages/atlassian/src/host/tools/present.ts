@@ -1,13 +1,16 @@
 /**
  * `atlassian_present` — the tool behind a card in the conversation.
  *
- * It resolves what to show (by key, by JQL, by page id, or by CQL), records one
- * durable presentation for the turn, and answers the model with a text summary.
- * The card is presentation only: the model reads the text result, and the record
- * is what the browser half renders under the closing prose.
+ * It resolves what to show (by key or URL, by JQL, by page id or URL, or by
+ * CQL), records one durable presentation for the turn, and answers the model
+ * with a text summary. The card is presentation only: the model reads the text
+ * result, and the record is what the browser half renders under the closing
+ * prose.
  *
  * The tool resolves the cloud id itself when the plugin has learned it, so the
- * model does not have to thread that identifier through every call.
+ * model does not have to thread that identifier through every call. A site the
+ * plugin did not learn is never guessed silently: the summary says which site
+ * answered and the card carries its cloud id, so the panel opens the same site.
  */
 
 import type { Context } from "@deepseek-ai/cordis";
@@ -45,10 +48,16 @@ interface PresentOutcome {
 	readonly items: readonly PresentationItem[];
 	/** The server's match count, when it exceeds what the card shows. */
 	readonly total: number | undefined;
-	/** Requests that could not be resolved, by key or id. */
+	/** Requests that could not be resolved, with the reason the server gave. */
 	readonly failed: readonly string[];
 	/** Whether the server held back another page of search results. */
 	readonly truncated: boolean;
+	/** Requests left out because one card reads only {@link MAX_ITEMS}. */
+	readonly dropped: number;
+	/** The site the card was resolved on, when the plugin knew one. */
+	readonly cloudId: string | undefined;
+	/** That site's base URL, for the card's own note. */
+	readonly siteUrl: string | undefined;
 }
 
 /** What one resolution pass found: card items and the count behind them. */
@@ -69,6 +78,8 @@ interface PresentArgs {
 	readonly pages: readonly string[];
 	readonly jql: string | undefined;
 	readonly cql: string | undefined;
+	/** Values left out because one card reads only {@link MAX_ITEMS}. */
+	readonly dropped: number;
 }
 
 /** Whether one search answer names another page. */
@@ -89,6 +100,46 @@ const stringList = (value: unknown): string[] => {
 	return value.filter(
 		(item): item is string => typeof item === "string" && item !== "",
 	);
+};
+
+/** The reason inside an unknown thrown value, as a sentence. */
+const messageOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
+
+/** A Jira issue key as a key or as the `/browse/<key>` URL a user copies. */
+const ISSUE_KEY = /(?:^|\/browse\/)([A-Z][A-Z0-9_]{0,9}-\d+)(?:$|[/?#])/u;
+
+/** A Confluence page id as an id or as one of the URLs a user copies. */
+const PAGE_ID = /(?:\/pages\/|[?&]pageId=)(\d+)(?:$|[/?#&])/u;
+
+/**
+ * The Jira issue key a value names.
+ *
+ * A user copies a browser URL, not a key, so both are accepted; a value that
+ * names neither is passed through unchanged, and the server's own refusal then
+ * reaches the model as the reason.
+ * @param value - an issue key or a Jira URL.
+ * @returns the key, or the input when it carries none.
+ */
+export const issueKeyOf = (value: string): string => {
+	const trimmed = value.trim();
+
+	return ISSUE_KEY.exec(trimmed)?.[1] ?? trimmed;
+};
+
+/**
+ * The Confluence page id a value names.
+ * @param value - a numeric page id or a Confluence URL.
+ * @returns the id, or the input when it carries none.
+ */
+export const pageIdOf = (value: string): string => {
+	const trimmed = value.trim();
+	const fromUrl = PAGE_ID.exec(trimmed)?.[1];
+
+	if (fromUrl !== undefined) return fromUrl;
+	if (/^\d+$/u.test(trimmed)) return trimmed;
+
+	return trimmed;
 };
 
 class PresentTool {
@@ -122,10 +173,15 @@ class PresentTool {
 			"Show Jira issues and/or Confluence pages to the user as a card under your answer. " +
 			"Use this whenever the user asks to see work — a daily plan, a shortlist, a single issue, " +
 			"or search results — instead of only describing it in prose. Resolve the content by issue " +
-			"keys, by page ids, by JQL, or by CQL. Each row carries a link to the item, its status, " +
-			"assignee, priority, type and estimate, plus one sentence summarizing its description, " +
-			"so the user can act without opening the issue. Call it once per card, then write your " +
-			"answer; do not repeat the card's contents as a list in the text.",
+			"keys or URLs, by page ids or URLs, by JQL, or by CQL. Each row carries a link to the " +
+			"item, its status, assignee, priority, type and estimate, plus one sentence summarizing " +
+			"its description, so the user can act without opening the issue. Call it once per card, " +
+			"then write your answer; do not repeat the card's contents as a list in the text. " +
+			"One card reads at most 25 items; for a larger set pass a JQL or CQL query rather than a " +
+			"long list of keys. The sentence per item is written by one extra model call before the " +
+			"card is recorded (up to 25 calls' worth of text, up to about 20 seconds), so a card costs " +
+			"a little time and tokens and is worth waiting for. The plugin shows the selected " +
+			"Atlassian site; pass cloudId to target another site the account can reach.",
 
 		parameters: {
 			type: "object",
@@ -147,12 +203,17 @@ class PresentTool {
 				issues: {
 					type: "array",
 					items: { type: "string" },
-					description: 'Issue keys to show, for example ["DEV-6477", "DQ-66"].',
+					maxItems: this.MAX_ITEMS,
+					description:
+						'Jira issue keys or issue URLs to show, for example ["DEV-6477", "DQ-66"]. ' +
+						"At most 25; use jql for a larger set.",
 				},
 				pages: {
 					type: "array",
 					items: { type: "string" },
-					description: "Confluence page ids to show.",
+					maxItems: this.MAX_ITEMS,
+					description:
+						"Confluence page ids or page URLs to show. At most 25; use cql for a larger set.",
 				},
 				jql: {
 					type: "string",
@@ -167,7 +228,7 @@ class PresentTool {
 				cloudId: {
 					type: "string",
 					description:
-						"Atlassian cloud id. Omit unless the user has several sites: the plugin remembers it.",
+						"Atlassian cloud id of the site to read. Omit to use the site selected in Settings.",
 				},
 			},
 		},
@@ -211,6 +272,8 @@ class PresentTool {
 				callId: String(exec.callId),
 				...(outcome.title === undefined ? {} : { title: outcome.title }),
 				layout: outcome.layout,
+				...(outcome.cloudId === undefined ? {} : { cloudId: outcome.cloudId }),
+				...(outcome.siteUrl === undefined ? {} : { siteUrl: outcome.siteUrl }),
 				...(outcome.total === undefined ? {} : { total: outcome.total }),
 				...(outcome.truncated ? { truncated: true } : {}),
 				items: outcome.items,
@@ -233,6 +296,11 @@ class PresentTool {
 				: {};
 
 		const layout = nonEmptyString(args.layout);
+		const issues = stringList(args.issues).map((value) => issueKeyOf(value));
+		const pages = stringList(args.pages).map((value) => pageIdOf(value));
+		const dropped =
+			Math.max(0, issues.length - this.MAX_ITEMS) +
+			Math.max(0, pages.length - this.MAX_ITEMS);
 
 		return {
 			title: nonEmptyString(args.title),
@@ -244,10 +312,11 @@ class PresentTool {
 					? layout
 					: undefined,
 			cloudId: nonEmptyString(args.cloudId),
-			issues: stringList(args.issues),
-			pages: stringList(args.pages),
+			issues: issues.slice(0, this.MAX_ITEMS),
+			pages: pages.slice(0, this.MAX_ITEMS),
 			jql: nonEmptyString(args.jql),
 			cql: nonEmptyString(args.cql),
+			dropped,
 		};
 	};
 
@@ -261,7 +330,7 @@ class PresentTool {
 
 		if (cloudId === undefined)
 			throw new Error(
-				"no Atlassian site known yet; run a Jira or Confluence search first, or sign in again",
+				"no Atlassian site known yet; run /atlassian sync (or Re-check in Settings), then try again",
 			);
 
 		const requested =
@@ -293,11 +362,15 @@ class PresentTool {
 					fields: this.ISSUE_FIELDS,
 				});
 
-				const found = this.issuesOf(value, deps.state.facts?.siteUrl, key);
+				const found = this.issuesOf(
+					value,
+					deps.state.facts?.urlOf(cloudId),
+					key,
+				);
 				push(found.items);
 				matched += found.total ?? found.items.length;
-			} catch {
-				failed.push(key);
+			} catch (error) {
+				failed.push(`${key} — ${messageOf(error)}`);
 			}
 		}
 
@@ -309,7 +382,7 @@ class PresentTool {
 				maxResults: this.MAX_ITEMS,
 			});
 
-			const found = this.issuesOf(value, deps.state.facts?.siteUrl);
+			const found = this.issuesOf(value, deps.state.facts?.urlOf(cloudId));
 			push(found.items);
 			matched += found.total ?? found.items.length;
 			if (hasMore(value)) truncated = true;
@@ -322,11 +395,11 @@ class PresentTool {
 					pageId: id,
 				});
 
-				const found = this.pagesOf(value, deps.state.facts?.siteUrl, id);
+				const found = this.pagesOf(value, deps.state.facts?.urlOf(cloudId), id);
 				push(found.items);
 				matched += found.total ?? found.items.length;
-			} catch {
-				failed.push(id);
+			} catch (error) {
+				failed.push(`${id} — ${messageOf(error)}`);
 			}
 		}
 
@@ -337,7 +410,7 @@ class PresentTool {
 				limit: this.MAX_ITEMS,
 			});
 
-			const found = this.pagesOf(value, deps.state.facts?.siteUrl);
+			const found = this.pagesOf(value, deps.state.facts?.urlOf(cloudId));
 			push(found.items);
 			matched += found.total ?? found.items.length;
 			if (hasMore(value)) truncated = true;
@@ -361,13 +434,20 @@ class PresentTool {
 					},
 		);
 
+		// Keys that were never looked up still belong in the count the card
+		// explains: they are part of what the caller asked to see.
+		const counted = matched + args.dropped;
+
 		return {
 			title: args.title,
 			layout: this.resolveLayout(args.layout, projected.length),
 			items: projected,
-			total: matched > projected.length ? matched : undefined,
+			total: counted > projected.length ? counted : undefined,
 			failed,
 			truncated,
+			dropped: args.dropped,
+			cloudId,
+			siteUrl: deps.state.facts?.urlOf(cloudId),
 		};
 	};
 
@@ -567,8 +647,24 @@ class PresentTool {
 
 		if (args.jql !== undefined) lines.push(`JQL: ${args.jql}`);
 		if (args.cql !== undefined) lines.push(`CQL: ${args.cql}`);
+
+		if (outcome.total !== undefined && outcome.total > outcome.items.length) {
+			lines.push(
+				`The server matched ${outcome.total}; this card shows ${outcome.items.length}.`,
+			);
+		}
+
 		if (outcome.truncated)
-			lines.push("The search had more results than this card read.");
+			lines.push(
+				"The search had more results than this card read; narrow it or ask for another page.",
+			);
+
+		if (outcome.dropped > 0) {
+			lines.push(
+				`${outcome.dropped} more requested item${outcome.dropped === 1 ? "" : "s"} ` +
+					`were not looked up: one card reads at most ${this.MAX_ITEMS}. Use JQL or CQL for a larger set.`,
+			);
+		}
 
 		return lines.join("\n");
 	}

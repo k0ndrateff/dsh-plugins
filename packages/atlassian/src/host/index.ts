@@ -48,6 +48,7 @@ import type { SiteFacts } from "./store/site";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
 import { presentTool } from "./tools/present";
+import { withWriteInstruction } from "./tools/write-instruction";
 
 export const name = PLUGIN_NAME;
 
@@ -79,19 +80,24 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		store,
 		clientInfo: CLIENT_INFO,
 		// The durable UI channel: the Web Client reads this back as `result.meta`.
-		decorate: (definition, tool) => ({
-			...definition,
-			output: {
-				...definition.output,
-				presentationMeta: (args, value) =>
-					extractor.extract({
-						tool: tool.name,
-						args,
-						value,
-						siteUrl: state.facts?.siteUrl,
-					}),
-			},
-		}),
+		// A write tool also carries the sentence that makes the agent report back.
+		decorate: (definition, tool) =>
+			withWriteInstruction(
+				{
+					...definition,
+					output: {
+						...definition.output,
+						presentationMeta: (args, value) =>
+							extractor.extract({
+								tool: tool.name,
+								args,
+								value,
+								siteUrl: state.facts?.siteUrl,
+							}),
+					},
+				},
+				tool.name,
+			),
 	});
 
 	const auth: IntegrationAuthFace<AtlassianStatus> = new IntegrationAuth<
@@ -99,7 +105,7 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		SiteFacts
 	>({ ctx, config, state, store, flow, bridge, spec: atlassianAuthSpec });
 
-	const panel = new PanelApi({ bridge, state });
+	const panel = new PanelApi({ bridge, state, store });
 
 	// The digest plugin, when it is installed, composes this plugin's Jira blocks
 	// into its card; nothing is read until a digest actually asks.

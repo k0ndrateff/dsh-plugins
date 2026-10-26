@@ -111,3 +111,37 @@ export const suspectText = style({
 	lineHeight: "18px",
 	color: theme.color.labelSecondary,
 });
+
+/** A section title is a heading; the shared style is for its type, not its margins. */
+export const sectionHeading = style({
+	margin: 0,
+	fontSize: "inherit",
+	fontWeight: "inherit",
+	lineHeight: "inherit",
+});
+
+/** What the panel says a just-confirmed write changed. */
+export const changed = style({
+	margin: 0,
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelPrimary,
+});
+
+/** The organization picker: one native select and its inline status, on one line. */
+export const orgChoice = style({
+	display: "inline-flex",
+	alignItems: "baseline",
+	gap: "6px",
+	flexWrap: "wrap",
+});
+
+export const orgSelect = style({
+	font: "inherit",
+	color: "inherit",
+	background: "transparent",
+	border: `1px solid ${theme.color.borderSubtle}`,
+	borderRadius: theme.radius.sm,
+	padding: "2px 4px",
+	maxWidth: "100%",
+});

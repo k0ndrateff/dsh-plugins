@@ -36,6 +36,9 @@
 			"read-only": {
 				"title": "Reads only"
 			},
+			"runs-commands": {
+				"title": "Runs project commands"
+			},
 			"writes": {
 				"title": "Can write"
 			}
@@ -73,8 +76,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.4.3",
-					"publishTimestamp": 1792847873,
+					"version": "0.5.0",
+					"publishTimestamp": 1792847845,
 					"source": {
 						"type": "npm"
 					},
@@ -113,8 +116,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.2",
-					"publishTimestamp": 1792847882,
+					"version": "0.3.0",
+					"publishTimestamp": 1792847845,
 					"source": {
 						"type": "npm"
 					},
@@ -154,8 +157,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.3.0",
-					"publishTimestamp": 1792847845,
+					"version": "0.4.0",
+					"publishTimestamp": 1793041218,
 					"source": {
 						"type": "npm"
 					},
@@ -195,8 +198,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.2",
-					"publishTimestamp": 1792847861,
+					"version": "0.3.0",
+					"publishTimestamp": 1792847845,
 					"source": {
 						"type": "npm"
 					},
@@ -233,8 +236,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.2",
-					"publishTimestamp": 1792847881,
+					"version": "0.3.0",
+					"publishTimestamp": 1792847845,
 					"source": {
 						"type": "npm"
 					},
@@ -272,8 +275,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.1",
-					"publishTimestamp": 1792780419,
+					"version": "0.3.0",
+					"publishTimestamp": 1792786920,
 					"source": {
 						"type": "npm"
 					},
@@ -307,8 +310,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.0",
-					"publishTimestamp": 1792712116,
+					"version": "0.3.0",
+					"publishTimestamp": 1792717579,
 					"source": {
 						"type": "npm"
 					},
@@ -340,14 +343,15 @@
 					"recipes"
 				],
 				"labels": [
-					"read-only"
+					"read-only",
+					"runs-commands"
 				],
 				"sortKeys": {}
 			},
 			"versions": [
 				{
-					"version": "0.2.1",
-					"publishTimestamp": 1792780440,
+					"version": "0.3.0",
+					"publishTimestamp": 1792786920,
 					"source": {
 						"type": "npm"
 					},
@@ -388,8 +392,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.2",
-					"publishTimestamp": 1792847879,
+					"version": "0.3.0",
+					"publishTimestamp": 1792847845,
 					"source": {
 						"type": "npm"
 					},
@@ -423,8 +427,8 @@
 			},
 			"versions": [
 				{
-					"version": "0.2.1",
-					"publishTimestamp": 1792847845,
+					"version": "0.2.2",
+					"publishTimestamp": 1793048003,
 					"source": {
 						"type": "npm"
 					},

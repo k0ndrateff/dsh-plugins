@@ -1,5 +1,20 @@
 # dsh-digest-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- UX/AX improvements.
+
+### Patch Changes
+
+- Fix the UX/AX audit: human errors and states, install fallback for single
+  bundles, OAuth cancellation and callback copy, GitLab reply/approval context and
+  limits, Figma connection copy and zoom, browser states/retry/screenshot/close,
+  digest preview and atomic save, correlation branches/caps, checks severity and
+  line-aware actions, and model-facing output budgets. English UI stays an explicit
+  decision; tool names are unchanged.
+
 ## 0.2.2
 
 ### Patch Changes

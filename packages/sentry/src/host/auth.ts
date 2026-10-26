@@ -24,5 +24,6 @@ export const sentryAuthSpec: AuthSpec<SentryStatus, OrganizationFacts> = {
 		...base,
 		organization: facts?.slug ?? null,
 		organizationUrl: facts?.webUrl ?? null,
+		organizations: facts?.organizations ?? [],
 	}),
 };

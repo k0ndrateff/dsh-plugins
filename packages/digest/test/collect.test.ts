@@ -138,8 +138,8 @@ test("what is asked for", async () => {
 			`the window is the last day — ${String(sources.asked[0]?.sinceMs)}`,
 		).toBe(true);
 		expect(
-			sources.asked.every((entry) => entry.limit === 10),
-			"the row cap is passed through",
+			sources.asked.every((entry) => entry.limit === 11),
+			`one row past the cap is asked for, so "more exist" can be told — ${sources.asked.map((entry) => entry.limit).join(",")}`,
 		).toBe(true);
 		expect(
 			digest.sections.map((s) => s.block).join(",") ===
@@ -153,6 +153,16 @@ test("what is asked for", async () => {
 		expect(
 			digest.generatedAt === NOW.toISOString(),
 			"the moment is recorded",
+		).toBe(true);
+		expect(
+			digest.timeZone === store.get().timeZone,
+			`the zone the moment is read in travels with it — ${digest.timeZone}`,
+		).toBe(true);
+		expect(
+			(digest.offered ?? [])
+				.map((block) => `${block.id}:${block.on ? "on" : "off"}`)
+				.join(",") === "jira-active:on,gitlab-review:on,coderabbit:off",
+			`every offered block travels with its switch, so an empty digest can say why — ${(digest.offered ?? []).map((block) => block.id).join(",")}`,
 		).toBe(true);
 
 		const switched = await new DigestCollector({
@@ -216,8 +226,123 @@ test("a deployment with no sources at all", async () => {
 		).toBe(true);
 		expect(summary.includes("0 blocks"), "the text says so").toBe(true);
 		expect(
+			summary.includes("No integration is offering digest blocks"),
+			`and names the next step instead of just the zero — ${summary}`,
+		).toBe(true);
+		expect(
 			collector.sources().length === 0,
 			"and nothing is offered to switch on",
+		).toBe(true);
+	}
+});
+test("an empty digest says which kind of empty it is", async () => {
+	{
+		const allOff = new DigestCollector({
+			ctx: contextWith(sourcesFor()),
+			settings: storeWith({
+				"jira-active": false,
+				"gitlab-review": false,
+				coderabbit: false,
+			}),
+		});
+
+		const { report: digest, summary } = await allOff.collect("call-5", NOW);
+
+		expect(
+			digest.sections.length === 0 && digest.offered?.length === 3,
+			"nothing is loaded, but what could have been is reported",
+		).toBe(true);
+		expect(
+			summary.includes("Every block is switched off") &&
+				summary.includes("Settings → Digest"),
+			`the text says the blocks are off and where to turn them on — ${summary}`,
+		).toBe(true);
+	}
+});
+test("a block with more rows than the cap says so", async () => {
+	{
+		const many: DigestItem[] = Array.from({ length: 11 }, (_, index) => ({
+			id: `DEV-${index + 1}`,
+			title: `DEV-${index + 1} · row ${index + 1}`,
+		}));
+		const sources = new FakeSources(
+			[
+				{
+					id: "jira-active",
+					title: "Jira · In progress",
+					provider: "Atlassian",
+					defaultOn: true,
+				},
+			],
+			{ "jira-active": many },
+		);
+		const collector = new DigestCollector({
+			ctx: contextWith(sources),
+			settings: storeWith(),
+		});
+
+		const { report: digest, summary } = await collector.collect("call-6", NOW);
+		const section = digest.sections[0];
+
+		expect(
+			section?.items.length === 10 &&
+				section.truncated === true &&
+				section.total === 11,
+			`the cap is applied and the extra row is only counted — ${JSON.stringify({ items: section?.items.length, truncated: section?.truncated, total: section?.total })}`,
+		).toBe(true);
+		expect(
+			summary.includes("10 of at least 11") &&
+				summary.includes("raise Rows per block"),
+			`the model's text says it is seeing part of the block — ${summary}`,
+		).toBe(true);
+
+		const exactly = new DigestCollector({
+			ctx: contextWith(
+				new FakeSources(
+					[
+						{
+							id: "jira-active",
+							title: "Jira · In progress",
+							provider: "Atlassian",
+							defaultOn: true,
+						},
+					],
+					{ "jira-active": many.slice(0, 10) },
+				),
+			),
+			settings: storeWith(),
+		});
+		const { report: full } = await exactly.collect("call-7", NOW);
+
+		expect(
+			full.sections[0]?.items.length === 10 &&
+				full.sections[0]?.truncated === undefined,
+			"a block that fits the cap is not claimed to be cut",
+		).toBe(true);
+	}
+});
+test("a preview is assembled from the draft it is given", async () => {
+	{
+		const sources = sourcesFor();
+		const collector = new DigestCollector({
+			ctx: contextWith(sources),
+			settings: storeWith({ "jira-active": false }),
+		});
+
+		const { report: preview } = await collector.collect("call-8", NOW, {
+			...defaultDigestSettings(),
+			blocks: { "jira-active": true, coderabbit: true },
+			days: [1, 2, 3, 4, 5, 6, 0],
+		});
+
+		expect(
+			preview.sections.map((section) => section.block).join(",") ===
+				"jira-active,gitlab-review,coderabbit",
+			`the draft's switches decide what is loaded, not the stored ones — ${preview.sections.map((section) => section.block).join(",")}`,
+		).toBe(true);
+		expect(
+			preview.title === "Daily digest",
+			`the draft's days title the report — ${preview.title}`,
 		).toBe(true);
 	}
 });

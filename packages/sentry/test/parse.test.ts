@@ -179,7 +179,10 @@ name: "Firefox"
 
 	console.log("\n=== the search answer ===");
 	{
-		const search = parseIssueSearch(SEARCH);
+		// A fixed read moment: "2 minutes ago" is resolved against it, so the test
+		// proves the timestamp rather than the wall clock.
+		const readAt = Date.parse("2026-10-20T13:05:39.611Z");
+		const search = parseIssueSearch(SEARCH, readAt);
 
 		expect(
 			search.issues.length === 3,
@@ -214,13 +217,15 @@ name: "Firefox"
 		expect(
 			first?.status === "unresolved" &&
 				first?.assignee === "Ada Lovelace" &&
-				first?.lastSeen === "2 minutes ago" &&
+				first?.lastSeen === "2026-10-20T13:03:39.611Z" &&
 				first?.culprit === "/:locale/exchange/step2",
-			`its other fields keep the server's wording — ${JSON.stringify({
-				status: first?.status,
-				assignee: first?.assignee,
-				lastSeen: first?.lastSeen,
-			})}`,
+			`its other fields are kept, and its time becomes a timestamp — ${JSON.stringify(
+				{
+					status: first?.status,
+					assignee: first?.assignee,
+					lastSeen: first?.lastSeen,
+				},
+			)}`,
 		).toBe(true);
 		expect(
 			search.issues[2]?.assignee === undefined,
@@ -279,11 +284,6 @@ name: "Firefox"
 			`the tracker key inside the commit message is picked out — ${String(detail.suspect?.issueKey)}`,
 		).toBe(true);
 		expect(
-			detail.eventId === "d346dc1b6344421784917c0c6edb9fea" &&
-				detail.occurredAt === "2026-10-20T13:03:39.611Z",
-			`the event id and time are read — ${`${String(detail.eventId)}/${String(detail.occurredAt)}`}`,
-		).toBe(true);
-		expect(
 			detail.message === "AxiosError: Request failed with status code 422",
 			`the exception's own line is the message — ${String(detail.message)}`,
 		).toBe(true);
@@ -313,8 +313,8 @@ name: "Firefox"
 			`the user and extra-data sections are not read as tags — ${JSON.stringify(detail.tags.map((tag) => tag.name))}`,
 		).toBe(true);
 		expect(
-			detail.raw === DETAIL,
-			"the whole document is kept for a raw view",
+			!(detail as unknown as { raw?: string }).raw,
+			"the whole Markdown document is not carried into the panel",
 		).toBe(true);
 	}
 

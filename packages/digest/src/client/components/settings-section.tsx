@@ -15,7 +15,8 @@
  * user saves. A field the draft moved away from what is stored says so, so
  * closing the page without saving is never a surprise, and a value the host
  * would refuse — a zone that names nothing, a time that is not one — blocks the
- * save instead of failing it.
+ * save instead of failing it. "Show now" previews the same draft, because a
+ * preview of the saved settings is a preview of the wrong thing.
  */
 
 import {
@@ -35,12 +36,18 @@ import {
 	type DigestSection,
 	type DigestSettings,
 	type DigestSettingsView,
+	digestStamp,
 	digestTitle,
+	emptyDigestNote,
 	isDigestTime,
 	isTimeZone,
+	WEEK_ORDER,
 } from "../../shared/digest";
 import { digestHostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
+
+/** The id the save-state line carries, so the button can point at it. */
+const SAVE_STATE_ID = "digest-save-state";
 
 /** One block of the preview, drawn the way the card draws it. */
 const Preview = ({ section }: { section: DigestSection }) => (
@@ -78,6 +85,12 @@ const Preview = ({ section }: { section: DigestSection }) => (
 				)}
 			</div>
 		))}
+
+		{section.truncated === true && section.total !== undefined ? (
+			<p className={styles.blockNote}>
+				{`Showing ${section.items.length} of at least ${section.total} rows — raise Rows per block to see more.`}
+			</p>
+		) : null}
 	</div>
 );
 
@@ -86,11 +99,14 @@ const Field = ({
 	label,
 	hint,
 	changed = false,
+	error,
 	children,
 }: {
 	label: string;
 	hint?: string;
 	changed?: boolean;
+	/** The field's validation failure, announced and linked to its control. */
+	error?: { readonly id: string; readonly text: string };
 	children: ReactNode;
 }) => (
 	<div className={styles.field}>
@@ -103,6 +119,12 @@ const Field = ({
 		{children}
 
 		{hint === undefined ? null : <span className={styles.caption}>{hint}</span>}
+
+		{error === undefined ? null : (
+			<span className={styles.error} id={error.id} role="alert">
+				{error.text}
+			</span>
+		)}
 	</div>
 );
 
@@ -114,6 +136,24 @@ const isOn = (block: DigestBlockView, settings: DigestSettings): boolean =>
 const sameDays = (left: readonly number[], right: readonly number[]): boolean =>
 	left.length === right.length && left.every((day) => right.includes(day));
 
+/** Whether two saved switch maps say the same thing. */
+const sameBlocks = (
+	left: Readonly<Record<string, boolean>>,
+	right: Readonly<Record<string, boolean>>,
+): boolean => {
+	const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+
+	return [...keys].every((key) => left[key] === right[key]);
+};
+
+/** Whether two configurations are the same document. */
+const sameSettings = (left: DigestSettings, right: DigestSettings): boolean =>
+	left.time === right.time &&
+	left.timeZone === right.timeZone &&
+	left.limit === right.limit &&
+	sameDays(left.days, right.days) &&
+	sameBlocks(left.blocks, right.blocks);
+
 /** The digest settings card. */
 export const DigestSettingsSection = (): ReactNode => {
 	const mounted = useRef(true);
@@ -122,35 +162,47 @@ export const DigestSettingsSection = (): ReactNode => {
 	const [stored, setStored] = useState<DigestSettings | null>(null);
 	/** What the user has edited, written only on save. */
 	const [draft, setDraft] = useState<DigestSettings | null>(null);
+	/** Why the last read or save failed, in the host's or the browser's words. */
 	const [failure, setFailure] = useState<string | null>(null);
+	/** Whether the failure was the very first read, so the card is still empty. */
+	const [unread, setUnread] = useState(false);
 	const [pending, setPending] = useState<"save" | "now" | null>(null);
 	const [report, setReport] = useState<DigestReport | null>(null);
+	/** What just happened, announced through the save-state line. */
+	const [notice, setNotice] = useState<string | null>(null);
+
+	const load = useCallback(async (): Promise<void> => {
+		setFailure(null);
+
+		try {
+			const next = await digestHostApi.read();
+
+			if (!mounted.current) return;
+
+			setView(next);
+			setStored(next.settings);
+			setDraft(next.settings);
+			setUnread(false);
+		} catch (error) {
+			if (!mounted.current) return;
+
+			setUnread(true);
+			setFailure(error instanceof Error ? error.message : String(error));
+		}
+	}, []);
 
 	useEffect(() => {
 		mounted.current = true;
 
-		void digestHostApi
-			.read()
-			.then((next) => {
-				if (!mounted.current) return;
-
-				setView(next);
-				setStored(next.settings);
-				setDraft(next.settings);
-				setFailure(null);
-			})
-			.catch((error: unknown) => {
-				if (!mounted.current) return;
-
-				setFailure(error instanceof Error ? error.message : String(error));
-			});
+		void load();
 
 		return () => {
 			mounted.current = false;
 		};
-	}, []);
+	}, [load]);
 
 	const edit = useCallback((patch: Partial<DigestSettings>): void => {
+		setNotice(null);
 		setDraft((current) =>
 			current === null ? current : { ...current, ...patch },
 		);
@@ -177,6 +229,7 @@ export const DigestSettingsSection = (): ReactNode => {
 			setStored(next.settings);
 			setDraft(next.settings);
 			setFailure(null);
+			setNotice("Saved.");
 		} catch (error) {
 			if (!mounted.current) return;
 
@@ -190,7 +243,11 @@ export const DigestSettingsSection = (): ReactNode => {
 		setPending("now");
 
 		try {
-			const next = await digestHostApi.now();
+			const next = await digestHostApi.now(
+				draft === null || stored === null || sameSettings(draft, stored)
+					? undefined
+					: draft,
+			);
 
 			if (!mounted.current) return;
 
@@ -203,7 +260,7 @@ export const DigestSettingsSection = (): ReactNode => {
 		} finally {
 			if (mounted.current) setPending(null);
 		}
-	}, []);
+	}, [draft, stored]);
 
 	if (view === null || stored === null || draft === null) {
 		return (
@@ -213,25 +270,46 @@ export const DigestSettingsSection = (): ReactNode => {
 						<span className={styles.title}>Digest</span>
 					</div>
 
-					<div className={styles.caption}>
-						{failure === null
-							? "Reading the digest settings…"
-							: "The digest host half is not reachable."}
-					</div>
-
-					{failure === null ? null : (
-						<div className={styles.code}>{failure}</div>
+					{unread ? null : (
+						<div className={styles.caption}>Reading the digest settings…</div>
 					)}
+
+					{unread ? (
+						<>
+							<div className={styles.caption} role="alert">
+								The digest settings could not be read. The digest plugin may not
+								be running, or its host half may still be starting up.
+							</div>
+
+							<Button variant="outline" onClick={() => void load()}>
+								Try again
+							</Button>
+
+							{failure === null ? null : (
+								<details>
+									<summary className={styles.caption}>Technical detail</summary>
+									<div className={styles.code}>{failure}</div>
+								</details>
+							)}
+						</>
+					) : null}
 				</div>
 			</section>
 		);
 	}
 
-	const on = view.blocks.filter((block) => isOn(block, draft)).length;
+	const onBlocks = view.blocks.filter((block) => isOn(block, draft)).length;
 	const busy = pending !== null;
-	const timeOk = isDigestTime(draft.time);
-	const zoneOk = isTimeZone(draft.timeZone);
-	const daysOk = draft.days.length > 0;
+	const timeError = isDigestTime(draft.time)
+		? undefined
+		: "A time reads as HH:MM, midnight through 23:59.";
+	const zoneError = isTimeZone(draft.timeZone)
+		? undefined
+		: "No zone is named that.";
+	const daysError =
+		draft.days.length > 0
+			? undefined
+			: "Pick at least one day; an empty week never arrives.";
 	const changed = {
 		time: draft.time !== stored.time,
 		timeZone: draft.timeZone !== stored.timeZone,
@@ -242,6 +320,18 @@ export const DigestSettingsSection = (): ReactNode => {
 		),
 	};
 	const dirty = Object.values(changed).some((moved) => moved);
+	const invalid =
+		timeError !== undefined ||
+		zoneError !== undefined ||
+		daysError !== undefined;
+	/** Why the Save button is in the state it is, said rather than implied. */
+	const saveState =
+		notice ??
+		(invalid
+			? "Fix the highlighted field before saving."
+			: dirty
+				? "Unsaved changes — Save to apply them."
+				: "Everything is saved.");
 
 	return (
 		<section className={styles.section}>
@@ -250,10 +340,10 @@ export const DigestSettingsSection = (): ReactNode => {
 					<span className={styles.title}>{digestTitle(draft.days)}</span>
 
 					<span className={styles.state}>
-						<StateDot state={on === 0 ? "idle" : "done"} />
+						<StateDot state={onBlocks === 0 ? "idle" : "done"} />
 
 						<span className={styles.stateWord}>
-							{`${on} of ${view.blocks.length} blocks`}
+							{`${onBlocks} of ${view.blocks.length} blocks`}
 						</span>
 
 						{view.providers.length === 0 ? null : (
@@ -271,31 +361,43 @@ export const DigestSettingsSection = (): ReactNode => {
 					label="Time"
 					changed={changed.time}
 					hint="Local wall-clock time, in the zone below."
+					error={
+						timeError === undefined
+							? undefined
+							: { id: "digest-time-error", text: timeError }
+					}
 				>
 					<Input
 						type="time"
 						aria-label="Digest time"
+						aria-invalid={timeError !== undefined}
+						aria-describedby={
+							timeError === undefined ? undefined : "digest-time-error"
+						}
 						value={draft.time}
 						disabled={busy}
 						onChange={(event) => {
 							edit({ time: event.target.value });
 						}}
 					/>
-
-					{timeOk ? null : (
-						<span className={styles.error}>
-							A time reads as HH:MM, midnight through 23:59.
-						</span>
-					)}
 				</Field>
 
 				<Field
 					label="Time zone"
 					changed={changed.timeZone}
 					hint="An IANA name, such as Europe/Moscow."
+					error={
+						zoneError === undefined
+							? undefined
+							: { id: "digest-zone-error", text: zoneError }
+					}
 				>
 					<Input
 						aria-label="Digest time zone"
+						aria-invalid={zoneError !== undefined}
+						aria-describedby={
+							zoneError === undefined ? undefined : "digest-zone-error"
+						}
 						value={draft.timeZone}
 						placeholder="Europe/Moscow"
 						disabled={busy}
@@ -303,13 +405,13 @@ export const DigestSettingsSection = (): ReactNode => {
 							edit({ timeZone: event.target.value });
 						}}
 					/>
-
-					{zoneOk ? null : (
-						<span className={styles.error}>No zone is named that.</span>
-					)}
 				</Field>
 
-				<Field label="Rows per block" changed={changed.limit}>
+				<Field
+					label="Rows per block"
+					changed={changed.limit}
+					hint="The most rows one block shows. A block with more says how many it left out."
+				>
 					<SegmentedControl
 						id="digest-limit"
 						label="Rows per block"
@@ -325,12 +427,26 @@ export const DigestSettingsSection = (): ReactNode => {
 					/>
 				</Field>
 
-				<Field label="Days" changed={changed.days}>
-					<div className={styles.days}>
-						{DAY_LABELS.map((label, day) => (
+				<Field
+					label="Days"
+					changed={changed.days}
+					error={
+						daysError === undefined
+							? undefined
+							: { id: "digest-days-error", text: daysError }
+					}
+				>
+					<fieldset
+						className={styles.days}
+						aria-label="Delivery days"
+						aria-describedby={
+							daysError === undefined ? undefined : "digest-days-error"
+						}
+					>
+						{WEEK_ORDER.map((day) => (
 							<Checkbox
-								key={label}
-								label={label}
+								key={DAY_LABELS[day]}
+								label={DAY_LABELS[day] ?? String(day)}
 								checked={draft.days.includes(day)}
 								disabled={busy}
 								onChange={(checked) => {
@@ -342,13 +458,7 @@ export const DigestSettingsSection = (): ReactNode => {
 								}}
 							/>
 						))}
-					</div>
-
-					{daysOk ? null : (
-						<span className={styles.error}>
-							Pick at least one day; an empty week never arrives.
-						</span>
-					)}
+					</fieldset>
 				</Field>
 
 				<div className={styles.block}>
@@ -381,19 +491,24 @@ export const DigestSettingsSection = (): ReactNode => {
 				</div>
 
 				<div className={styles.caption}>
-					{view.canSchedule
-						? `Run /digest on in the session that should receive it${view.scheduled === 0 ? "" : ` — ${view.scheduled} session${view.scheduled === 1 ? "" : "s"} already do`}.`
-						: "This harness composes no reminder service, so the digest can only be shown on demand."}
+					{!view.canSchedule
+						? "This harness composes no reminder service, so the digest can only be shown on demand."
+						: view.remindersError === undefined
+							? `Run /digest on in the session that should receive it${view.scheduled === 0 ? "" : ` — ${view.scheduled} session${view.scheduled === 1 ? "" : "s"} already do`}.`
+							: `How many sessions receive the digest is unknown: the reminder catalog could not be read (${view.remindersError}).`}
 				</div>
 
 				{failure === null ? null : (
-					<div className={styles.error}>{failure}</div>
+					<div className={styles.error} role="alert">
+						{failure}
+					</div>
 				)}
 
 				<div className={styles.footer}>
 					<Button
 						variant="primary"
-						disabled={busy || !dirty || !timeOk || !zoneOk || !daysOk}
+						disabled={busy || !dirty || invalid}
+						aria-describedby={SAVE_STATE_ID}
 						onClick={() => void save()}
 					>
 						{pending === "save" ? "Saving…" : "Save"}
@@ -405,6 +520,7 @@ export const DigestSettingsSection = (): ReactNode => {
 							disabled={busy}
 							onClick={() => {
 								setDraft(stored);
+								setNotice(null);
 							}}
 						>
 							Discard
@@ -413,11 +529,21 @@ export const DigestSettingsSection = (): ReactNode => {
 
 					<Button
 						variant="outline"
-						disabled={busy}
+						disabled={busy || invalid}
+						aria-describedby={SAVE_STATE_ID}
 						onClick={() => void showNow()}
 					>
 						{pending === "now" ? "Working…" : "Show now"}
 					</Button>
+
+					<span
+						className={styles.caption}
+						id={SAVE_STATE_ID}
+						role="status"
+						aria-live="polite"
+					>
+						{saveState}
+					</span>
 				</div>
 			</div>
 
@@ -427,13 +553,21 @@ export const DigestSettingsSection = (): ReactNode => {
 						<span className={styles.title}>{report.title}</span>
 
 						<span className={styles.caption}>
-							{new Date(report.generatedAt).toLocaleString()}
+							{`Assembled ${digestStamp(report.generatedAt, report.timeZone)}`}
 						</span>
+					</div>
+
+					<div className={styles.caption}>
+						{dirty
+							? "Preview of your unsaved changes — Save to schedule them this way."
+							: "Preview of the saved settings."}
 					</div>
 
 					{report.sections.length === 0 ? (
 						<div className={styles.caption}>
-							Nothing is switched on yet, or no integration is connected.
+							{report.offered === undefined
+								? "Nothing was reported for this digest."
+								: emptyDigestNote(report.offered)}
 						</div>
 					) : (
 						report.sections.map((section) => (

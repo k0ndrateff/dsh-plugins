@@ -21,7 +21,13 @@ import type {
 	DigestReport,
 	DigestSection,
 } from "../shared/digest";
-import { digestTitle } from "../shared/digest";
+import {
+	type DigestBlockView,
+	type DigestSettings,
+	digestStamp,
+	digestTitle,
+	emptyDigestNote,
+} from "../shared/digest";
 import type { DigestSettingsStore } from "./settings";
 
 /** How far back a block that reports recent work looks. */
@@ -57,33 +63,51 @@ export class DigestCollector {
 	 * Assemble the digest the user configured.
 	 * @param callId - the call the report belongs to; the card's identity.
 	 * @param now - the instant the digest is being assembled at.
+	 * @param settings - the configuration to assemble under; the saved one when
+	 *   omitted. The settings card passes its draft here, so "Show now" previews
+	 *   what the user is about to save rather than what was saved before.
 	 * @returns the report, and the text the model reads.
 	 */
-	async collect(callId: string, now: Date): Promise<DigestCollected> {
-		const settings = await this.deps.settings.ensure();
+	async collect(
+		callId: string,
+		now: Date,
+		settings?: DigestSettings,
+	): Promise<DigestCollected> {
+		const current = settings ?? (await this.deps.settings.ensure());
+		const offered = this.offered(current);
 		const report: DigestReport = {
 			callId,
-			title: digestTitle(settings.days),
+			title: digestTitle(current.days),
 			generatedAt: now.toISOString(),
-			sections: await this.sections(now),
+			timeZone: current.timeZone,
+			offered,
+			sections: await this.sections(now, current, offered),
 		};
 
 		return { summary: this.text(report), report };
 	}
 
+	/** Every block on offer, with the switch this configuration gives it. */
+	offered(settings: DigestSettings): readonly DigestBlockView[] {
+		return this.sources().map((block) => ({
+			id: block.id,
+			title: block.title,
+			provider: block.provider,
+			on: settings.blocks[block.id] ?? block.defaultOn,
+		}));
+	}
+
 	/** One section per block the user kept, in the order the sources declared. */
-	private async sections(now: Date): Promise<readonly DigestSection[]> {
+	private async sections(
+		now: Date,
+		settings: DigestSettings,
+		offered: readonly DigestBlockView[],
+	): Promise<readonly DigestSection[]> {
 		const sources = this.deps.ctx.get("digestSources");
 
 		if (sources === undefined) return [];
 
-		const settings = await this.deps.settings.ensure();
-		const options = {
-			since: new Date(now.getTime() - WINDOW_MS),
-			limit: settings.limit,
-		};
-		const switches = this.deps.settings.switches(sources.blocks);
-		const kept = sources.blocks.filter((block) => switches[block.id] === true);
+		const kept = offered.filter((block) => block.on);
 
 		return await Promise.all(
 			kept.map(async (block): Promise<DigestSection> => {
@@ -94,9 +118,22 @@ export class DigestCollector {
 				};
 
 				try {
-					const items = await sources.load(block.id, options);
+					// One row past the cap is the only way the wire contract lets a
+					// block say "there is more"; the extra row is never shown.
+					const rows = await sources.load(block.id, {
+						since: new Date(now.getTime() - WINDOW_MS),
+						limit: settings.limit + 1,
+					});
 
-					return { ...head, items: [...items] };
+					if (rows.length <= settings.limit)
+						return { ...head, items: [...rows] };
+
+					return {
+						...head,
+						items: rows.slice(0, settings.limit),
+						truncated: true,
+						total: rows.length,
+					};
 				} catch (error) {
 					return { ...head, items: [], unavailable: errorText(error) };
 				}
@@ -111,8 +148,11 @@ export class DigestCollector {
 			0,
 		);
 		const lines = [
-			`Digest assembled at ${new Date(report.generatedAt).toLocaleString()}: ${report.sections.length} block${report.sections.length === 1 ? "" : "s"}, ${rows} row${rows === 1 ? "" : "s"}.`,
+			`Digest assembled at ${digestStamp(report.generatedAt, report.timeZone)}: ${report.sections.length} block${report.sections.length === 1 ? "" : "s"}, ${rows} row${rows === 1 ? "" : "s"}.`,
 		];
+
+		if (report.sections.length === 0 && report.offered !== undefined)
+			lines.push("", emptyDigestNote(report.offered));
 
 		for (const section of report.sections) {
 			if (section.unavailable !== undefined) {
@@ -122,14 +162,30 @@ export class DigestCollector {
 			}
 
 			lines.push(
-				`## ${section.title} (${section.items.length})`,
+				`## ${this.heading(section)}`,
 				...(section.items.length === 0
 					? ["- nothing to report"]
 					: section.items.map((item) => this.row(item))),
 			);
 		}
 
+		const cut = report.sections.find((section) => section.truncated === true);
+
+		if (cut !== undefined)
+			lines.push(
+				"",
+				`Some blocks had more rows than shown; the digest shows up to ${cut.items.length} rows per block — raise Rows per block in Settings → Digest to see more.`,
+			);
+
 		return lines.join("\n");
+	}
+
+	/** A block's heading, with how much of it the reader is seeing. */
+	private heading(section: DigestSection): string {
+		if (section.truncated !== true || section.total === undefined)
+			return `${section.title} (${section.items.length})`;
+
+		return `${section.title} (${section.items.length} of at least ${section.total})`;
 	}
 
 	/** One row, as a line the model can quote. */

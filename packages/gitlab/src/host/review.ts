@@ -53,6 +53,23 @@ function idText(answer: unknown): string {
 /** A note GitLab would refuse, because it would run a quick action instead. */
 const QUICK_ACTION = /^\s*\//mu;
 
+/** How long a performed action is remembered, so an accidental repeat is caught. */
+const REPEAT_WINDOW_MS = 60_000;
+
+/** Whether a failure left it unknown whether GitLab performed the action. */
+const AMBIGUOUS_FAILURE =
+	/timed? ?out|abort|fetch failed|network|econnreset|socket|terminated/iu;
+
+/** One action already performed, kept to refuse an identical repeat. */
+interface PerformedAction {
+	readonly key: string;
+	readonly at: number;
+}
+
+/** The reason inside an unknown thrown value, as a plain sentence. */
+const reasonOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
+
 /**
  * One merge request reference as both halves spell it.
  * @param project - full path of the project.
@@ -62,6 +79,9 @@ export const subjectOf = (project: string, iid: number): string =>
 	`${project}!${iid}`;
 
 export class ReviewService {
+	/** The last action this process sent, so the same confirm twice is caught. */
+	private performed: PerformedAction | undefined;
+
 	constructor(private readonly api: GitLabApi) {}
 
 	/**
@@ -69,6 +89,8 @@ export class ReviewService {
 	 * @param request - what to do, and to which merge request.
 	 * @param confirm - whether the user has seen and approved this exact draft.
 	 * @returns the draft, and what GitLab answered when the action was performed.
+	 * @throws when the action was already sent moments ago, or when GitLab's
+	 *   answer was ambiguous enough that repeating could duplicate it.
 	 */
 	async submit(
 		request: ReviewRequest,
@@ -78,11 +100,42 @@ export class ReviewService {
 
 		if (!confirm) return { performed: false, draft };
 
-		return {
-			performed: true,
-			draft,
-			result: await this.perform(request, draft),
-		};
+		const key = this.keyOf(request, draft);
+		const last = this.performed;
+
+		if (
+			last !== undefined &&
+			last.key === key &&
+			Date.now() - last.at < REPEAT_WINDOW_MS
+		)
+			throw new ReviewRefusal(
+				`this exact ${request.action} was already sent to ${draft.subject} seconds ago; GitLab would receive it twice. Re-read the merge request before repeating it.`,
+			);
+
+		try {
+			const result = await this.perform(request, draft);
+
+			this.performed = { key, at: Date.now() };
+
+			return { performed: true, draft, result };
+		} catch (error) {
+			if (AMBIGUOUS_FAILURE.test(reasonOf(error)))
+				throw new Error(
+					`GitLab did not confirm the ${request.action} on ${draft.subject}: ${reasonOf(error)} The action may already have been performed — re-read the merge request before calling again, or it will be posted twice.`,
+				);
+
+			throw error;
+		}
+	}
+
+	/** What makes one action identical to another: the thread and the exact text. */
+	private keyOf(request: ReviewRequest, draft: ReviewDraft): string {
+		return [
+			request.action,
+			draft.subject,
+			draft.discussionId ?? "",
+			draft.body ?? "",
+		].join("\u0000");
 	}
 
 	/**

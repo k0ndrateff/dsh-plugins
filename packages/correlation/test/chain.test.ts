@@ -14,7 +14,7 @@ import type {
 	CorrelationFact,
 	CorrelationKind,
 } from "dsh-integration-host/correlation";
-import { anchorFor } from "../src/host/anchor";
+import { type AnchorSpec, anchorFor } from "../src/host/anchor";
 import { buildChain, type ChainResolver, refKey } from "../src/host/chain";
 
 /** What one fake provider offers. */
@@ -55,22 +55,47 @@ const ATLASSIAN: FakeProvider = {
 	resolves: ["task"],
 };
 
+const SENTRY_ANCHOR: AnchorSpec = {
+	provider: "Sentry",
+	entry: "error",
+	resolves: ["error"],
+};
+const GITLAB_ANCHOR: AnchorSpec = {
+	provider: "GitLab",
+	entry: "change",
+	resolves: ["commit", "change"],
+};
+const ATLASSIAN_ANCHOR: AnchorSpec = {
+	provider: "Atlassian",
+	entry: "task",
+	resolves: ["task"],
+};
+
 test("what the user typed", () => {
 	expect(
-		JSON.stringify(anchorFor("error", " CHECKOUT-13P ")) ===
+		JSON.stringify(anchorFor(SENTRY_ANCHOR, " CHECKOUT-13P ")) ===
 			JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
 		"a short id is an issue as it stands",
 	).toBe(true);
 	expect(
 		JSON.stringify(
-			anchorFor("error", "https://acme.sentry.io/issues/CHECKOUT-13P/"),
+			anchorFor(SENTRY_ANCHOR, "https://acme.sentry.io/issues/CHECKOUT-13P/"),
 		) === JSON.stringify({ kind: "error", id: "CHECKOUT-13P" }),
 		"a pasted link is trimmed to the id at its end",
 	).toBe(true);
 	expect(
+		JSON.stringify(anchorFor(GITLAB_ANCHOR, "acme/storefront!42")) ===
+			JSON.stringify({
+				kind: "change",
+				repository: "acme/storefront",
+				number: "42",
+			}),
+		"the integration's own entry kind is read first",
+	).toBe(true);
+	expect(
 		JSON.stringify(
 			anchorFor(
-				"commit",
+				GITLAB_ANCHOR,
 				"https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
 			),
 		) ===
@@ -79,32 +104,24 @@ test("what the user typed", () => {
 				sha: "7c50a1e5",
 				url: "https://gitlab.com/acme/storefront/-/commit/7C50A1E5",
 			}),
-		"a commit is read as its sha, and a link keeps the link",
+		`a merge request or a commit both start a code-host chain — ${JSON.stringify(anchorFor(GITLAB_ANCHOR, "7c50a1e5"))}`,
 	).toBe(true);
 	expect(
-		JSON.stringify(anchorFor("change", "acme/storefront!42")) ===
-			JSON.stringify({
-				kind: "change",
-				repository: "acme/storefront",
-				number: "42",
-			}),
-		"a change request is the project path and its number",
-	).toBe(true);
-	expect(
-		JSON.stringify(anchorFor("task", "dev-5977")) ===
+		JSON.stringify(anchorFor(ATLASSIAN_ANCHOR, "dev-5977")) ===
 			JSON.stringify({ kind: "task", key: "DEV-5977" }),
 		"a tracker key is case-folded",
 	).toBe(true);
 
-	for (const [kind, text] of [
-		["commit", "main"],
-		["change", "42"],
-		["task", "the exchange fix"],
-		["error", "  "],
+	for (const [spec, text] of [
+		[GITLAB_ANCHOR, "main"],
+		[GITLAB_ANCHOR, "42"],
+		[ATLASSIAN_ANCHOR, "the exchange fix"],
+		[SENTRY_ANCHOR, "  "],
+		[SENTRY_ANCHOR, "7c50a1e5"],
 	] as const) {
 		const message = (() => {
 			try {
-				anchorFor(kind, text);
+				anchorFor(spec, text);
 
 				return "";
 			} catch (error) {
@@ -114,9 +131,40 @@ test("what the user typed", () => {
 
 		expect(
 			message !== "",
-			String(`"${text}" is refused as a ${kind}`) + " — " + message,
+			`"${text}" is refused by ${spec.provider} — ${message}`,
 		).toBe(true);
 	}
+
+	const refusedSha = (() => {
+		try {
+			anchorFor(SENTRY_ANCHOR, "7c50a1e5");
+
+			return "";
+		} catch (error) {
+			return (error as Error).message;
+		}
+	})();
+
+	expect(
+		refusedSha.includes("not an issue id") &&
+			refusedSha.includes("a Sentry issue short id"),
+		`a commit sha is refused by an integration that starts from errors, with what it does accept — ${refusedSha}`,
+	).toBe(true);
+
+	const gitlab = (() => {
+		try {
+			anchorFor(GITLAB_ANCHOR, "main");
+
+			return "";
+		} catch (error) {
+			return (error as Error).message;
+		}
+	})();
+
+	expect(
+		gitlab.includes("group/project!12") && gitlab.includes("commit sha"),
+		`the refusal names every form the integration starts from — ${gitlab}`,
+	).toBe(true);
 });
 
 test("walking a chain", async () => {
@@ -230,8 +278,9 @@ test("where a chain stops", async () => {
 
 	expect(
 		unowned.breaks[0]?.reason === "no installed integration resolves this" &&
-			unowned.breaks[0]?.label === "Commit",
-		`a hop no installed integration resolves says so — ${JSON.stringify(unowned.breaks)}`,
+			unowned.breaks[0]?.label === "Commit" &&
+			unowned.breaks[0]?.cause === "missing",
+		`a hop no installed integration resolves says so, and in which class — ${JSON.stringify(unowned.breaks)}`,
 	).toBe(true);
 
 	const refused = await buildChain(
@@ -245,8 +294,9 @@ test("where a chain stops", async () => {
 	);
 
 	expect(
-		refused.breaks[0]?.reason === "GitLab refused the request (403)",
-		`a provider that refuses is quoted, not swallowed — ${JSON.stringify(refused.breaks)}`,
+		refused.breaks[0]?.reason === "GitLab refused the request (403)" &&
+			refused.breaks[0]?.cause === "auth",
+		`a provider that refuses is quoted, not swallowed, and 403 reads as an access problem — ${JSON.stringify(refused.breaks)}`,
 	).toBe(true);
 
 	const nothing = await buildChain(
@@ -255,8 +305,13 @@ test("where a chain stops", async () => {
 	);
 
 	expect(
-		nothing.breaks[0]?.reason === "nothing found",
+		nothing.breaks[0]?.cause === "empty" &&
+			nothing.breaks[0]?.reason === "the provider knows no such reference",
 		`a provider that knows nothing says that instead — ${JSON.stringify(nothing.breaks)}`,
+	).toBe(true);
+	expect(
+		nothing.title === "Error CHECKOUT-13P",
+		`an anchor nothing resolved is still titled by the id it recognized, not by the raw text — ${nothing.title}`,
 	).toBe(true);
 
 	const deep = await buildChain(
@@ -310,9 +365,19 @@ test("where a chain stops", async () => {
 	expect(
 		deep.hops.length === 3 &&
 			deep.breaks.some(
-				(item) => item.reason === "deeper than this answer follows",
+				(item) =>
+					item.cause === "limit" &&
+					item.reason === "the chain is capped at 2 levels below the anchor",
 			),
-		`a chain deeper than the walk follows stops with a reason — ${`${String(deep.hops.length)} hops · ${JSON.stringify(deep.breaks)}`}`,
+		`a chain deeper than the walk follows stops with the cap it hit — ${`${String(deep.hops.length)} hops · ${JSON.stringify(deep.breaks)}`}`,
+	).toBe(true);
+	expect(
+		deep.breaks.every((item) => item.depth === 3 && item.parent !== undefined),
+		`a capped branch says which hop pointed at it and how deep — ${JSON.stringify(deep.breaks)}`,
+	).toBe(true);
+	expect(
+		deep.limits?.depth === 2 && deep.limits?.facts === 40,
+		`the report carries the bounds it ran under — ${JSON.stringify(deep.limits)}`,
 	).toBe(true);
 
 	const commit = (sha: string): CorrelationFact => ({
@@ -349,7 +414,8 @@ test("where a chain stops", async () => {
 		capped.hops.length === 1 &&
 			capped.breaks.some(
 				(item) =>
-					item.reason === "the chain is longer than this answer follows",
+					item.cause === "limit" &&
+					item.reason === "the chain is capped at 1 hops",
 			),
 		`a chain longer than the answer holds says it was cut — ${`${String(capped.hops.length)} hops · ${JSON.stringify(capped.breaks)}`}`,
 	).toBe(true);
@@ -366,5 +432,163 @@ test("where a chain stops", async () => {
 	expect(
 		unknown.includes("Datadog") && unknown.includes("Sentry"),
 		`naming an integration that is not installed lists the ones that are — ${unknown}`,
+	).toBe(true);
+});
+
+test("a branch is drawn where it broke", async () => {
+	const sources = fake([SENTRY, GITLAB, ATLASSIAN], {
+		"error:CHECKOUT-13P": [
+			{
+				id: "sentry:CHECKOUT-13P",
+				provider: "Sentry",
+				kind: "error",
+				label: "Error",
+				title: "CHECKOUT-13P · AxiosError",
+				references: [
+					{ kind: "commit", sha: "7c50a1e5" },
+					{ kind: "task", key: "DEV-5977" },
+					{ kind: "change", repository: "acme/storefront", number: "77" },
+				],
+			},
+		],
+		"commit:7c50a1e5@": [
+			{
+				id: "gitlab:acme/storefront@7c50a1e5",
+				provider: "GitLab",
+				kind: "commit",
+				label: "Commit",
+				title: "7c50a1e5",
+				references: [
+					{ kind: "change", repository: "acme/storefront", number: "42" },
+				],
+			},
+		],
+		"change:acme/storefront!42": [
+			{
+				id: "gitlab:acme/storefront!42",
+				provider: "GitLab",
+				kind: "change",
+				label: "Merge request",
+				title: "acme/storefront!42",
+			},
+		],
+		"task:DEV-5977": [
+			{
+				id: "jira:DEV-5977",
+				provider: "Atlassian",
+				kind: "task",
+				label: "Jira issue",
+				title: "DEV-5977",
+			},
+		],
+	});
+
+	const report = await buildChain(sources, {
+		callId: "call-branch",
+		provider: "Sentry",
+		ref: "CHECKOUT-13P",
+	});
+
+	const unresolved = report.breaks.find(
+		(item) => item.kind === "change" && item.parent === "sentry:CHECKOUT-13P",
+	);
+
+	expect(
+		report.hops.map((hop) => `${hop.kind}@${hop.depth}`).join(" → ") ===
+			"error@0 → commit@1 → change@2 → task@1",
+		`each hop knows its level and its parent, so the branch is visible — ${report.hops.map((hop) => `${hop.id}@${hop.depth}${hop.parent === undefined ? "" : `<${hop.parent}`}`).join(" → ")}`,
+	).toBe(true);
+	expect(
+		unresolved?.cause === "empty" && unresolved.depth === 1,
+		`a reference of the anchor that nothing answered hangs off the anchor at level one — ${JSON.stringify(unresolved)}`,
+	).toBe(true);
+});
+
+test("an unreachable anchor still reads as an id", async () => {
+	const report = await buildChain(fake([SENTRY], {}), {
+		callId: "call-miss",
+		provider: "Sentry",
+		ref: "NOPE-1",
+	});
+
+	expect(
+		report.title === "Error NOPE-1" && report.hops.length === 0,
+		`the card is titled by the recognized id, not by a long pasted link — ${report.title}`,
+	).toBe(true);
+});
+
+test("a kind two integrations resolve says so", async () => {
+	const gitea: FakeProvider = {
+		provider: "Gitea",
+		entry: "change",
+		resolves: ["commit", "change"],
+	};
+	const report = await buildChain(
+		fake([SENTRY, GITLAB, gitea], {
+			"error:CHECKOUT-13P": [
+				{
+					id: "sentry:CHECKOUT-13P",
+					provider: "Sentry",
+					kind: "error",
+					label: "Error",
+					title: "CHECKOUT-13P",
+					references: [{ kind: "commit", sha: "7c50a1e5" }],
+				},
+			],
+			"commit:7c50a1e5@": [
+				{
+					id: "gitlab:acme/storefront@7c50a1e5",
+					provider: "GitLab",
+					kind: "commit",
+					label: "Commit",
+					title: "7c50a1e5",
+				},
+			],
+		}),
+		{ callId: "call-cover", provider: "Sentry", ref: "CHECKOUT-13P" },
+	);
+
+	const commit = report.coverage?.find((item) => item.kind === "commit");
+
+	expect(
+		commit?.providers.join(",") === "GitLab,Gitea" &&
+			commit.answeredBy === "GitLab",
+		`a kind two integrations could answer reports who did — ${JSON.stringify(report.coverage)}`,
+	).toBe(true);
+});
+
+test("a code host starts from a commit as well as a merge request", async () => {
+	const report = await buildChain(
+		fake([GITLAB], {
+			"commit:7c50a1e5@": [
+				{
+					id: "gitlab:acme/storefront@7c50a1e5",
+					provider: "GitLab",
+					kind: "commit",
+					label: "Commit",
+					title: "7c50a1e5 · Fix the split",
+					references: [
+						{ kind: "change", repository: "acme/storefront", number: "42" },
+					],
+				},
+			],
+			"change:acme/storefront!42": [
+				{
+					id: "gitlab:acme/storefront!42",
+					provider: "GitLab",
+					kind: "change",
+					label: "Merge request",
+					title: "acme/storefront!42",
+				},
+			],
+		}),
+		{ callId: "call-commit", provider: "GitLab", ref: "7c50a1e5" },
+	);
+
+	expect(
+		report.hops[0]?.kind === "commit" &&
+			report.hops[1]?.kind === "change" &&
+			report.title === "7c50a1e5 · Fix the split",
+		`a chain can start at the commit the question is about — ${report.hops.map((hop) => hop.kind).join(" → ")}`,
 	).toBe(true);
 });

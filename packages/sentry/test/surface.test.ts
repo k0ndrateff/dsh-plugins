@@ -293,12 +293,14 @@ Found **2** issues:
 		};
 
 		expect(
-			partial.failed.join(",") === "NOPE-1" && partial.shown === 1,
-			`a refused id is listed as unresolved — ${JSON.stringify(partial.failed)}`,
+			partial.failed.length === 1 &&
+				partial.failed[0]?.startsWith("NOPE-1 — ") &&
+				partial.shown === 1,
+			`a refused id is listed as unresolved with the server's reason — ${JSON.stringify(partial.failed)}`,
 		).toBe(true);
 		expect(
-			partial.summary.includes("Could not resolve: NOPE-1"),
-			`the text says what could not be resolved — ${partial.summary.split("\n").at(-1)}`,
+			partial.summary.includes("Could not resolve: NOPE-1 — not found"),
+			`the text says what could not be resolved and why — ${partial.summary.split("\n").at(-1)}`,
 		).toBe(true);
 
 		let nothing = "";
@@ -340,6 +342,7 @@ Found **2** issues:
 			scope: "org:read",
 			organization: "acme",
 			organizationUrl: "https://acme.sentry.io",
+			organizations: [{ slug: "acme", webUrl: "https://acme.sentry.io" }],
 			notice: null,
 			error: null,
 			connected: true,

@@ -26,6 +26,7 @@ import { DigestAuth } from "./auth";
 import { DigestCollector } from "./collect";
 import { createDigestCommand } from "./command";
 import { createApiHandler, ROUTE_PREFIX } from "./http";
+import { DigestSave } from "./save";
 import { DigestSchedule } from "./schedule";
 import { DigestSettingsStore, settingsPathIn } from "./settings";
 import { digestTool } from "./tool";
@@ -51,6 +52,7 @@ export function apply(ctx: Context): void {
 
 	const collector = new DigestCollector({ ctx, settings });
 	const schedule = new DigestSchedule(ctx);
+	const save = new DigestSave({ settings, schedule });
 	const auth = new DigestAuth({ ctx, settings });
 
 	// The settings document is read once, asynchronously; every surface answers
@@ -63,17 +65,17 @@ export function apply(ctx: Context): void {
 	ctx.commands.register({
 		name: COMMAND_NAME,
 		description:
-			"Work digest: status | now | on | off | time | timezone | days | blocks",
+			"Work digest: status | now | on | off all | time | timezone | days | blocks",
 		input: {
-			hint: "now | on | off | time HH:MM | timezone <IANA zone> | days mon,tue,... | blocks <id> on|off",
+			hint: "now | on | off [all] | time HH:MM | timezone <IANA zone> | days mon,tue,... | blocks <id> on|off",
 		},
-		handler: createDigestCommand({ collector, settings, schedule }),
+		handler: createDigestCommand({ collector, settings, schedule, save }),
 	});
 
 	// The card's channel to the host: a named route is how a plugin serves the
 	// page without a generated remote namespace.
 	mountIntegrationRoute(ctx, {
 		prefix: ROUTE_PREFIX,
-		handler: createApiHandler({ auth, settings, collector, schedule }),
+		handler: createApiHandler({ auth, settings, collector, schedule, save }),
 	});
 }

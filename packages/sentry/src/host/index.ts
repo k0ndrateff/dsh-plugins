@@ -47,6 +47,7 @@ import type { OrganizationFacts } from "./store/organization";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
 import { presentTool } from "./tools/present";
+import { withWriteInstruction } from "./tools/write-instruction";
 
 export const name = PLUGIN_NAME;
 
@@ -75,12 +76,15 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		profile,
 		store,
 		clientInfo: CLIENT_INFO,
+		// A write tool carries the sentence that makes the agent report back; the
+		// rest of Sentry's tools keep the server's own description.
+		decorate: (definition, tool) => withWriteInstruction(definition, tool.name),
 	});
 	const auth: IntegrationAuthFace<SentryStatus> = new IntegrationAuth<
 		SentryStatus,
 		OrganizationFacts
 	>({ ctx, config, state, store, flow, bridge, spec: sentryAuthSpec });
-	const panel = new PanelApi({ bridge, state });
+	const panel = new PanelApi({ bridge, state, store });
 
 	// The digest plugin, when it is installed, composes this plugin's error block
 	// into its card; nothing is read until a digest actually asks.

@@ -11,6 +11,7 @@
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { BrowserSettings } from "../config";
 import type { AgentBrowserRunner, BrowserOutcome } from "../runner";
+import type { ScreenshotSink } from "../screenshots";
 import type { BrowserSession, SessionScope } from "../session";
 import type { StreamHubs } from "../stream/hubs";
 
@@ -20,6 +21,8 @@ export interface BrowserToolDeps {
 	readonly sessions: SessionScope;
 	readonly config: BrowserSettings;
 	readonly hubs: StreamHubs;
+	/** Where a screenshot's bytes become a durable image the model can see. */
+	readonly images: ScreenshotSink;
 }
 
 /** One tool of this plugin, as the composition root registers it. */

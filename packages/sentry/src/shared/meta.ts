@@ -21,7 +21,6 @@ import {
 	optional,
 	type Reader,
 	required,
-	string,
 } from "dsh-integration-host/shape";
 
 /** How much room one card gives each item. */
@@ -86,22 +85,17 @@ export interface IssueDetail {
 	readonly assignee?: string;
 	readonly project?: string;
 	readonly platform?: string;
-	readonly issueType?: string;
 	readonly occurrences?: number;
 	readonly users?: number;
 	readonly firstSeen?: string;
 	readonly lastSeen?: string;
 	readonly code?: CodeLocation;
 	readonly suspect?: SuspectCommit;
-	readonly eventId?: string;
-	readonly occurredAt?: string;
 	/** The exception line, as the `### Error` block prints it. */
 	readonly message?: string;
 	/** The full stack trace, as text. */
 	readonly stacktrace?: string;
 	readonly tags: readonly IssueTag[];
-	/** The document the fields were read from, kept for a raw view. */
-	readonly raw: string;
 }
 
 /** One recorded card, as the browser half reads it. */
@@ -116,6 +110,8 @@ export interface SentryPresentation {
 	readonly query?: string;
 	/** Sentry's own link to the results, when the answer carried one. */
 	readonly dashboardUrl?: string;
+	/** The organization the rows were read from. */
+	readonly organization?: string;
 	readonly issues: readonly IssueCard[];
 	/** The suspect commit, when the card is about one issue. */
 	readonly suspect?: SuspectCommit;
@@ -126,6 +122,8 @@ export interface IssuePanel {
 	readonly issue: IssueDetail;
 	/** The organization slug the panel's actions must name. */
 	readonly organization: string | null;
+	/** That organization's web URL, when Sentry named one. */
+	readonly organizationUrl?: string;
 }
 
 /** One issue, as a card row shows it. */
@@ -177,19 +175,15 @@ const detail = object<IssueDetail>({
 	assignee: optional(nonEmptyString),
 	project: optional(nonEmptyString),
 	platform: optional(nonEmptyString),
-	issueType: optional(nonEmptyString),
 	occurrences: optional(number),
 	users: optional(number),
 	firstSeen: optional(nonEmptyString),
 	lastSeen: optional(nonEmptyString),
 	code: optional(code),
 	suspect: optional(suspect),
-	eventId: optional(nonEmptyString),
-	occurredAt: optional(nonEmptyString),
 	message: optional(nonEmptyString),
 	stacktrace: optional(nonEmptyString),
 	tags: required(list(tag)),
-	raw: fallback(string, ""),
 });
 
 /** The organization is null when the document names none. */
@@ -209,6 +203,7 @@ const presentation = object<SentryPresentation>({
 	total: optional(number),
 	query: optional(nonEmptyString),
 	dashboardUrl: optional(nonEmptyString),
+	organization: optional(nonEmptyString),
 	issues: required(list(issue)),
 	suspect: optional(suspect),
 });
@@ -224,6 +219,7 @@ export function asIssuePanel(value: unknown): IssuePanel | undefined {
 	const parsed = object<IssuePanel>({
 		issue: required(detail),
 		organization: required(organization),
+		organizationUrl: optional(nonEmptyString),
 	})(value);
 
 	return parsed;

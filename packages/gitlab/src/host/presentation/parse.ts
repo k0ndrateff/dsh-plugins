@@ -19,6 +19,7 @@ import type {
 	DiffFile,
 	Discussion,
 	DiscussionNote,
+	MergeRequestApprovals,
 	MergeRequestDetail,
 	NotePosition,
 	PanelPerson,
@@ -830,5 +831,61 @@ export function findingOf(
 			...(line === undefined ? {} : { line }),
 			...(lineSide === undefined ? {} : { lineSide }),
 		},
+	};
+}
+
+/** One person GitLab lists as an approver; the nested `user` is the person. */
+function approverOf(value: unknown): PanelPerson | undefined {
+	const record = asRecord(value);
+	if (record === undefined) return personOf(value);
+
+	return personOf(record.user) ?? personOf(record);
+}
+
+/**
+ * Read the approvals of one merge request out of `/approvals`.
+ *
+ * GitLab answers with everyone who approved, how many approvals the project
+ * requires, and how many are still missing; whether the reader's own approval is
+ * among them is what decides which of the two approval actions the panel offers,
+ * so it is answered here rather than left to the browser half to guess.
+ * @param value - the endpoint's answer.
+ * @param viewer - the signed-in user's username, when the account is known.
+ * @returns the approvals, or undefined when the answer is not one.
+ */
+export function parseApprovals(
+	value: unknown,
+	viewer: string | undefined,
+): MergeRequestApprovals | undefined {
+	const record = asRecord(value);
+	if (record === undefined) return undefined;
+
+	const approvedBy: PanelPerson[] = [];
+	const listed = Array.isArray(record.approved_by)
+		? record.approved_by
+		: Array.isArray(record.approvedBy)
+			? record.approvedBy
+			: [];
+
+	for (const candidate of listed) {
+		const person = approverOf(candidate);
+		if (person !== undefined) approvedBy.push(person);
+	}
+
+	const required = pickNumber(
+		record,
+		"approvals_required",
+		"approvalsRequired",
+	);
+	const left = pickNumber(record, "approvals_left", "approvalsLeft");
+
+	return {
+		approvedByViewer:
+			viewer !== undefined &&
+			approvedBy.some((person) => person.username === viewer),
+		approved: record.approved === true,
+		approvedBy,
+		...(required === undefined ? {} : { required }),
+		...(left === undefined ? {} : { left }),
 	};
 }

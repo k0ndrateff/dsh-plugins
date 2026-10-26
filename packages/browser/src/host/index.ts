@@ -27,6 +27,7 @@ import { browserCommand } from "./command";
 import { type BrowserConfig, BrowserSettings, Config } from "./config";
 import { mountPanel } from "./panel/route";
 import { AgentBrowserRunner } from "./runner";
+import { type ImageStore, ScreenshotFiles } from "./screenshots";
 import { SessionScope } from "./session";
 import { connectStream } from "./stream/connect";
 import { askStreamStatus } from "./stream/facts";
@@ -90,6 +91,13 @@ export function apply(ctx: Context, config: BrowserConfig = Config({})): void {
 		sessions: new SessionScope(ctx),
 		config: settings,
 		hubs,
+		// The attachment service is optional on purpose: without it the browser
+		// still works, and a screenshot answers with the file it wrote. It is
+		// looked up at the moment of use, because at activation time its fiber may
+		// not be up yet.
+		images: new ScreenshotFiles({
+			store: () => ctx.get("attachments") as ImageStore | undefined,
+		}),
 	};
 
 	// Every result carries what the person at the panel did since the last one:

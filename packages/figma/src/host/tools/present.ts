@@ -7,7 +7,11 @@
  * the model with the facts as text. The picture is deliberately not part of that
  * answer: a screenshot costs a model far more context than the numbers beside
  * it, and the person looking at the panel can see it anyway. The model asks for
- * the image itself, through the server's own screenshot tool, when it needs one.
+ * the image itself, through the server's own screenshot tool, which the
+ * description names so the first call does not have to guess it.
+ *
+ * A read that failed and a read that found nothing are different answers: the
+ * summary says "could not be read" with the reason instead of "none".
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
@@ -29,6 +33,8 @@ export interface PresentDeps {
 /** The arguments the model may send, after validation. */
 interface PresentArgs {
 	readonly node: string | undefined;
+	/** Whether the browser half should bring the Figma panel to the front. */
+	readonly openPanel: boolean;
 }
 
 class PresentTool {
@@ -47,9 +53,15 @@ class PresentTool {
 			"whenever the user points at a Figma link, node id, or their current selection — " +
 			"especially to compare a design against the implementation. Name the node with `node` " +
 			"as a link from Figma or an id like `1:2`; omit it to use whatever is selected in the " +
-			"Figma desktop app. The answer is the node's facts as text, and the panel is what the " +
-			"user sees; to look at the design yourself, call the server's own screenshot tool " +
-			"instead. Call it once per node, then write your answer.",
+			"Figma desktop app. It reads the Dev Mode MCP server inside the Figma desktop app, so the " +
+			"app must be running with “Enable Dev Mode MCP Server” turned on — start it and enable " +
+			"that switch when a first call says the server is not there. The answer is the node's " +
+			"facts as text, the children it lists are the node's direct children only — a nested " +
+			"layer is another call naming " +
+			"its id — and the panel is what the user sees. The tool opens that panel on the node " +
+			"when it runs live; pass openPanel: false to leave the user's current panel alone. To " +
+			`look at the design yourself, call ${deps.imageTool} — the Figma MCP server's own ` +
+			"screenshot tool. Call it once per node, then write your answer.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -60,6 +72,13 @@ class PresentTool {
 						"The node to show: a Figma link (from “Copy link to selection”), an id like " +
 						"`1:2`, or the `1-2` form a URL uses. Omit to use the current selection in " +
 						"the Figma desktop app.",
+				},
+				openPanel: {
+					type: "boolean",
+					description:
+						"Whether to bring the Figma panel to the front and show this node in it. " +
+						"Defaults to true; pass false when the user is reading another integration's " +
+						"panel and should not have it replaced.",
 				},
 			},
 		},
@@ -108,6 +127,7 @@ class PresentTool {
 				typeof node === "string" && node.trim() !== ""
 					? node.trim()
 					: undefined,
+			openPanel: args.openPanel !== false,
 		};
 	}
 
@@ -143,38 +163,48 @@ class PresentTool {
 			`${node.type} "${node.name}" (${node.id}), ${node.width}×${node.height}` +
 				(panel.childTotal === 0
 					? ""
-					: `, ${panel.childTotal} child layer${panel.childTotal === 1 ? "" : "s"}`),
+					: `, ${panel.childTotal} direct child layer${panel.childTotal === 1 ? "" : "s"}`),
 		];
 
-		lines.push(
-			panel.tokenTotal === 0
-				? "Variables: none"
-				: `Variables (${panel.tokenTotal}): ${this.list(
-						panel.tokens.map((token) => `${token.name} = ${token.value}`),
-					)}`,
-		);
+		if (panel.tokensError !== undefined)
+			lines.push(`Variables: could not be read — ${panel.tokensError}`);
+		else
+			lines.push(
+				panel.tokenTotal === 0
+					? "Variables: none"
+					: `Variables (${panel.tokenTotal}): ${this.list(
+							panel.tokens.map((token) => `${token.name} = ${token.value}`),
+						)}`,
+			);
 
-		lines.push(
-			panel.mappings.length === 0
-				? "Code Connect: no mapping for this node"
-				: `Code Connect: ${panel.mappings
-						.map((mapping) => `${mapping.component} (${mapping.source})`)
-						.join(", ")}`,
-		);
+		if (panel.mappingsError !== undefined)
+			lines.push(`Code Connect: could not be read — ${panel.mappingsError}`);
+		else
+			lines.push(
+				panel.mappings.length === 0
+					? "Code Connect: no mapping for this node"
+					: `Code Connect: ${panel.mappings
+							.map((mapping) => `${mapping.component} (${mapping.source})`)
+							.join(", ")}`,
+			);
 
 		if (panel.childTotal > 0)
 			lines.push(
-				`Children: ${this.list(
+				`Children (direct only): ${this.list(
 					panel.children.map(
 						(child) =>
 							`${child.name} (${child.type}, ${child.width}×${child.height})`,
 					),
-				)}`,
+				)}. To read a nested layer, call ${this.TOOL_NAME} again with its own id — a node ` +
+					"is three reads of the Dev Mode server.",
 			);
 
 		lines.push(
-			`The user sees this ${node.type} and its variables in the Figma panel. ` +
-				`To look at the design yourself, call ${imageTool}.`,
+			`The user sees this ${node.type} and its variables in the Figma panel${
+				panel.screenshot === null
+					? " (without a picture: the server sent none)"
+					: ""
+			}. To look at the design yourself, call ${imageTool}.`,
 		);
 
 		return lines.join("\n");

@@ -4,9 +4,12 @@
  * `doctor --json` is the CLI's own answer about the machine: the executable, its
  * version, Chrome, the socket directory, the daemon. It answers with a list of
  * checks rather than the command envelope, so it is read by its own parser — and
- * only the checks that failed are carried further, because a browser that is
- * simply not installed is a different sentence from one whose Chrome is missing.
+ * every check is carried further with its id already turned into words, because
+ * "chrome.installed: no Chrome found" is a debug line and "Chrome: no Chrome
+ * found" is a sentence a person can act on.
  */
+
+import { type DoctorCheckView, doctorLabelOf } from "../shared/doctor";
 
 /** One check in the CLI's own report. */
 export interface DoctorCheck {
@@ -27,8 +30,8 @@ export interface BrowserStatus {
 	readonly version: string | undefined;
 	/** The Chrome the CLI found, when it found one. */
 	readonly chrome: string | undefined;
-	/** The checks that failed, in the CLI's own words. */
-	readonly failing: readonly string[];
+	/** Every check, named for a person to read. */
+	readonly checks: readonly DoctorCheckView[];
 }
 
 /** Whether one entry of the report is a check. */
@@ -76,7 +79,7 @@ export const parseDoctor = (stdout: string): DoctorReport | undefined => {
  *
  * A failing `chrome.installed` carries the reason Chrome is missing, not a
  * Chrome: reading it as the found browser would print "Chrome: no Chrome found".
- * The failure itself is already carried in {@link BrowserStatus.failing}.
+ * The failure itself is already carried in {@link BrowserStatus.checks}.
  */
 const messageOf = (report: DoctorReport, id: string): string | undefined =>
 	report.checks.find((check) => check.id === id && check.status === "pass")
@@ -94,8 +97,17 @@ export const summarizeDoctor = (report: DoctorReport): BrowserStatus => {
 		version:
 			version === undefined ? undefined : version.replace(/^CLI version /u, ""),
 		chrome,
-		failing: report.checks
-			.filter((check) => check.status === "fail")
-			.map((check) => `${check.id}: ${check.message}`),
+		checks: report.checks.map((check) => ({
+			id: check.id,
+			label: doctorLabelOf(check.id),
+			status: check.status,
+			message: check.message,
+		})),
 	};
 };
+
+/** The checks that failed, as one line each, without repeating the raw id. */
+export const failingChecks = (
+	status: BrowserStatus,
+): readonly DoctorCheckView[] =>
+	status.checks.filter((check) => check.status === "fail");

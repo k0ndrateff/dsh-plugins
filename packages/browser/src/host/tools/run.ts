@@ -14,8 +14,9 @@
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import { BROWSER_RUN_TOOL } from "../../shared/tools";
 import { modelData } from "../envelope";
-import { bound, jsonText } from "../text";
+import { boundJson } from "../text";
 import { type BrowserToolDeps, runForSession } from "./deps";
+import { failureOf } from "./failure";
 
 /** The arguments the model may send, after validation. */
 interface RunArgs {
@@ -62,7 +63,11 @@ class RunTool {
 			"Run any other agent-browser command in this conversation's browser and read its " +
 			"JSON answer — tabs, network requests, cookies and storage, an accessibility audit, " +
 			"tracing, the React tree. Use it for what the other browser tools do not cover; " +
-			"`agent-browser --help` lists the commands.",
+			"`agent-browser --help` lists the commands. It is a read-or-write escape hatch, not a " +
+			"read-only one: commands such as `eval`, `cookies set`, `storage … set`, `network " +
+			"route`, `set viewport` and `close` change the page or the browser. Tell the person " +
+			"what you changed, and use browser_close for closing — the browser will not reopen " +
+			"by itself. An answer over the size limit is cut and says so.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -105,7 +110,7 @@ class RunTool {
 			const args = this.parseArgs(rawArgs, deps.config.executable);
 			const { session, outcome } = await runForSession(deps, exec, args.args);
 
-			if (!outcome.ok) throw new Error(outcome.error);
+			if (!outcome.ok) throw failureOf(outcome);
 
 			// A browser the agent closed through the escape hatch is as closed as one
 			// the panel closed: the hub stops looking for it either way.
@@ -113,10 +118,10 @@ class RunTool {
 
 			return {
 				command: args.args.join(" "),
-				answer: bound(
-					jsonText(modelData(outcome.data)),
-					deps.config.maxOutputBytes,
-				),
+				// Compact JSON rather than indented: the document is the answer, and
+				// whitespace is tokens the model pays for twice — once here and once
+				// when it reads the answer back.
+				answer: boundJson(modelData(outcome.data), deps.config.maxOutputBytes),
 			};
 		},
 	});

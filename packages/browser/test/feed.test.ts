@@ -103,6 +103,26 @@ test("the person's own acts", async () => {
 			"You pressed",
 		"and a key reads as a key",
 	).toBe(true);
+	expect(
+		feedLines([{ kind: "human", text: "type hello", at: 3 }])[0]?.label ===
+			"You typed",
+		"a typed word says so",
+	).toBe(true);
+	expect(
+		feedLines([{ kind: "human", text: "type hello", at: 3 }])[0]?.detail ===
+			"hello",
+		"with what was typed",
+	).toBe(true);
+	expect(
+		feedLines([{ kind: "human", text: "back", at: 3 }])[0]?.label ===
+			"You went back",
+		"a navigation the person made is theirs",
+	).toBe(true);
+	expect(
+		feedLines([{ kind: "human", text: "resize 390×844", at: 3 }])[0]?.label ===
+			"You resized the page",
+		"and so is a page size",
+	).toBe(true);
 });
 test("a whole run", async () => {
 	const run = feedLines([

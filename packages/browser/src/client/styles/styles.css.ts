@@ -57,6 +57,14 @@ export const viewerTitle = style({
 	whiteSpace: "nowrap",
 });
 
+/** How many tabs there are, when the browser has more than one. */
+export const viewerTabs = style({
+	fontSize: "11px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+	whiteSpace: "nowrap",
+});
+
 export const viewerState = style({
 	display: "flex",
 	alignItems: "center",
@@ -94,6 +102,44 @@ export const viewerAddress = style({
 	overflow: "hidden",
 	textOverflow: "ellipsis",
 	whiteSpace: "nowrap",
+});
+
+/**
+ * What the picture accepts, before the first input taught a person that it does.
+ *
+ * The panel's one non-obvious fact is that clicking the picture is clicking the
+ * page; the hint says so once, and the first act hides it.
+ */
+export const hintBar = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "6px",
+	flexWrap: "wrap",
+	fontSize: "11px",
+	lineHeight: "18px",
+	color: theme.color.labelTertiary,
+});
+
+export const hintText = style({
+	flex: "1 1 160px",
+	minWidth: 0,
+});
+
+/** The page as text, for a reader who cannot see the picture. */
+export const pageText = style({
+	display: "block",
+	maxHeight: "420px",
+	margin: 0,
+	padding: "10px 12px",
+	overflow: "auto",
+	fontFamily: theme.font.code,
+	fontSize: "11px",
+	lineHeight: "17px",
+	color: theme.color.labelSecondary,
+	whiteSpace: "pre-wrap",
+	background: theme.color.codeFill,
+	border: `0.5px solid ${theme.color.borderSubtle}`,
+	borderRadius: theme.radius.md,
 });
 
 export const viewerScroll = style({
@@ -142,7 +188,7 @@ export const surface = style({
 	width: "100%",
 	lineHeight: 0,
 	outline: "none",
-	cursor: "default",
+	cursor: "pointer",
 	userSelect: "none",
 	selectors: {
 		"&:focus-visible": {
@@ -179,8 +225,10 @@ export const activityList = style({
 	display: "flex",
 	flexDirection: "column",
 	gap: "4px",
+	maxHeight: "180px",
 	margin: 0,
 	padding: 0,
+	overflowY: "auto",
 	listStyle: "none",
 });
 
@@ -222,11 +270,42 @@ export const activityDuration = style({
 
 /** What the stage says when a frame was there but would not load. */
 export const frameMissing = style({
+	display: "flex",
+	flexDirection: "column",
+	alignItems: "center",
+	gap: "8px",
 	padding: "16px",
 	fontSize: "12px",
 	lineHeight: "18px",
 	color: theme.color.danger,
 	textAlign: "center",
+});
+
+/** One real connection failure, with the Retry that goes with it. */
+export const failureRow = style({
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	flexWrap: "wrap",
+});
+
+/**
+ * Text only a screen reader hears.
+ *
+ * The panel's state and its newest activity are announced through this rather
+ * than by making the activity list live: reading twelve lines after every click
+ * is worse than reading one.
+ */
+export const srOnly = style({
+	position: "absolute",
+	width: "1px",
+	height: "1px",
+	padding: 0,
+	margin: "-1px",
+	overflow: "hidden",
+	clip: "rect(0, 0, 0, 0)",
+	whiteSpace: "nowrap",
+	border: 0,
 });
 
 export const footer = style({
@@ -293,6 +372,44 @@ export const configHint = style({
 	fontSize: "12px",
 	lineHeight: "18px",
 	color: theme.color.labelTertiary,
+});
+
+/** The sentence under a setting that changes what the agent can reach. */
+export const configRiskText = style({
+	flex: "1 1 100%",
+	margin: 0,
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.danger,
+});
+
+/** The machine check at the bottom of the settings page. */
+export const checkSection = style({
+	display: "flex",
+	flexDirection: "column",
+	alignItems: "flex-start",
+	gap: "8px",
+	paddingTop: "12px",
+	borderTop: `0.5px solid ${theme.color.borderSubtle}`,
+});
+
+export const checkList = style({
+	display: "flex",
+	flexDirection: "column",
+	gap: "4px",
+	margin: 0,
+	padding: 0,
+	listStyle: "none",
+	fontSize: "12px",
+	lineHeight: "18px",
+	color: theme.color.labelSecondary,
+});
+
+export const checkLine = style({
+	display: "flex",
+	alignItems: "baseline",
+	gap: "6px",
+	overflowWrap: "anywhere",
 });
 
 /** The panel's state when it was opened without a browser to watch. */

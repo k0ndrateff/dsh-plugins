@@ -115,14 +115,20 @@ test("one recipe", async () => {
 		const text = textOf(definition, value);
 
 		expect(
-			text.startsWith("0 of 1 checks passed."),
-			`the text tells the model how many checks passed — ${text.split("\n")[0]}`,
+			text.startsWith("Checks from /work/app/dsh-checks.json: 0 of 1 passed."),
+			`the text names the recipe book it read, and how many checks passed — ${text.split("\n")[0]}`,
 		).toBe(true);
 		expect(
-			text.includes("typecheck") &&
-				text.includes("25 errors") &&
-				text.includes("src/a.ts:1:3 problem 1"),
-			`the text names the check, its counts and a failure position — ${text.split("\n")[1]}`,
+			text.includes("typecheck") && text.includes("25 errors"),
+			`the text names the check and its counts — ${text.split("\n")[1]}`,
+		).toBe(true);
+		expect(
+			text.includes("src/a.ts:1:3 error TS2322: problem 1"),
+			`a failure carries its position, its severity and the code that raised it — ${text.split("\n")[2]}`,
+		).toBe(true);
+		expect(
+			value.project === "/work/app",
+			`the payload says which directory these checks are — ${String(value.project)}`,
 		).toBe(true);
 		expect(
 			text.includes("… 5 more") && !text.includes("problem 21"),
@@ -133,8 +139,9 @@ test("one recipe", async () => {
 
 		expect(
 			asChecksCard(meta)?.callId === "call-1" &&
-				asChecksCard(meta)?.checks.length === 1,
-			"the card payload is what the browser half validates",
+				asChecksCard(meta)?.checks.length === 1 &&
+				asChecksCard(meta)?.project === "/work/app",
+			`the card payload is what the browser half validates, and says where it ran — ${String(asChecksCard(meta)?.project)}`,
 		).toBe(true);
 	}
 });
@@ -240,5 +247,63 @@ test("the plugin's composition root", async () => {
 	expect(
 		registered.commands.join(",") === "checks",
 		`it registers the /checks command — ${registered.commands.join(",")}`,
+	).toBe(true);
+});
+
+test("a warning is not an error, and a cancelled check is not a failure", async () => {
+	{
+		const warnings = [
+			"src/a.ts(1,3): warning TS6133: 'unused' is declared but its value is never read.",
+		].join("\n");
+		const ctx = fakeContext(warnings, 0);
+		const definition = checkTool.create({ ctx, runner: new RecipeRunner(ctx) });
+		const value = (await definition.execute(
+			{ name: "typecheck" },
+			execution(),
+		)) as ChecksCard;
+		const text = textOf(definition, value);
+
+		expect(
+			text.includes("src/a.ts:1:3 warning TS6133:") &&
+				value.checks[0]?.failures[0]?.severity === "warning",
+			`a warning is reported as one, with its code — ${text}`,
+		).toBe(true);
+	}
+
+	const cancelled = await new RecipeRunner({
+		shell: {
+			resolve: (request: {
+				command: string;
+				workdir?: string;
+				timeoutMs?: number;
+			}) => ({
+				command: request.command,
+				workdir: request.workdir ?? "",
+				timeoutMs: request.timeoutMs ?? 0,
+				onExpiry: "kill",
+				stdoutMaxBytes: 1_000_000,
+				sandboxPolicy: undefined,
+			}),
+			execute: async (spec: { timeoutMs: number }) => ({
+				result: async () => ({
+					exitCode: null,
+					signal: null,
+					timedOut: false,
+					aborted: true,
+					timeoutMs: spec.timeoutMs,
+					stdout: { text: "", truncated: false },
+					stderr: { text: "", truncated: false },
+				}),
+			}),
+		},
+	} as unknown as Context).run(
+		{ name: "typecheck", run: "bun run typecheck", parser: "tsc" },
+		{ cwd: "/work/app" },
+	);
+
+	expect(
+		cancelled.status === "cancelled" &&
+			(cancelled.output ?? "").includes("the check was cancelled"),
+		`a cancelled run is its own status, with a note in the output — ${cancelled.output}`,
 	).toBe(true);
 });

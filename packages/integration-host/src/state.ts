@@ -24,6 +24,8 @@ export class RuntimeState<TFacts extends AccountFacts = AccountFacts> {
 	error: string | undefined;
 	/** Settles when the in-flight attempt finishes. */
 	running: Promise<unknown> | undefined;
+	/** Cancels the attempt behind {@link running}, when there is one. */
+	controller: AbortController | undefined;
 	/** The account facts this connection works with, once known. */
 	facts: TFacts | undefined;
 
@@ -31,6 +33,7 @@ export class RuntimeState<TFacts extends AccountFacts = AccountFacts> {
 		this.notice = undefined;
 		this.error = undefined;
 		this.running = undefined;
+		this.controller = undefined;
 		this.facts = undefined;
 	}
 }

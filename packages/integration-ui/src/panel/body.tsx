@@ -54,6 +54,8 @@ export const createPanelBody = <TData, TParams>(
 		});
 		const [failure, setFailure] = useState<string | undefined>(undefined);
 		const [busy, setBusy] = useState(false);
+		const [flash, setFlash] = useState<string | undefined>(undefined);
+		const errorRef = useRef<HTMLParagraphElement | null>(null);
 
 		// The effect below is keyed by identity, so the fetch reads the target from a
 		// ref rather than closing over one render's copy of it.
@@ -101,6 +103,20 @@ export const createPanelBody = <TData, TParams>(
 			};
 		}, [identity, revision, fetchPanel]);
 
+		// A failed write can happen below the fold; focusing the sentence is what
+		// makes it impossible to miss for a keyboard reader.
+		useEffect(() => {
+			if (failure !== undefined) errorRef.current?.focus();
+		}, [failure]);
+
+		useEffect(() => {
+			if (flash === undefined) return;
+
+			const timer = setTimeout(() => setFlash(undefined), 4000);
+
+			return () => clearTimeout(timer);
+		}, [flash]);
+
 		/** One write, then the truth about what it did. */
 		const run = useCallback(
 			(write: PanelWrite<TParams>): void => {
@@ -127,11 +143,16 @@ export const createPanelBody = <TData, TParams>(
 							throw new Error(
 								"the host answered with a document this version cannot draw",
 							);
-						if (stillWanted())
+						if (stillWanted()) {
 							setLoad({ status: "ready", data, params: wanted });
+							setFlash("Updated.");
+						}
 					})
 					.catch((error: unknown) => {
-						if (stillWanted()) setFailure(messageOf(error));
+						if (stillWanted()) {
+							setFailure(messageOf(error));
+							setFlash(undefined);
+						}
 						// The write may have failed after the host changed nothing; asking
 						// again is what tells the two apart. It reads the target that is
 						// current now, not the one the click was made on.
@@ -147,7 +168,7 @@ export const createPanelBody = <TData, TParams>(
 		const actions: PanelActions<TParams> = { busy, run };
 
 		return (
-			<div className={styles.panel}>
+			<div className={styles.panel} aria-busy={busy}>
 				<div className={styles.panelScroll}>
 					{load.status === "loading" ? (
 						<div
@@ -161,9 +182,17 @@ export const createPanelBody = <TData, TParams>(
 						</div>
 					) : null}
 
+					{busy ? (
+						<div className={styles.caption} role="status" aria-live="polite">
+							Working…
+						</div>
+					) : null}
+
 					{load.status === "error" ? (
 						<>
-							<p className={styles.error}>{load.message}</p>
+							<p className={styles.error} role="alert">
+								{load.message}
+							</p>
 							<div className={styles.actions}>
 								<Button size="sm" onClick={() => void fetchPanel()}>
 									Try again
@@ -173,7 +202,20 @@ export const createPanelBody = <TData, TParams>(
 					) : null}
 
 					{failure === undefined ? null : (
-						<p className={styles.error}>{failure}</p>
+						<p
+							className={styles.error}
+							role="alert"
+							tabIndex={-1}
+							ref={errorRef}
+						>
+							{failure}
+						</p>
+					)}
+
+					{flash === undefined ? null : (
+						<div className={styles.caption} role="status" aria-live="polite">
+							{flash}
+						</div>
 					)}
 
 					{load.status === "ready" ? (

@@ -13,6 +13,11 @@
 import { expect, test } from "bun:test";
 import { createServer, type Server } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
+import type {
+	ToolDefinition,
+	ToolExecution,
+	ToolExecutionResult,
+} from "@deepseek-ai/dsh-tools";
 import { DEFAULT_INSTANCE } from "../src/account";
 import { McpBridge } from "../src/bridge";
 import { GrantStore } from "../src/grant";
@@ -200,21 +205,25 @@ async function startRefusingServer(): Promise<FakeServer> {
 function harness(records: Map<string, unknown>): {
 	ctx: Context;
 	published: string[];
+	definitions: Map<string, ToolDefinition>;
 } {
 	const published: string[] = [];
+	const definitions = new Map<string, ToolDefinition>();
 	const active = new Set<string>();
 
 	return {
 		published,
+		definitions,
 		ctx: {
 			logger: { info: () => {}, warn: () => {} },
 			tools: {
-				register: (definition: { name: string }) => {
+				register: (definition: ToolDefinition) => {
 					if (active.has(definition.name))
 						throw new Error(`tool "${definition.name}" is already registered`);
 
 					active.add(definition.name);
 					published.push(definition.name);
+					definitions.set(definition.name, definition);
 
 					return () => {
 						active.delete(definition.name);
@@ -276,7 +285,7 @@ const CLIENT_INFO = { name: "dsh-mcp-oauth", version: "0.1.0" };
 const server = await startFakeServer();
 const key = "dsh-remote/mcp";
 const records = new Map<string, unknown>([[key, grant("token-one")]]);
-const { ctx, published } = harness(records);
+const { ctx, published, definitions } = harness(records);
 
 test("a server that needs no credentials", async () => {
 	const local = new McpBridge({
@@ -298,6 +307,24 @@ test("a server that needs no credentials", async () => {
 	expect(
 		published.join() === "mcp__local__ping",
 		"the published tools are the ones registered",
+	).toBe(true);
+
+	const ping = definitions.get("mcp__local__ping");
+	const long = "x".repeat(60_000);
+	const capped = ping?.finalizeContent?.(
+		{} as ToolExecution,
+		{
+			content: [{ type: "text", text: long }],
+			isError: false,
+		} as ToolExecutionResult,
+	);
+	const cappedText = (capped?.[0] as { text?: string } | undefined)?.text ?? "";
+
+	expect(
+		cappedText.length > 0 &&
+			cappedText.length < long.length &&
+			cappedText.includes("cut at"),
+		`a model-facing MCP answer is cut and says so — ${String(cappedText.length)}`,
 	).toBe(true);
 
 	await local.drop();

@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integrations-plugin",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
 	"description": "One Integrations page for DeepSeek Harness: every integration's sign-in and connection settings behind a single Settings entry",
 	"license": "MIT",
@@ -51,7 +51,7 @@
 	},
 	"devDependencies": {
 		"@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
-		"dsh-integration-ui": "^0.2.0",
+		"dsh-integration-ui": "^0.3.0",
 		"dsh-plugin-build": "^0.2.0"
 	},
 	"publishConfig": {

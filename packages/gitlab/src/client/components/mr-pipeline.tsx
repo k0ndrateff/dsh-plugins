@@ -6,11 +6,14 @@
  * job's trace loads when the job is opened — a failed job's log is where the
  * answer usually is, and it can be hundreds of kilobytes, so it is read only
  * when somebody asks for it.
+ *
+ * A card that was about one failed job opens the tab on that job and its trace,
+ * so the click lands on the log rather than on a list to search through.
  */
 
 import { Button, StateDot, Tag } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { readJobLog } from "../../shared/ansi";
 import {
 	asJobLogPanel,
@@ -20,7 +23,11 @@ import {
 	type PipelineJob,
 	type PipelinePanel,
 } from "../../shared/panel";
-import { jobStatusLabel, jobTone } from "../../shared/tone";
+import {
+	jobFailureReasonLabel,
+	jobStatusLabel,
+	jobTone,
+} from "../../shared/tone";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
 import { messageOf } from "../text";
@@ -49,12 +56,17 @@ const Log = ({ entry }: { entry: JobLogPanel }) => (
 interface JobProps {
 	readonly job: PipelineJob;
 	readonly busy: boolean;
+	/** Whether a card opened the panel on this very job. */
+	readonly focused: boolean;
 	onOpen(): void;
 }
 
 /** One job: what it is, how it ended, and the way into its trace. */
-const Job = ({ job, busy, onOpen }: JobProps) => (
-	<li className={styles.job}>
+const Job = ({ job, busy, focused, onOpen }: JobProps) => (
+	<li
+		id={`gitlab-job-${job.id}`}
+		className={`${styles.job} ${focused ? styles.threadFocused : ""}`}
+	>
 		<StateDot
 			state={
 				job.status === "failed"
@@ -74,7 +86,9 @@ const Job = ({ job, busy, onOpen }: JobProps) => (
 		<Tag tone={jobTone(job.status)}>{jobStatusLabel(job.status)}</Tag>
 
 		{job.failureReason === undefined ? null : (
-			<span className={styles.caption}>{job.failureReason}</span>
+			<span className={styles.caption}>
+				{jobFailureReasonLabel(job.failureReason)}
+			</span>
 		)}
 
 		<Button size="sm" variant="ghost" disabled={busy} onClick={onOpen}>
@@ -100,9 +114,39 @@ export const MrPipeline = ({ target }: { target: PanelTarget }): ReactNode => {
 	const [log, setLog] = useState<JobLogPanel | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [failure, setFailure] = useState<string | undefined>(undefined);
+	const opened = useRef<number | undefined>(undefined);
+
+	const openLog = useCallback(
+		(jobId: number): void => {
+			setBusy(true);
+			setFailure(undefined);
+
+			hostApi
+				.jobLog(target.project, jobId)
+				.then((answer) => {
+					const entry = asJobLogPanel(answer);
+
+					if (entry === undefined)
+						throw new Error(
+							"the host answered with a log this version cannot draw",
+						);
+
+					setLog(entry);
+				})
+				.catch((error: unknown) => {
+					setFailure(messageOf(error));
+				})
+				.finally(() => {
+					setBusy(false);
+				});
+		},
+		[target.project],
+	);
 
 	useEffect(() => {
 		const controller = new AbortController();
+
+		opened.current = undefined;
 
 		hostApi
 			.pipeline(target.project, target.iid, controller.signal)
@@ -125,11 +169,35 @@ export const MrPipeline = ({ target }: { target: PanelTarget }): ReactNode => {
 		};
 	}, [target.project, target.iid]);
 
+	// A card names the job it was about: show that job's trace without a second
+	// click, and bring the row into view.
+	useEffect(() => {
+		if (load.status !== "ready") return;
+
+		const wanted = target.jobId;
+		if (wanted === undefined || opened.current === wanted) return;
+
+		const job = load.panel.pipeline?.jobs.find(
+			(candidate) => candidate.id === wanted,
+		);
+		if (job === undefined) return;
+
+		opened.current = wanted;
+		document
+			.getElementById(`gitlab-job-${wanted}`)
+			?.scrollIntoView({ block: "nearest" });
+		openLog(wanted);
+	}, [load, target.jobId, openLog]);
+
 	if (load.status === "loading")
 		return <span className={styles.caption}>Loading the pipeline…</span>;
 
 	if (load.status === "error")
-		return <span className={styles.error}>{load.message}</span>;
+		return (
+			<span className={styles.error} role="alert">
+				{load.message}
+			</span>
+		);
 
 	const pipeline = load.panel.pipeline;
 
@@ -190,28 +258,9 @@ export const MrPipeline = ({ target }: { target: PanelTarget }): ReactNode => {
 							key={job.id}
 							job={job}
 							busy={busy}
+							focused={target.jobId === job.id}
 							onOpen={() => {
-								setBusy(true);
-								setFailure(undefined);
-
-								hostApi
-									.jobLog(target.project, job.id)
-									.then((answer) => {
-										const entry = asJobLogPanel(answer);
-
-										if (entry === undefined)
-											throw new Error(
-												"the host answered with a log this version cannot draw",
-											);
-
-										setLog(entry);
-									})
-									.catch((error: unknown) => {
-										setFailure(messageOf(error));
-									})
-									.finally(() => {
-										setBusy(false);
-									});
+								openLog(job.id);
 							}}
 						/>
 					))}
@@ -221,7 +270,9 @@ export const MrPipeline = ({ target }: { target: PanelTarget }): ReactNode => {
 			{log === null ? null : <Log entry={log} />}
 
 			{failure === undefined ? null : (
-				<span className={styles.error}>{failure}</span>
+				<p className={styles.error} role="alert">
+					{failure}
+				</p>
 			)}
 		</>
 	);

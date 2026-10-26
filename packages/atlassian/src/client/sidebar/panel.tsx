@@ -9,7 +9,9 @@
  *
  * Writes are one step at a time: run it, and the host answers with the issue as
  * it now stands, so the panel never renders an assumption about what a
- * transition did.
+ * transition did. The clicked control says what it is doing and the panel says
+ * what changed once the server confirmed it, because a write whose result is
+ * silent looks the same as a click that was lost.
  */
 
 import type { MarkdownLabels } from "@deepseek-ai/dsh-client-ui-primitives";
@@ -43,6 +45,7 @@ import {
 import { issueTypeTone, priorityTone } from "../../shared/tone";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
+import { type PanelWriter, usePanelWriter } from "./write";
 
 /** Chrome for the Markdown renderer; one identity for the whole panel. */
 const MARKDOWN_LABELS: MarkdownLabels = {
@@ -50,19 +53,50 @@ const MARKDOWN_LABELS: MarkdownLabels = {
 	footnotes: "Footnotes",
 };
 
-/** One date as the reader's own locale writes it. */
+/** One moment as the reader's own locale and time zone write it. */
 const whenText = (value: string): string => {
 	const time = Date.parse(value);
 
 	return Number.isNaN(time)
 		? value
-		: new Date(time).toLocaleString("en", {
-				dateStyle: "medium",
-				timeStyle: "short",
+		: new Date(time).toLocaleString(undefined, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				timeZoneName: "short",
 			});
 };
 
-/** One titled block. */
+/** One date without a time, as the reader's own locale writes it. */
+const dateText = (value: string): string => {
+	const time = Date.parse(value);
+
+	return Number.isNaN(time)
+		? value
+		: new Date(time).toLocaleDateString(undefined, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+			});
+};
+
+/** What one comment section's heading says, when the server held more back. */
+const commentsTitle = (
+	comments: readonly PanelComment[],
+	total: number | undefined,
+	truncated: boolean,
+): string => {
+	if (total !== undefined && total > comments.length)
+		return `Comments (${comments.length} of ${total})`;
+
+	return truncated
+		? `Comments (${comments.length} of more)`
+		: `Comments (${comments.length})`;
+};
+
+/** One titled block; the title is a heading so the panel can be navigated by them. */
 const Section = ({
 	title,
 	children,
@@ -71,7 +105,9 @@ const Section = ({
 	children: ReactNode;
 }) => (
 	<section className={styles.panelSection}>
-		<span className={styles.panelSectionTitle}>{title}</span>
+		<h3 className={`${styles.panelSectionTitle} ${styles.sectionHeading}`}>
+			{title}
+		</h3>
 		{children}
 	</section>
 );
@@ -117,73 +153,93 @@ interface Actions {
 	run: PanelActions<PanelTarget>["run"];
 }
 
-/**
- * Run one write against the issue the panel is showing.
- *
- * A page has no workflow and no assignee, so a write is refused rather than
- * sent at whatever the panel happens to hold.
- * @param actions - the shared body's action set.
- * @param write - the call, which takes the issue's key.
- */
-const runIssue = (
-	actions: Actions,
-	write: (key: string) => Promise<unknown>,
-): void => {
-	actions.run(async (target) => {
-		if (target.kind !== "issue")
-			throw new Error("this panel is not showing an issue");
-
-		return await write(target.key);
-	});
-};
-
 /** The transitions the workflow offers right now. */
 const Transitions = ({
 	issue,
 	actions,
+	writer,
 }: {
 	issue: IssuePanel;
 	actions: Actions;
+	writer: PanelWriter;
 }) => {
-	if (issue.transitions.length === 0) return null;
-
-	const blocked = issue.transitions.some(
+	const unavailable = issue.transitions.filter(
+		(transition) => !transition.available && !transition.needsFields,
+	);
+	const blocked = issue.transitions.filter(
 		(transition) => transition.needsFields,
 	);
 
 	return (
 		<Section title="Move to">
-			<div className={styles.actions}>
-				{issue.transitions.map((transition) => (
-					<Button
-						key={transition.id}
-						size="sm"
-						variant="outline"
-						disabled={
-							actions.busy || !transition.available || transition.needsFields
-						}
-						title={
-							transition.needsFields
-								? `${transition.name} opens a screen with required fields`
+			{issue.transitionsError === undefined ? null : (
+				<span className={styles.caption}>
+					The workflow could not be loaded: {issue.transitionsError}
+				</span>
+			)}
+
+			{issue.transitions.length === 0 ? (
+				issue.transitionsError === undefined ? (
+					<span className={styles.caption}>
+						The workflow offers no transitions for this issue right now.
+					</span>
+				) : null
+			) : (
+				<div className={styles.actions}>
+					{issue.transitions.map((transition) => (
+						<Button
+							key={transition.id}
+							size="sm"
+							variant="outline"
+							disabled={
+								actions.busy || !transition.available || transition.needsFields
+							}
+							onClick={() => {
+								writer.run(
+									transition.id,
+									transition.to === undefined
+										? `Applied “${transition.name}”.`
+										: `Moved to ${transition.to}.`,
+									(target) => {
+										if (target.kind !== "issue")
+											throw new Error("this panel is not showing an issue");
+
+										return hostApi.transitionIssue(
+											target.key,
+											transition.id,
+											target.cloudId,
+										);
+									},
+								);
+							}}
+						>
+							{writer.pending === transition.id
+								? `${transition.name}…`
 								: transition.to === undefined
 									? transition.name
-									: `${transition.name} → ${transition.to}`
-						}
-						onClick={() => {
-							runIssue(actions, (key) =>
-								hostApi.transitionIssue(key, transition.id),
-							);
-						}}
-					>
-						{transition.name}
-					</Button>
-				))}
-			</div>
-			{blocked ? (
+									: `${transition.name} → ${transition.to}`}
+						</Button>
+					))}
+				</div>
+			)}
+
+			{unavailable.length === 0 ? null : (
 				<span className={styles.caption}>
-					A transition that needs a form is left to the Atlassian site.
+					{`Not available for this issue right now: ${unavailable
+						.map((transition) => transition.name)
+						.join(", ")}.`}
 				</span>
-			) : null}
+			)}
+
+			{blocked.length === 0 ? null : (
+				<span className={styles.caption}>
+					{`${blocked
+						.map((transition) => transition.name)
+						.join(
+							", ",
+						)} open${blocked.length === 1 ? "s" : ""} a form with required fields; use the Atlassian site.`}
+				</span>
+			)}
 		</Section>
 	);
 };
@@ -209,20 +265,26 @@ const remember = (person: PanelPerson): void => {
  * list of everybody — but it should not make the reader type a name it already
  * knows either. The reader themselves is one click, the people assigned to from
  * this session are remembered, and the search field appears only when somebody
- * new has to be found by name.
+ * new has to be found by name. A search that matched nobody and a search that
+ * failed say so, rather than leaving the reader with a blank list.
  */
 const Assignee = ({
 	issue,
 	actions,
+	writer,
 }: {
 	issue: IssuePanel;
 	actions: Actions;
+	writer: PanelWriter;
 }) => {
 	const [open, setOpen] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [fetching, setFetching] = useState(false);
 	const [query, setQuery] = useState("");
 	const [people, setPeople] = useState<readonly PanelPerson[]>([]);
+	const [searched, setSearched] = useState(false);
+	const [searchFailure, setSearchFailure] = useState<string | null>(null);
+	const [attempt, setAttempt] = useState(0);
 	const [me, setMe] = useState<PanelPerson | null>(null);
 	const [known, setKnown] = useState<readonly PanelPerson[]>(remembered);
 
@@ -249,6 +311,8 @@ const Assignee = ({
 		if (trimmed.length < 2) {
 			setPeople([]);
 			setFetching(false);
+			setSearched(false);
+			setSearchFailure(null);
 
 			return;
 		}
@@ -257,12 +321,24 @@ const Assignee = ({
 		// One search per pause in typing: the site's lookup is not free.
 		const timer = setTimeout(() => {
 			setFetching(true);
+			setSearchFailure(null);
 			hostApi
 				.findPeople(trimmed, controller.signal)
 				.then((found) => {
-					if (!controller.signal.aborted) setPeople(found);
+					if (controller.signal.aborted) return;
+
+					setPeople(found);
+					setSearched(true);
 				})
-				.catch(() => undefined)
+				.catch((error: unknown) => {
+					if (controller.signal.aborted) return;
+
+					setPeople([]);
+					setSearched(true);
+					setSearchFailure(
+						error instanceof Error ? error.message : String(error),
+					);
+				})
 				.finally(() => {
 					if (!controller.signal.aborted) setFetching(false);
 				});
@@ -272,7 +348,7 @@ const Assignee = ({
 			clearTimeout(timer);
 			controller.abort();
 		};
-	}, [query]);
+	}, [query, attempt]);
 
 	const assign = (person: PanelPerson | null): void => {
 		if (person !== null) {
@@ -282,8 +358,19 @@ const Assignee = ({
 
 		setQuery("");
 		setSearchOpen(false);
-		runIssue(actions, (key) =>
-			hostApi.assignIssue(key, person?.accountId ?? null),
+		writer.run(
+			person === null ? "unassign" : "assign",
+			person === null ? "Unassigned." : `Assigned to ${person.name}.`,
+			(target) => {
+				if (target.kind !== "issue")
+					throw new Error("this panel is not showing an issue");
+
+				return hostApi.assignIssue(
+					target.key,
+					person?.accountId ?? null,
+					target.cloudId,
+				);
+			},
 		);
 	};
 
@@ -352,7 +439,7 @@ const Assignee = ({
 								setOpen(true);
 							}}
 						>
-							Change
+							{writer.pending === "assign" ? "Assigning…" : "Change"}
 						</Button>
 					}
 				/>
@@ -365,6 +452,7 @@ const Assignee = ({
 							className={styles.personSearch}
 							value={query}
 							placeholder="Search people…"
+							aria-label="Search people by name"
 							disabled={actions.busy}
 							onChange={(event) => {
 								setQuery(event.target.value);
@@ -391,6 +479,32 @@ const Assignee = ({
 					) : null}
 
 					{fetching ? <span className={styles.caption}>Searching…</span> : null}
+
+					{searched &&
+					!fetching &&
+					searchFailure === null &&
+					people.length === 0 ? (
+						<span className={styles.caption}>No people matched.</span>
+					) : null}
+
+					{searchFailure === null ? null : (
+						<div className={styles.actions}>
+							<span className={styles.caption}>
+								The people search failed: {searchFailure}
+							</span>
+
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={fetching}
+								onClick={() => {
+									setAttempt((count) => count + 1);
+								}}
+							>
+								Try again
+							</Button>
+						</div>
+					)}
 
 					{people.length === 0 ? null : (
 						<ul className={styles.people}>
@@ -423,70 +537,122 @@ const IssueView = ({
 }: {
 	issue: IssuePanel;
 	actions: Actions;
-}) => (
-	<>
-		<header className={styles.panelHead}>
-			<div className={styles.panelTitleRow}>
-				<Chip value={issue.type} tone={issueTypeTone(issue.type)} />
-				<a
-					className={`${styles.link} ${styles.panelKey}`}
-					href={issue.url}
-					target="_blank"
-					rel="noreferrer"
-				>
-					{issue.key}
-				</a>
-			</div>
-			<h2 className={styles.panelSummary}>{issue.summary ?? issue.key}</h2>
+}) => {
+	const writer = usePanelWriter(actions, `issue:${issue.key}`);
 
-			<Facts
-				items={[
-					{ label: "Status", value: issue.status },
-					{
-						label: "Priority",
-						value:
-							issue.priority === undefined ? undefined : (
-								<Chip
-									value={issue.priority}
-									tone={priorityTone(issue.priority)}
-								/>
-							),
-					},
-					{ label: "Reporter", value: issue.reporter },
-					{ label: "Estimate", value: issue.estimate },
-					{ label: "Due", value: issue.due },
-				]}
-			/>
-
-			{issue.labels.length === 0 ? null : (
-				<div className={styles.badges}>
-					{issue.labels.map((label) => (
-						<Chip key={label} value={label} tone="neutral" />
-					))}
+	return (
+		<>
+			<header className={styles.panelHead}>
+				<div className={styles.panelTitleRow}>
+					<Chip value={issue.type} tone={issueTypeTone(issue.type)} />
+					{issue.url === undefined ? (
+						<span className={styles.panelKey}>{issue.key}</span>
+					) : (
+						<a
+							className={`${styles.link} ${styles.panelKey}`}
+							href={issue.url}
+							target="_blank"
+							rel="noreferrer"
+						>
+							{issue.key}
+						</a>
+					)}
 				</div>
+				<h2 className={styles.panelSummary}>{issue.summary ?? issue.key}</h2>
+
+				<Facts
+					items={[
+						{ label: "Status", value: issue.status },
+						{
+							label: "Priority",
+							value:
+								issue.priority === undefined ? undefined : (
+									<Chip
+										value={issue.priority}
+										tone={priorityTone(issue.priority)}
+									/>
+								),
+						},
+						{ label: "Reporter", value: issue.reporter },
+						{ label: "Estimate", value: issue.estimate },
+						{
+							label: "Due",
+							value: issue.due === undefined ? undefined : dateText(issue.due),
+						},
+					]}
+				/>
+
+				{issue.labels.length === 0 ? null : (
+					<div className={styles.badges}>
+						{issue.labels.map((label) => (
+							<Chip key={label} value={label} tone="neutral" />
+						))}
+					</div>
+				)}
+			</header>
+
+			{writer.changed === null ? null : (
+				<p className={styles.changed} role="status">
+					{writer.changed}
+				</p>
 			)}
-		</header>
 
-		<Transitions issue={issue} actions={actions} />
-		<Assignee issue={issue} actions={actions} />
+			<Transitions issue={issue} actions={actions} writer={writer} />
+			<Assignee issue={issue} actions={actions} writer={writer} />
 
-		<Section title="Description">
-			{issue.description === undefined ? (
-				<span className={styles.caption}>No description.</span>
-			) : (
-				<Prose text={issue.description} />
+			<Section title="Description">
+				{issue.description === undefined ? (
+					<span className={styles.caption}>No description.</span>
+				) : (
+					<Prose text={issue.description} />
+				)}
+			</Section>
+
+			<Section
+				title={commentsTitle(
+					issue.comments,
+					issue.commentTotal,
+					issue.commentsTruncated === true,
+				)}
+			>
+				<Comments comments={issue.comments} />
+
+				{issue.commentTotal !== undefined &&
+				issue.commentTotal > issue.comments.length &&
+				issue.url !== undefined ? (
+					<a
+						className={styles.link}
+						href={issue.url}
+						target="_blank"
+						rel="noreferrer"
+					>
+						{`Read all ${issue.commentTotal} comments in Jira`}
+					</a>
+				) : null}
+
+				{issue.commentsTruncated === true &&
+				(issue.commentTotal === undefined ||
+					issue.commentTotal <= issue.comments.length) &&
+				issue.url !== undefined ? (
+					<a
+						className={styles.link}
+						href={issue.url}
+						target="_blank"
+						rel="noreferrer"
+					>
+						More comments are in Jira
+					</a>
+				) : null}
+			</Section>
+
+			{issue.updated === undefined ? null : (
+				<span className={styles.caption}>
+					Updated {whenText(issue.updated)}
+				</span>
 			)}
-		</Section>
-
-		<Section title={`Comments (${issue.comments.length})`}>
-			<Comments comments={issue.comments} />
-		</Section>
-
-		{issue.updated === undefined ? null : (
-			<span className={styles.caption}>Updated {whenText(issue.updated)}</span>
-		)}
-	</>
-);
+		</>
+	);
+};
 
 /** One Confluence page: its body and its comments. */
 const PageView = ({ page }: { page: PagePanel }) => (
@@ -519,8 +685,25 @@ const PageView = ({ page }: { page: PagePanel }) => (
 			)}
 		</Section>
 
-		<Section title={`Comments (${page.comments.length})`}>
+		<Section
+			title={commentsTitle(
+				page.comments,
+				page.commentTotal,
+				page.commentsTruncated === true,
+			)}
+		>
 			<Comments comments={page.comments} />
+
+			{page.commentsTruncated === true && page.url !== undefined ? (
+				<a
+					className={styles.link}
+					href={page.url}
+					target="_blank"
+					rel="noreferrer"
+				>
+					More comments are in Confluence
+				</a>
+			) : null}
 		</Section>
 	</>
 );
@@ -530,7 +713,9 @@ const provider: PanelProvider<PanelData, PanelTarget> = {
 	emptyMessage: "This panel was opened without an issue or a page.",
 	parseParams: (value) => asPanelTarget(value),
 	identity: (target) =>
-		target.kind === "issue" ? `issue:${target.key}` : `page:${target.id}`,
+		target.kind === "issue"
+			? `issue:${target.cloudId ?? ""}:${target.key}`
+			: `page:${target.cloudId ?? ""}:${target.id}`,
 	title: (target) =>
 		target.kind === "issue" ? target.key : (target.title ?? "Page"),
 	fetch: async (target, signal) => await hostApi.getPanel(target, signal),

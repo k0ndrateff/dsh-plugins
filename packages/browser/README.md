@@ -37,6 +37,8 @@ The plugin does not ship a browser engine and does not wrap Playwright.
 | `browser_snapshot` | The accessibility tree as text, with an `@eN` reference per element — what to click |
 | `browser_act` | `click`, `fill`, `press`, `select`, `hover`, `scroll`, `wait` — by reference or selector |
 | `browser_read` | The page text, the console, or the errors the page threw |
+| `browser_screenshot` | A page, selector or full-viewport screenshot as an image result, with a size limit |
+| `browser_close` | Close this conversation's browser without touching anyone else's |
 | `browser_run` | Any other `agent-browser` command, for the long tail: tabs, network, cookies, audits |
 
 `/browser status` reports whether the CLI and Chrome are usable, and
@@ -56,6 +58,9 @@ writes the same `config:` block a patch would.
 
 ## The panel
 
+The panel is live: it shows the page the agent is driving, marks the difference
+between “not opened yet”, “closed”, “paused” and a real failure, retries a dropped
+connection, and lets a keyboard user send Tab and the other keys into the page.
 `browser_open` opens a **Browser** tab in the right Sidebar, on the browser that
 call just used. The tab shows:
 

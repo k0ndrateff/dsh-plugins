@@ -74,6 +74,53 @@ const SUBSECTION = /^###\s+(.+?)\s*$/u;
 /** The tracker key a commit message may name, such as `DEV-5977`. */
 const TRACKER_KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/u;
 
+/** `2 minutes ago`, the shape Sentry prints for a search row's times. */
+const RELATIVE_TIME =
+	/^(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago$/iu;
+
+/** How long one of Sentry's relative units is, for turning it into a moment. */
+const UNIT_MS: Readonly<Record<string, number>> = {
+	second: 1_000,
+	minute: 60_000,
+	hour: 3_600_000,
+	day: 86_400_000,
+	week: 604_800_000,
+	month: 2_592_000_000,
+	year: 31_536_000_000,
+};
+
+/**
+ * One time as an absolute timestamp.
+ *
+ * A search row prints "2 minutes ago", which is true only at the moment the
+ * answer was read: a card is a durable record, so the phrase is resolved
+ * against that moment and stored as a timestamp the renderer formats itself.
+ * @param value - a timestamp, or Sentry's relative phrase.
+ * @param now - the moment the answer was read, in epoch milliseconds.
+ * @returns an ISO timestamp, or the input when it names no time.
+ */
+function absoluteTime(value: string, now: number): string {
+	const trimmed = value.trim();
+
+	if (trimmed === "") return value;
+	if (trimmed.toLowerCase() === "just now") return new Date(now).toISOString();
+
+	const parsed = Date.parse(trimmed);
+
+	if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
+
+	const relative = RELATIVE_TIME.exec(trimmed);
+
+	if (relative === null) return value;
+
+	const amount = Number(relative[1]);
+	const unit = UNIT_MS[(relative[2] ?? "").toLowerCase()];
+
+	return unit === undefined
+		? value
+		: new Date(now - amount * unit).toISOString();
+}
+
 /** A field's value without the backticks a server may wrap it in. */
 function unquoted(value: string): string {
 	const trimmed = value.trim();
@@ -98,7 +145,10 @@ function numberIn(text: string): number | undefined {
  * @param text - the Markdown `search_issues` printed.
  * @returns the issues it lists, the query it echoed, and its dashboard link.
  */
-export function parseIssueSearch(text: string): IssueSearch {
+export function parseIssueSearch(
+	text: string,
+	now: number = Date.now(),
+): IssueSearch {
 	const issues: IssueCard[] = [];
 	let query: string | undefined;
 	let dashboardUrl: string | undefined;
@@ -133,10 +183,12 @@ export function parseIssueSearch(text: string): IssueSearch {
 			...(users === undefined ? {} : { users }),
 			...(field("firstSeen") === undefined
 				? {}
-				: { firstSeen: field("firstSeen") }),
+				: {
+						firstSeen: absoluteTime(String(field("firstSeen")), now),
+					}),
 			...(field("lastSeen") === undefined
 				? {}
-				: { lastSeen: field("lastSeen") }),
+				: { lastSeen: absoluteTime(String(field("lastSeen")), now) }),
 			...(field("culprit") === undefined ? {} : { culprit: field("culprit") }),
 			...(field("project") === undefined ? {} : { project: field("project") }),
 		});
@@ -245,13 +297,15 @@ function fencedBlock(
  * @returns the fields, the code location, the suspect commit, the error, the
  *   stack trace, and the tags it carries.
  */
-export function parseIssueDetail(text: string): IssueDetail {
+export function parseIssueDetail(
+	text: string,
+	now: number = Date.now(),
+): IssueDetail {
 	const lines = text.split(/\r?\n/u);
 	const fields = new Map<string, string>();
 	const tags: IssueTag[] = [];
 	const code: Record<string, string> = {};
 	const suspect: Record<string, string> = {};
-	const event: Record<string, string> = {};
 	let section = "";
 	let subsection = "";
 	let message: string | undefined;
@@ -308,7 +362,6 @@ export function parseIssueDetail(text: string): IssueDetail {
 			if (subsection === "tags") tags.push({ name: field[1] ?? "", value });
 			else if (section === "code location") code[name] = value;
 			else if (section === "suspect commit") suspect[name] = value;
-			else if (section === "event details") event[name] = value;
 			else if (section === "" && subsection === "") fields.set(name, value);
 		}
 	}
@@ -335,9 +388,6 @@ export function parseIssueDetail(text: string): IssueDetail {
 			: { assignee: field("assigned to") }),
 		...(field("project") === undefined ? {} : { project: field("project") }),
 		...(field("platform") === undefined ? {} : { platform: field("platform") }),
-		...(field("issue type") === undefined
-			? {}
-			: { issueType: field("issue type") }),
 		...(numberIn(field("occurrences") ?? "") === undefined
 			? {}
 			: { occurrences: numberIn(field("occurrences") ?? "") }),
@@ -346,20 +396,15 @@ export function parseIssueDetail(text: string): IssueDetail {
 			: { users: numberIn(field("users impacted") ?? "") }),
 		...(field("first seen") === undefined
 			? {}
-			: { firstSeen: field("first seen") }),
+			: { firstSeen: absoluteTime(String(field("first seen")), now) }),
 		...(field("last seen") === undefined
 			? {}
-			: { lastSeen: field("last seen") }),
+			: { lastSeen: absoluteTime(String(field("last seen")), now) }),
 		...codeLocation(code),
 		...suspectCommit(suspect),
-		...(event["event id"] === undefined ? {} : { eventId: event["event id"] }),
-		...(event["occurred at"] === undefined
-			? {}
-			: { occurredAt: event["occurred at"] }),
 		...(message === undefined ? {} : { message }),
 		...(stacktrace === undefined ? {} : { stacktrace }),
 		tags,
-		raw: text,
 	};
 }
 

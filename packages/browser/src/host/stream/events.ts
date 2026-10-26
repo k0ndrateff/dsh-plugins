@@ -18,6 +18,9 @@
  * middle of it.
  */
 
+import type { PanelTab } from "../../shared/panel";
+import { PAGE_SIZE_SCRIPT } from "./page";
+
 /** One encoded viewport frame, as the CLI sends it. */
 export interface StreamFrame {
 	readonly seq: number;
@@ -33,9 +36,14 @@ export interface StreamActivity {
 	readonly kind: "command" | "result";
 	/** The CLI's own id, which pairs a command with its outcome. */
 	readonly id: string;
+	/** The CLI's action name, kept so the host can tell its own commands apart. */
+	readonly action: string;
 	readonly text: string;
 	readonly at: number;
 }
+
+/** How many tabs a reader is shown a name for. */
+const MAX_TABS = 12;
 
 /** Everything one stream message means to this plugin. */
 export type StreamEvent =
@@ -43,11 +51,11 @@ export type StreamEvent =
 			readonly kind: "address";
 			readonly url: string;
 			readonly title: string | undefined;
+			/** The browser's tabs, active one included; empty when not reported. */
+			readonly tabs: readonly PanelTab[];
 	  }
 	| { readonly kind: "frame"; readonly frame: StreamFrame }
 	| { readonly kind: "activity"; readonly activity: StreamActivity };
-
-import { PAGE_SIZE_SCRIPT } from "./page";
 
 /** Actions the CLI reports about itself rather than about the page. */
 const DROPPED_ACTIONS: readonly string[] = ["launch"];
@@ -158,7 +166,26 @@ export const parseStreamMessage = (text: string): StreamEvent | undefined => {
 
 		return url === undefined
 			? undefined
-			: { kind: "address", url, title: textOf(tab?.title) };
+			: {
+					kind: "address",
+					url,
+					title: textOf(tab?.title),
+					tabs: tabs
+						.map((one): PanelTab | undefined => {
+							const record = recordOf(one);
+							const address = textOf(record?.url);
+
+							return address === undefined
+								? undefined
+								: {
+										url: address,
+										title: textOf(record?.title) ?? "",
+										active: record?.active === true,
+									};
+						})
+						.filter((one): one is PanelTab => one !== undefined)
+						.slice(0, MAX_TABS),
+				};
 	}
 
 	if (type === "url") {
@@ -166,7 +193,7 @@ export const parseStreamMessage = (text: string): StreamEvent | undefined => {
 
 		return url === undefined
 			? undefined
-			: { kind: "address", url, title: undefined };
+			: { kind: "address", url, title: undefined, tabs: [] };
 	}
 
 	if (type === "command" || type === "result") {
@@ -186,12 +213,14 @@ export const parseStreamMessage = (text: string): StreamEvent | undefined => {
 					? {
 							kind: "command",
 							id,
+							action,
 							text: commandText(action, message.params),
 							at,
 						}
 					: {
 							kind: "result",
 							id,
+							action,
 							text: resultText(numberOf(message.duration_ms)),
 							at,
 						},

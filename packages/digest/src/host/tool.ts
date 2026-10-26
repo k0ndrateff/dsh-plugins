@@ -25,12 +25,14 @@ export interface DigestToolDeps {
 export const digestTool = (deps: DigestToolDeps): ToolDefinition => ({
 	name: "digest",
 	description:
-		"Assemble the user's daily digest: the work waiting for them across the integrations " +
+		"Assemble the user's configured digest: the work waiting for them across the integrations " +
 		"they have connected — Jira issues in flight, merge requests awaiting their review, new " +
-		"errors, review comments. Use it when the user asks for a digest, a daily summary, or " +
-		'"what\'s on my plate", and when a scheduled digest reminder fires. It reads only: it ' +
-		"never writes to an external system. What it contains is the user's own saved " +
-		"configuration, so call it with no arguments.",
+		"errors, review comments. The digest is configured in Settings, and its schedule may be " +
+		'daily or only on selected days, so call it "the digest", not "the daily digest". Use it ' +
+		'when the user asks for a digest, a summary, or "what\'s on my plate", and when a ' +
+		"scheduled digest reminder fires. Each block shows up to the configured number of rows " +
+		"and says how many more it had. It reads only: it never writes to an external system. " +
+		"What it contains is the user's own saved configuration, so call it with no arguments.",
 	parameters: {
 		type: "object",
 		additionalProperties: false,

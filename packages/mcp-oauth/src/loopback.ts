@@ -102,12 +102,17 @@ export class LoopbackListener {
 				if (oauthError !== null || returned === null || !stateMatches) {
 					const reason =
 						oauthError !== null
-							? `${label} reported: ${oauthError}`
-							: "The response did not match this sign-in attempt.";
+							? `The provider did not authorize the sign-in (${oauthError}). You can close this tab and try again from DeepSeek Harness.`
+							: "This sign-in attempt could not be verified. Close this tab and start the sign-in again from DeepSeek Harness.";
 
 					response
 						.writeHead(400, { "content-type": "text/html; charset=utf-8" })
-						.end(LoopbackListener.callbackPage("Authorization failed", reason));
+						.end(
+							LoopbackListener.callbackPage(
+								`Could not sign in to ${label}`,
+								reason,
+							),
+						);
 
 					rejectCode(
 						new Error(
@@ -171,9 +176,15 @@ export class LoopbackListener {
 		const safeMessage = escapeHtml(message);
 
 		return (
-			`<!doctype html><meta charset="utf-8"><title>${safeTitle}</title>` +
-			'<body style="font:16px/1.5 system-ui;margin:4rem auto;max-width:32rem;text-align:center">' +
-			`<h1 style="font-size:1.25rem">${safeTitle}</h1><p>${safeMessage}</p></body>`
+			'<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+			'<meta name="viewport" content="width=device-width, initial-scale=1">' +
+			`<title>${safeTitle}</title></head>` +
+			'<body style="font:16px/1.5 system-ui;margin:4rem auto;max-width:32rem;' +
+			'text-align:center;padding:0 1.25rem;color:#1f2328">' +
+			`<h1 style="font-size:1.25rem;margin:0 0 .75rem">${safeTitle}</h1>` +
+			`<p style="margin:0">${safeMessage}</p>` +
+			'<p style="margin:2rem 0 0;font-size:.8125rem;color:#6e7781">DeepSeek Harness</p>' +
+			"</body></html>"
 		);
 	};
 }

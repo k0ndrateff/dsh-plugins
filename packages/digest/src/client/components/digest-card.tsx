@@ -7,10 +7,19 @@
  * empty, and its own rows. That is the shape the roadmap asked for — one card,
  * sections inside it — and it keeps a provider's silence legible: "nothing is
  * waiting for your review" and "GitLab is not connected" are different lines.
+ *
+ * A digest with no blocks at all says why in its footer: no integration
+ * connected, or every block switched off. Both are one line, and both have a
+ * next step, which "0 blocks" does not.
  */
 
 import type { CardProvider } from "dsh-integration-ui";
-import type { DigestReport, DigestSection } from "../../shared/digest";
+import {
+	type DigestReport,
+	type DigestSection,
+	digestStamp,
+	emptyDigestNote,
+} from "../../shared/digest";
 import * as styles from "../styles/styles.css";
 
 /** One block of the card: its heading, its reason or its rows. */
@@ -53,6 +62,12 @@ const Block = ({ section }: { section: DigestSection }) => (
 				</li>
 			))}
 		</ul>
+
+		{section.truncated === true && section.total !== undefined ? (
+			<p className={styles.blockNote}>
+				{`Showing ${section.items.length} of at least ${section.total} rows — raise Rows per block in Settings → Digest to see more.`}
+			</p>
+		) : null}
 	</li>
 );
 
@@ -77,9 +92,15 @@ export const digestCard: CardProvider<DigestReport> = {
 		report.sections.map((section) => (
 			<Block key={section.block} section={section} />
 		)),
+	// The zone is named, and the same words are in the model's text: one instant
+	// read by two parties should not depend on which locale each runs under.
 	meta: (report) => (
 		<span className={styles.caption}>
-			{new Date(report.generatedAt).toLocaleString()}
+			{`Assembled ${digestStamp(report.generatedAt, report.timeZone)}`}
 		</span>
 	),
+	footer: (report) =>
+		report.sections.length === 0 && report.offered !== undefined ? (
+			<p className={styles.blockNote}>{emptyDigestNote(report.offered)}</p>
+		) : null,
 };

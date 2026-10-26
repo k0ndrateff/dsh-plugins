@@ -96,7 +96,7 @@ export class RecipeBook {
 
 		if (text === undefined)
 			throw new Error(
-				`no ${CONFIG_FILE} in ${project.cwd}; a project owns its checks, so create one (see /checks init)`,
+				`no ${CONFIG_FILE} in ${project.cwd}; a project owns its checks, so the file has to exist before anything can run. The user can run /checks init to draft one from package.json, or you can write ${CONFIG_FILE} with a "checks" object naming each recipe's "run" command`,
 			);
 
 		let document: unknown;

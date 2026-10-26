@@ -36,8 +36,9 @@ test("an answer over the cap", async () => {
 		"one dropped line reads in the singular",
 	).toBe(true);
 	expect(
-		bound("x".repeat(100), 10).startsWith("…and 1 more line"),
-		"a single line over the cap still says something",
+		bound("x".repeat(100), 10).startsWith("x") &&
+			bound("x".repeat(100), 10).includes("cut at 10 bytes"),
+		"a single line over the cap is cut inside itself rather than dropped whole",
 	).toBe(true);
 });
 test("the reason inside a thrown value", async () => {

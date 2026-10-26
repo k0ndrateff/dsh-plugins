@@ -45,7 +45,32 @@ export interface ChainHop {
 	readonly meta?: string;
 	/** How many references away from the anchor this hop sits. */
 	readonly depth: number;
+	/** The hop whose reference led here; absent for the anchor itself. */
+	readonly parent?: string;
 }
+
+/**
+ * Why a hop was not followed.
+ *
+ * The reason is the provider's own words; this is the class they belong to, so
+ * a reader — and the model — can tell "nothing is installed" from "the account
+ * lacks access" from "it simply knows no such thing" without parsing prose.
+ */
+export type ChainBreakCause =
+	| "missing"
+	| "auth"
+	| "refused"
+	| "empty"
+	| "limit";
+
+/** How one cause reads, on the card and in the model's text. */
+export const BREAK_CAUSE_LABELS: Readonly<Record<ChainBreakCause, string>> = {
+	missing: "no integration",
+	auth: "access denied",
+	refused: "provider refused",
+	empty: "nothing found",
+	limit: "capped",
+};
 
 /**
  * A hop the chain could not follow.
@@ -59,18 +84,45 @@ export interface ChainBreak {
 	/** What the card calls the hop that was not followed. */
 	readonly label: string;
 	readonly reason: string;
+	/** The class {@link reason} belongs to; absent on a payload from before it. */
+	readonly cause?: ChainBreakCause;
+	/** How far from the anchor the unreachable reference sits. */
+	readonly depth: number;
+	/** The hop it was referenced from; absent when the anchor itself broke. */
+	readonly parent?: string;
+}
+
+/** A kind more than one installed integration could resolve. */
+export interface ChainCoverage {
+	readonly kind: CorrelationKind;
+	/** Every installed provider that resolves the kind, in registration order. */
+	readonly providers: readonly string[];
+	/** The provider whose answer the chain used, when one answered. */
+	readonly answeredBy?: string;
+}
+
+/** The bounds one walk stopped at, so the result can name them. */
+export interface ChainLimitsView {
+	/** The deepest a reference may sit from the anchor. */
+	readonly depth: number;
+	/** The most facts one chain holds. */
+	readonly facts: number;
 }
 
 /** One walked chain. */
 export interface ChainReport {
 	/** The tool call that produced it; the card's identity. */
 	readonly callId: string;
-	/** The anchor, as its own provider described it. */
+	/** The anchor, as its own provider described it — or as its id reads. */
 	readonly title: string;
 	/** The provider the chain started from, such as `Sentry`. */
 	readonly provider: string;
 	readonly hops: readonly ChainHop[];
 	readonly breaks: readonly ChainBreak[];
+	/** The caps this walk ran under. */
+	readonly limits?: ChainLimitsView;
+	/** Kinds more than one installed integration resolves, with who answered. */
+	readonly coverage?: readonly ChainCoverage[];
 }
 
 /** The kinds this plugin will render; a card that cannot read one renders nothing. */
@@ -79,6 +131,14 @@ const kind = oneOf<CorrelationKind>(
 	literal("commit"),
 	literal("change"),
 	literal("task"),
+);
+
+const cause = oneOf<ChainBreakCause>(
+	literal("missing"),
+	literal("auth"),
+	literal("refused"),
+	literal("empty"),
+	literal("limit"),
 );
 
 /** A hop before its label falls back to the kind. */
@@ -93,6 +153,7 @@ const hop = object<HopWire>({
 	url: optional(nonEmptyString),
 	meta: optional(nonEmptyString),
 	depth: fallback(number, 0),
+	parent: optional(nonEmptyString),
 });
 
 /** A broken hop before its label falls back to the kind. */
@@ -102,6 +163,20 @@ const chainBreak = object<BreakWire>({
 	kind: required(kind),
 	label: optional(nonEmptyString),
 	reason: required(string),
+	cause: optional(cause),
+	depth: fallback(number, 0),
+	parent: optional(nonEmptyString),
+});
+
+const coverage = object<ChainCoverage>({
+	kind: required(kind),
+	providers: fallback(list(string), []),
+	answeredBy: optional(nonEmptyString),
+});
+
+const limits = object<ChainLimitsView>({
+	depth: fallback(number, 0),
+	facts: fallback(number, 0),
 });
 
 const readHop: Reader<ChainHop> = (value) => {
@@ -126,6 +201,8 @@ const chainReport = object<ChainReport>({
 	provider: required(string),
 	hops: required(list(readHop)),
 	breaks: required(list(readBreak)),
+	limits: optional(limits),
+	coverage: fallback(list(coverage), []),
 });
 
 /**

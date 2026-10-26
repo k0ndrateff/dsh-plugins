@@ -11,7 +11,7 @@
 
 import type {} from "@deepseek-ai/dsh-client-ui-chat/client";
 import type { PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import * as styles from "../styles/styles.css";
 import type { PresentationType } from "./definition";
 
@@ -30,6 +30,9 @@ export const createPresentationTail = <TCard, TOwner = unknown>(
 		props: PropsRuntime<"conversation.chat.turnTail">,
 	): ReactNode => {
 		const matched = type.select(props);
+		const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+			() => new Set(),
+		);
 
 		if (matched === null) return null;
 
@@ -39,6 +42,8 @@ export const createPresentationTail = <TCard, TOwner = unknown>(
 					const card = presentation.card;
 					const callId = type.card.callId(card);
 					const title = type.card.title(card);
+					const count = type.card.length(card);
+					const open = expanded.has(callId);
 					const meta = type.card.meta?.(card, props as TOwner);
 					const footer = type.card.footer?.(card, props as TOwner);
 
@@ -47,10 +52,18 @@ export const createPresentationTail = <TCard, TOwner = unknown>(
 							key={callId}
 							className={styles.presentation}
 							data-integration-card={callId}
+							aria-labelledby={
+								title === undefined ? undefined : `${callId}-title`
+							}
 						>
 							<div className={styles.presentationHead}>
 								{title === undefined ? null : (
-									<span className={styles.presentationTitle}>{title}</span>
+									<h3
+										className={styles.presentationTitle}
+										id={`${callId}-title`}
+									>
+										{title}
+									</h3>
 								)}
 								<span className={styles.presentationCount}>
 									{type.card.count(card)}
@@ -63,11 +76,33 @@ export const createPresentationTail = <TCard, TOwner = unknown>(
 								className={styles.list}
 								data-layout={type.card.layout(card)}
 								data-scrollable={
-									type.card.length(card) > SCROLL_AFTER ? "true" : undefined
+									!open && count > SCROLL_AFTER ? "true" : undefined
 								}
 							>
 								{type.card.items(card, props as TOwner)}
 							</ul>
+
+							{count <= SCROLL_AFTER ? null : (
+								<button
+									type="button"
+									className={styles.showAll}
+									aria-expanded={open}
+									onClick={() => {
+										setExpanded((current) => {
+											const next = new Set(current);
+
+											if (next.has(callId)) next.delete(callId);
+											else next.add(callId);
+
+											return next;
+										});
+									}}
+								>
+									{open
+										? "Show less"
+										: `Show all ${count} ${count === 1 ? "row" : "rows"}`}
+								</button>
+							)}
 
 							{footer}
 						</section>

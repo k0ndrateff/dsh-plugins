@@ -24,6 +24,15 @@ export const FRAME_PATH = `${ROUTE_PREFIX}/frame`;
 /** Closing this session's browser. */
 export const CLOSE_PATH = `${ROUTE_PREFIX}/close`;
 
+/** Asking the host to try connecting to the browser again. */
+export const RETRY_PATH = `${ROUTE_PREFIX}/retry`;
+
+/** Whether this machine can run a browser at all, as `doctor` reports it. */
+export const DOCTOR_PATH = `${ROUTE_PREFIX}/doctor`;
+
+/** The page as the agent's accessibility tree sees it, for the text view. */
+export const TEXT_PATH = `${ROUTE_PREFIX}/text`;
+
 /** Pointing, typing and navigating from the panel into the page. */
 export const INPUT_PATH = `${ROUTE_PREFIX}/input`;
 
@@ -105,6 +114,8 @@ export type PanelInput =
 			readonly x: number;
 			readonly y: number;
 			readonly button: "left" | "right" | "middle";
+			/** Which click of a run this is: 1 for a click, 2 for a double click. */
+			readonly clickCount?: number;
 			readonly modifiers: PanelModifiers;
 	  }
 	| {
@@ -144,25 +155,71 @@ export interface PanelPage {
 	readonly height: number;
 }
 
+/**
+ * Where a conversation's browser is in its life cycle.
+ *
+ * The panel draws every one of these differently, and only `unreachable` is an
+ * error. "Nothing opened yet", "closed", "paused because nobody was looking" and
+ * "connecting" are the normal shapes of a browser that is not on screen right
+ * now; the person reading them must not be sent to fix something that is not
+ * broken.
+ */
+export type PanelPhase =
+	/** No browser was opened in this conversation, or none is running now. */
+	| "none"
+	/** Something proved there is a browser, and the host is connecting to it. */
+	| "starting"
+	/** The stream is open: the picture is as fresh as the page makes it. */
+	| "live"
+	/** The browser was closed on purpose, by the agent or by the person. */
+	| "closed"
+	/** The live view ended because nobody was watching, and can reconnect. */
+	| "paused"
+	/** Connecting failed for a reason that is worth another attempt. */
+	| "unreachable";
+
+/** One tab of the browser, as the panel lists them. */
+export interface PanelTab {
+	readonly url: string;
+	readonly title: string;
+	readonly active: boolean;
+}
+
 /** What the chip above the chat needs: is there a browser, and where. */
 export interface PanelState {
+	/** Where the browser is in its life cycle. */
+	readonly phase: PanelPhase;
 	/** Whether this conversation opened a browser and has not closed it. */
 	readonly open: boolean;
 	/** The address it was last seen at, empty when none is known. */
 	readonly url: string;
 	/** The page's title at that address, empty when none is known. */
 	readonly title: string;
+	/** Whether the host currently holds the browser's own stream. */
+	readonly connected: boolean;
 }
 
 /** Everything one poll of the host answers with. */
 export interface PanelSnapshot {
 	readonly session: string;
+	/** Where the browser is in its life cycle. */
+	readonly phase: PanelPhase;
+	/** A human sentence for a state that is not an error; empty when none. */
+	readonly message: string;
 	/** Whether the host currently holds the browser's own stream. */
 	readonly connected: boolean;
+	/** Whether a browser has been seen in this conversation and not closed. */
+	readonly open: boolean;
+	/** Whether the live view stopped because nobody was watching. */
+	readonly paused: boolean;
 	readonly url: string;
 	readonly title: string;
-	/** Why there is nothing to watch, when the host knows. */
+	/** The tabs the browser reports, active one included. */
+	readonly tabs: readonly PanelTab[];
+	/** Why the live view cannot be shown, for a reason worth acting on. */
 	readonly error?: string;
+	/** Whether clicking Retry is the right next step. */
+	readonly retryable: boolean;
 	/** The frame the picture path would answer with right now; 0 for none. */
 	readonly seq: number;
 	/** The page's own size; zero until the browser has been asked for it. */
@@ -193,3 +250,14 @@ export const stateUrl = (session: string): string =>
 /** The write one person's click becomes. */
 export const inputUrl = (session: string): string =>
 	`${INPUT_PATH}?session=${encodeURIComponent(session)}`;
+
+/** Asking the host to reconnect to this session's browser. */
+export const retryUrl = (session: string): string =>
+	`${RETRY_PATH}?session=${encodeURIComponent(session)}`;
+
+/** The page as the agent's own accessibility tree, for the text view. */
+export const textUrl = (session: string): string =>
+	`${TEXT_PATH}?session=${encodeURIComponent(session)}`;
+
+/** Whether this machine can run a browser at all. */
+export const doctorUrl = (): string => DOCTOR_PATH;

@@ -36,7 +36,10 @@ import { PUBLIC_TOOL_NAMES } from "../shared/tool-names";
 import { PresentationTail } from "./components/presentation-tail";
 import { AtlassianSection } from "./components/settings-section";
 import { AtlassianToolRow } from "./components/tool-row";
-import { atlassianPresentation } from "./conversation/presentation-definition";
+import {
+	atlassianPresentation,
+	PRESENT_TOOL_NAME,
+} from "./conversation/presentation-definition";
 import { PLUGIN_ID } from "./plugin-id";
 import { PANEL_ID, panelDefinition } from "./sidebar/definition";
 import { installPanelOpener } from "./sidebar/open";
@@ -97,7 +100,7 @@ export const apply = (ctx: Context): void => {
 	);
 
 	ctx.slots.inject("tool.call.toolview", () => {
-		const disposers = PUBLIC_TOOL_NAMES.map((name) =>
+		const disposers = [...PUBLIC_TOOL_NAMES, PRESENT_TOOL_NAME].map((name) =>
 			ctx.slots.register(
 				{ name: "tool.call.toolview", key: name },
 				AtlassianToolRow,

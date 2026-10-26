@@ -31,8 +31,21 @@ const RUNNERS: readonly (readonly [string, ScriptRunner])[] = [
 	["package-lock.json", "npm"],
 ];
 
+/** The words in a script's name that make it worth drafting as a check. */
+export const CHECK_WORDS = [
+	"lint",
+	"type",
+	"tsc",
+	"test",
+	"check",
+	"build",
+	"format",
+	"biome",
+	"eslint",
+] as const;
+
 /** Script names worth drafting: the ones that check something. */
-const CHECK_LIKE = /lint|type|tsc|test|check|build|format|biome|eslint/iu;
+const CHECK_LIKE = new RegExp(CHECK_WORDS.join("|"), "iu");
 
 /** Which package manager's lockfile the project has, if any. */
 export async function runnerFor(
@@ -66,6 +79,29 @@ export function parserFor(name: string, command: string): ParserName {
 	if (/lint/iu.test(name)) return "biome";
 
 	return "generic";
+}
+
+/**
+ * The script names a draft would pass over, in manifest order.
+ *
+ * `/checks init` prints them when it drafts nothing: a project whose checks are
+ * called `verify` or `ci` gets an empty draft, and without the list and the rule
+ * behind it there is nothing to act on.
+ * @param document - the parsed manifest.
+ */
+export function skippedScripts(document: unknown): readonly string[] {
+	if (document === null || typeof document !== "object") return [];
+
+	const scripts = (document as { scripts?: unknown }).scripts;
+
+	if (scripts === null || typeof scripts !== "object") return [];
+
+	return Object.entries(scripts)
+		.filter(
+			([name, command]) =>
+				typeof command === "string" && command !== "" && !CHECK_LIKE.test(name),
+		)
+		.map(([name]) => name);
 }
 
 /**

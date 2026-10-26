@@ -17,6 +17,8 @@ import {
 	type RouteContext,
 	type RouteHandler,
 } from "dsh-integration-host";
+import { isRecord } from "dsh-integration-host/shape";
+import { errorText } from "dsh-mcp-oauth";
 import type {
 	DigestBlockView,
 	DigestSettings,
@@ -24,8 +26,9 @@ import type {
 } from "../shared/digest";
 import type { DigestStatus } from "../shared/status";
 import type { DigestCollector } from "./collect";
+import type { DigestSave } from "./save";
 import type { DigestSchedule } from "./schedule";
-import type { DigestSettingsStore } from "./settings";
+import { type DigestSettingsStore, normalizeDigestSettings } from "./settings";
 
 /** The route prefix this plugin owns. */
 export const ROUTE_PREFIX = "/dsh-digest";
@@ -36,6 +39,7 @@ export interface ApiDeps {
 	readonly settings: DigestSettingsStore;
 	readonly collector: DigestCollector;
 	readonly schedule: DigestSchedule;
+	readonly save: DigestSave;
 }
 
 /**
@@ -55,12 +59,18 @@ const viewOf = async (deps: ApiDeps): Promise<DigestSettingsView> => {
 		provider: block.provider,
 		on: switches[block.id] === true,
 	}));
+	// A catalog that could not be read is not an empty one: the card says the
+	// count is unknown rather than that nobody has a digest.
+	const reminders = await deps.schedule.bound();
 
 	return {
 		settings,
 		blocks,
 		providers: [...new Set(blocks.map((block) => block.provider))],
-		scheduled: (await deps.schedule.bound()).length,
+		scheduled: reminders.entries.length,
+		...(reminders.error === undefined
+			? {}
+			: { remindersError: reminders.error }),
 		canSchedule: deps.schedule.isAvailable,
 	};
 };
@@ -91,15 +101,24 @@ const patchOf = (
 	};
 };
 
-/** Whether saving one edit changes when the digest arrives. */
-const timingChanged = (
-	before: DigestSettings,
-	after: DigestSettings,
-): boolean =>
-	before.time !== after.time ||
-	before.timeZone !== after.timeZone ||
-	before.days.length !== after.days.length ||
-	before.days.some((day) => !after.days.includes(day));
+/**
+ * The settings a preview is assembled under.
+ *
+ * The card sends its draft, not the saved document: the whole point of the
+ * button is to show what the edit will look like. Nothing is written — the
+ * draft is narrowed the way a save would narrow it, so no preview can show a
+ * configuration the save would refuse.
+ */
+const previewOf = (
+	current: DigestSettings,
+	body: Record<string, unknown> | undefined,
+): DigestSettings | undefined => {
+	const draft = body?.settings;
+
+	if (!isRecord(draft)) return undefined;
+
+	return normalizeDigestSettings({ ...current, ...draft });
+};
 
 /** The digest's own paths, tried after the four shared ones. */
 const digestRoutes = (deps: ApiDeps): readonly RouteHandler[] => [
@@ -116,11 +135,20 @@ const digestRoutes = (deps: ApiDeps): readonly RouteHandler[] => [
 
 		const body = (await route.read()).fields;
 		const before = await deps.settings.ensure();
-		const after = await deps.settings.save(patchOf(before, body));
 
 		// A change of time has to reach reminders that other sessions created, or
-		// the card would be editing a value only the next `/digest on` reads.
-		if (timingChanged(before, after)) await deps.schedule.rebindAll(after);
+		// the card would be editing a value only the next `/digest on` reads. The
+		// write rolls itself back when that cannot be done, so a failed save is
+		// exactly that: nothing was saved.
+		try {
+			await deps.save.apply(patchOf(before, body));
+		} catch (error) {
+			route.send(500, {
+				error: `The settings were not saved: ${errorText(error)}.`,
+			});
+
+			return true;
+		}
 
 		route.send(200, await viewOf(deps));
 
@@ -131,9 +159,11 @@ const digestRoutes = (deps: ApiDeps): readonly RouteHandler[] => [
 		if (route.url.pathname !== `${ROUTE_PREFIX}/now` || route.method !== "POST")
 			return false;
 
+		const body = (await route.read()).fields;
 		const collected = await deps.collector.collect(
 			`digest-settings-${Date.now()}`,
 			new Date(),
+			previewOf(await deps.settings.ensure(), body),
 		);
 
 		route.send(200, collected.report);
