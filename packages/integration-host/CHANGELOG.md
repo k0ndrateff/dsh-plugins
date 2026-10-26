@@ -1,5 +1,11 @@
 # dsh-integration-host
 
+## 0.4.1
+
+### Patch Changes
+
+- Fixed settings rendering bug.
+
 ## 0.4.0
 
 ### Minor Changes

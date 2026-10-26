@@ -14,8 +14,11 @@ import type { IntegrationStatus } from "./status";
 /** One instant as a person reads it, with the zone that makes it unambiguous. */
 const expiryText = (time: number): string =>
 	new Date(time).toLocaleString(undefined, {
-		dateStyle: "medium",
-		timeStyle: "short",
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
 		timeZoneName: "short",
 	});
 

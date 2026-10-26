@@ -1,5 +1,13 @@
 # dsh-integration-ui
 
+## 0.3.1
+
+### Patch Changes
+
+- Fixed settings rendering bug.
+- Updated dependencies
+  - dsh-integration-host@0.4.1
+
 ## 0.3.0
 
 ### Minor Changes

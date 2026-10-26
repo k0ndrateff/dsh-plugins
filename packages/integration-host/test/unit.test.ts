@@ -531,6 +531,27 @@ test("the integration host", async () => {
 			`sync reports how many tools are ready — ${sync.text}`,
 		).toBe(true);
 
+		const expiringFace = face({
+			...status,
+			expiresAt: Date.now() + 3_600_000,
+		});
+		const expiring = await createIntegrationCommand<TestStatus>(
+			{
+				name: "example",
+				label: "Example",
+				describe: (value) =>
+					value.slug === null ? "" : `Account: ${value.slug}.`,
+			},
+			expiringFace.auth,
+		)({ rawInput: "status" });
+
+		expect(
+			expiring.kind === "success" &&
+				expiring.text.includes("Token valid until") &&
+				!expiring.text.includes("unknown"),
+			`a token with an expiry is formatted with its zone — ${expiring.text}`,
+		).toBe(true);
+
 		const unknown = await run({ rawInput: "whatever" });
 
 		expect(
