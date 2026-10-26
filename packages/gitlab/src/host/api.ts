@@ -155,7 +155,7 @@ export class GitLabApi {
 
 		if (token === undefined)
 			throw new Error(
-				"no GitLab personal access token stored; paste one in the GitLab settings card",
+				"no GitLab personal access token stored; paste one in the GitLab settings card (the token is held by the harness and is not available to shell commands)",
 			);
 
 		const url = new URL(`${apiRootOf(this.deps.config)}${path}`);

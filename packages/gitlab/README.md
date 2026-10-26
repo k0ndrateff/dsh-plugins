@@ -19,8 +19,16 @@ works everywhere; it is kept in the harness credential store under
 
 ## What you get
 
+- `gitlab_list_merge_requests`, `gitlab_get_merge_request`, `gitlab_get_job_log`
+  and `gitlab_read`: what the agent reads GitLab with. The list takes a scope, a
+  project, a group, a search, labels or an author/reviewer; the one merge request
+  tool returns its description and metadata and, on request, its diff, its review
+  discussions and its newest pipeline with jobs; the job tool returns the end of
+  a failed job's trace; `gitlab_read` answers any other REST GET — issues,
+  commits, branches, repository files, users, search. Reads use the token stored
+  in the harness, so the agent never runs `glab` or looks for a token on disk.
 - `gitlab_present`: merge requests waiting for your review, your own, a search, one
-  merge request's review findings, or its failed jobs.
+  merge request's review findings, or its failed jobs, drawn as a card.
 - A merge request panel with four sections — **Overview**, **Diff**,
   **Discussions** (filtered to unresolved or to findings, with reply and resolve)
   and **Pipeline** (jobs, and a failed job's trace on demand).

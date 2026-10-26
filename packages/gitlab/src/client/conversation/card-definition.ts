@@ -17,13 +17,10 @@ import {
 	asGitLabPresentation,
 	type GitLabPresentation,
 } from "../../shared/meta";
+import { GITLAB_PRESENT_TOOL, GITLAB_REVIEW_TOOL } from "../../shared/tools";
 import { gitlabCard } from "../components/presentation-card";
 
-/** The wire name whose settled result carries one card. */
-export const GITLAB_PRESENT_TOOL = "gitlab_present";
-
-/** The wire name every social action goes through. */
-export const GITLAB_REVIEW_TOOL = "gitlab_review";
+export { GITLAB_PRESENT_TOOL, GITLAB_REVIEW_TOOL };
 
 /** The Turn-data key the tail reads. */
 export const GITLAB_TURN_DATA_KEY = "gitlab-presented";

@@ -80,8 +80,12 @@ status|login|logout|sync`.
 
 **GitLab.** The REST API with a personal access token, not MCP: GitLab's MCP
 endpoint is off unless an Owner of the top-level group turns it on, and its tokens
-carry the single scope `mcp`, which no REST call accepts. `gitlab_present` shows
-merge requests, review findings and failed jobs; the panel has Overview, Diff,
+carry the single scope `mcp`, which no REST call accepts. The agent reads GitLab
+with `gitlab_list_merge_requests`, `gitlab_get_merge_request` (description, diff,
+review discussions, newest pipeline), `gitlab_get_job_log` and `gitlab_read` for
+any other GET — issues, commits, branches, search — instead of reaching for `glab`
+and hunting for a token in the shell. `gitlab_present` shows merge requests,
+review findings and failed jobs as a card; the panel has Overview, Diff,
 Discussions and Pipeline sections. `gitlab_review` comments, replies, resolves and
 approves — every one of those changes somebody else's merge request, so it answers
 with the exact text it would post until the call carries `confirm`, and the panel
@@ -209,8 +213,10 @@ and what was measured on the way — [docs/roadmap.md](docs/roadmap.md).
   its single scope is not one a self-made Figma app can request.
 - **Code Connect shows what the file already has**; the panel reads mappings and
   does not create them.
-- **A job's trace is cut to its last 64 KiB**, and a merge request list carries no
-  pipeline status — GitLab's list endpoint does not send it.
+- **A job's trace is cut to its last 64 KiB in the panel and 32 000 characters
+  for the agent**, a diff is cut at 48 000 characters and `gitlab_read` at
+  32 000 characters; and a merge request list carries no pipeline status —
+  GitLab's list endpoint does not send it.
 - **A digest block looks back 24 hours** whatever the delivery cadence, and its
   reminder belongs to the session `/digest on` was typed in.
 - **A correlation walks depth first** and is capped at four references deep and

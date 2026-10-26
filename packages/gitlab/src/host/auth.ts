@@ -15,6 +15,14 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { IntegrationAuthFace, RuntimeState } from "dsh-integration-host";
 import { errorText, loggerOf } from "dsh-mcp-oauth";
 import type { GitLabStatus } from "../shared/status";
+import {
+	GITLAB_GET_JOB_LOG_TOOL,
+	GITLAB_GET_MERGE_REQUEST_TOOL,
+	GITLAB_LIST_MERGE_REQUESTS_TOOL,
+	GITLAB_PRESENT_TOOL,
+	GITLAB_READ_TOOL,
+	GITLAB_REVIEW_TOOL,
+} from "../shared/tools";
 import { type GitLabAccount, readAccount } from "./account";
 import type { GitLabApi } from "./api";
 import type { GitLabConfig } from "./config";
@@ -34,7 +42,14 @@ export interface AuthDeps {
 }
 
 /** The tools this plugin publishes beside the agent's own. */
-const PUBLISHED_TOOLS = ["gitlab_present", "gitlab_review"];
+const PUBLISHED_TOOLS = [
+	GITLAB_LIST_MERGE_REQUESTS_TOOL,
+	GITLAB_GET_MERGE_REQUEST_TOOL,
+	GITLAB_GET_JOB_LOG_TOOL,
+	GITLAB_READ_TOOL,
+	GITLAB_PRESENT_TOOL,
+	GITLAB_REVIEW_TOOL,
+];
 
 /**
  * The sign-in face this plugin's route drives.

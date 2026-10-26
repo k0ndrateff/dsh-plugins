@@ -11,6 +11,7 @@
 import { Button, StateDot, Tag } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { readJobLog } from "../../shared/ansi";
 import {
 	asJobLogPanel,
 	asPipelinePanel,
@@ -20,7 +21,6 @@ import {
 	type PipelinePanel,
 } from "../../shared/panel";
 import { jobStatusLabel, jobTone } from "../../shared/tone";
-import { readJobLog } from "../ansi";
 import { hostApi } from "../host-api";
 import * as styles from "../styles/styles.css";
 import { messageOf } from "../text";

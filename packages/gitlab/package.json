@@ -1,6 +1,6 @@
 {
 	"name": "dsh-gitlab-plugin",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"type": "module",
 	"description": "Merge requests, review threads and pipelines for DeepSeek Harness, over GitLab's REST API with a personal access token",
 	"license": "MIT",

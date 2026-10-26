@@ -13,7 +13,6 @@
  */
 
 import { expect, test } from "bun:test";
-import { readJobLog } from "../src/client/ansi";
 import {
 	findingOf,
 	parseDiffFiles,
@@ -26,6 +25,7 @@ import {
 	parsePipeline,
 	parseReference,
 } from "../src/host/presentation/parse";
+import { readJobLog } from "../src/shared/ansi";
 import { isFinding } from "../src/shared/panel";
 
 test("the merge request list", async () => {

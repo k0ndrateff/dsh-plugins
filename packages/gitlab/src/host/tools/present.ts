@@ -13,17 +13,16 @@ import type { RuntimeState } from "dsh-integration-host";
 import { nonEmptyString } from "dsh-integration-host/shape";
 import type { JsonValue } from "dsh-mcp-oauth";
 import type {
-	FindingCard,
 	GitLabPresentation,
 	JobCard,
-	MergeRequestCard,
 	PresentationItem,
 	PresentationLayout,
 	PresentationLayoutInput,
 } from "../../shared/meta";
 import { type Discussion, isFinding } from "../../shared/panel";
+import { GITLAB_PRESENT_TOOL } from "../../shared/tools";
 import type { GitLabAccount } from "../account";
-import type { GitLabApi, Param } from "../api";
+import type { GitLabApi } from "../api";
 import {
 	findingOf,
 	parseDiscussions,
@@ -33,6 +32,8 @@ import {
 	parsePipeline,
 	parseReference,
 } from "../presentation/parse";
+import { listParamsOf, listPathOf } from "./query";
+import { findingLine, mrLine } from "./text";
 
 /** Never put more than this many rows on one card. */
 const MAX_ITEMS = 25;
@@ -81,7 +82,7 @@ function stringList(value: unknown): string[] {
 
 class PresentTool {
 	/** The wire name the agent calls. */
-	readonly TOOL_NAME = "gitlab_present";
+	readonly TOOL_NAME = GITLAB_PRESENT_TOOL;
 
 	/**
 	 * Build the tool definition for one plugin instance.
@@ -96,7 +97,9 @@ class PresentTool {
 			"failed — instead of only describing it in prose. Resolve the content by merge request " +
 			"references, by scope, by search, or by naming a merge request's findings or failed jobs. " +
 			"Each row links to the item and carries its state, author, reviewers and pipeline. Call it " +
-			"once per card, then write your answer; do not repeat the card's contents as a list in the text.",
+			"once per card, then write your answer; do not repeat the card's contents as a list in the text. " +
+			"Reading merge request data for your own reasoning is gitlab_list_merge_requests or " +
+			"gitlab_get_merge_request; gitlab_present is for showing a card.",
 		parameters: {
 			type: "object",
 			additionalProperties: false,
@@ -304,8 +307,8 @@ class PresentTool {
 			args.search !== undefined
 		) {
 			const answer = await deps.api.getAnswer(
-				this.listPath(args),
-				this.listParams(deps, args),
+				listPathOf(args),
+				listParamsOf(deps.state, args),
 			);
 			const listed = parseMergeRequestList(answer.value);
 
@@ -377,50 +380,6 @@ class PresentTool {
 	/** The API path of one merge request. */
 	private mrPath(project: string, iid: number): string {
 		return `/projects/${encodeURIComponent(project)}/merge_requests/${iid}`;
-	}
-
-	/** Where a list is read from: one project, one group, or everything visible. */
-	private listPath(args: PresentArgs): string {
-		if (args.project !== undefined)
-			return `/projects/${encodeURIComponent(args.project)}/merge_requests`;
-		if (args.group !== undefined)
-			return `/groups/${encodeURIComponent(args.group)}/merge_requests`;
-
-		return "/merge_requests";
-	}
-
-	/**
-	 * What narrows a list, in GitLab's own query vocabulary.
-	 *
-	 * "Waiting for my review" is not one of the global `scope` values; GitLab
-	 * spells it as a reviewer filter, so that is what it is asked for.
-	 */
-	private listParams(
-		deps: PresentDeps,
-		args: PresentArgs,
-	): Readonly<Record<string, Param>> {
-		const params: Record<string, Param> = { per_page: args.limit ?? 10 };
-
-		if (args.state !== undefined) params.state = args.state;
-		if (args.search !== undefined) params.search = args.search;
-
-		if (args.scope === "review_requested") {
-			const username = deps.state.facts?.username;
-
-			if (username === undefined)
-				throw new Error(
-					"the GitLab account is not known yet; run /gitlab sync",
-				);
-
-			params.reviewer_username = username;
-			params.state = args.state ?? "opened";
-
-			return params;
-		}
-
-		if (args.scope !== undefined) params.scope = args.scope;
-
-		return params;
 	}
 
 	/** The review threads of one merge request, unresolved ones first. */
@@ -528,9 +487,9 @@ class PresentTool {
 
 		for (const item of presentation.items) {
 			if (item.kind === "merge_request") {
-				lines.push(`- ${this.mrLine(item.mergeRequest)}`);
+				lines.push(`- ${mrLine(item.mergeRequest)}`);
 			} else if (item.kind === "finding") {
-				lines.push(`- ${this.findingLine(item.finding)}`);
+				lines.push(`- ${findingLine(item.finding)}`);
 			} else {
 				const job = item.job;
 
@@ -546,39 +505,6 @@ class PresentTool {
 			lines.push(`Merge request: ${presentation.subject}`);
 
 		return lines.join("\n");
-	}
-
-	/** One merge request as the model's own line. */
-	private mrLine(mr: MergeRequestCard): string {
-		const parts = [
-			`${mr.project}!${mr.iid}`,
-			mr.title,
-			mr.state,
-			mr.draft === true ? "draft" : undefined,
-			mr.author === undefined ? undefined : `by ${mr.author}`,
-			mr.reviewers === undefined || mr.reviewers.length === 0
-				? undefined
-				: `reviewers: ${mr.reviewers.join(", ")}`,
-			mr.pipeline === undefined ? undefined : `pipeline: ${mr.pipeline}`,
-			mr.unresolved === undefined ? undefined : `${mr.unresolved} unresolved`,
-			mr.url,
-		].filter((part): part is string => part !== undefined && part !== "");
-
-		return parts.join(" · ");
-	}
-
-	/** One review finding as the model's own line. */
-	private findingLine(finding: FindingCard): string {
-		const parts = [
-			finding.file === undefined
-				? finding.discussionId
-				: `${finding.file}${finding.line === undefined ? "" : `:${finding.line}`}`,
-			finding.resolved ? "resolved" : "unresolved",
-			finding.author,
-			finding.body.split("\n")[0],
-		].filter((part): part is string => part !== undefined && part !== "");
-
-		return parts.join(" · ");
 	}
 }
 

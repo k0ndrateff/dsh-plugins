@@ -36,7 +36,11 @@ import { ReviewService } from "./review";
 import { COMMAND_NAME, createCommandHandler } from "./surface/command";
 import { createApiHandler, ROUTE_PREFIX } from "./surface/http";
 import { TokenStore } from "./token";
+import { getJobLogTool } from "./tools/get-job-log";
+import { getMergeRequestTool } from "./tools/get-merge-request";
+import { listMergeRequestsTool } from "./tools/list-merge-requests";
 import { presentTool } from "./tools/present";
+import { readTool } from "./tools/read";
 import { reviewTool } from "./tools/review";
 
 export const name = PLUGIN_NAME;
@@ -75,6 +79,14 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 		input: { hint: "status | login | logout | sync" },
 		handler: createCommandHandler(auth),
 	});
+
+	// The read tools answer the model's own questions about GitLab. The token is
+	// held by the harness, so the agent never needs a shell command or a token on
+	// disk to read a merge request, a job log or any other endpoint.
+	ctx.tools.register(listMergeRequestsTool.create({ api, state }));
+	ctx.tools.register(getMergeRequestTool.create({ api }));
+	ctx.tools.register(getJobLogTool.create({ api }));
+	ctx.tools.register(readTool.create({ api }));
 
 	// The presentation tool is registered beside the reads it resolves through:
 	// it shows what they return as a card under the agent's answer.

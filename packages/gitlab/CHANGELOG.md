@@ -1,5 +1,15 @@
 # dsh-gitlab-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- Give the agent read tools for GitLab: `gitlab_list_merge_requests`,
+  `gitlab_get_merge_request` (description, diff, review discussions, newest
+  pipeline), `gitlab_get_job_log` and `gitlab_read` for any other REST GET. Reads
+  go through the personal token stored in the harness, so the agent no longer falls
+  back to `glab` in a shell and hunts for a token on disk.
+
 ## 0.2.2
 
 ### Patch Changes

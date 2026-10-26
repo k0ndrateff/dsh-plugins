@@ -692,7 +692,14 @@ test("the route", async () => {
 			notice: null,
 			error: null,
 			connected: true,
-			tools: ["gitlab_present", "gitlab_review"],
+			tools: [
+				"gitlab_list_merge_requests",
+				"gitlab_get_merge_request",
+				"gitlab_get_job_log",
+				"gitlab_read",
+				"gitlab_present",
+				"gitlab_review",
+			],
 			endpoint: "https://gitlab.com",
 		};
 

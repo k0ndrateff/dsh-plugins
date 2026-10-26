@@ -14,6 +14,7 @@
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import { nonEmptyString } from "dsh-integration-host/shape";
 import { isReviewAction, type ReviewRequest } from "../../shared/panel";
+import { GITLAB_REVIEW_TOOL } from "../../shared/tools";
 import { parseReference } from "../presentation/parse";
 import type { ReviewService } from "../review";
 
@@ -33,7 +34,7 @@ interface ReviewArgs {
 
 class ReviewTool {
 	/** The wire name the agent calls. */
-	readonly TOOL_NAME = "gitlab_review";
+	readonly TOOL_NAME = GITLAB_REVIEW_TOOL;
 
 	/**
 	 * Build the tool definition for one plugin instance.
@@ -163,7 +164,7 @@ class ReviewTool {
 		if (draft.body !== undefined) lines.push("", draft.body, "");
 
 		lines.push(
-			"Show this wording to the user and ask whether to send it. Call gitlab_review again with confirm: true only after they agree.",
+			`Show this wording to the user and ask whether to send it. Call ${GITLAB_REVIEW_TOOL} again with confirm: true only after they agree.`,
 		);
 
 		return lines.join("\n");
