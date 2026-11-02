@@ -1,5 +1,6 @@
 /**
- * The browser's settings page: one staged form over the plugin's own Config.
+ * The browser's row configuration on the Plugins page: one staged form over the
+ * plugin's own Config, plus the row's one-liner fallback.
  *
  * The fields are the plugin's configuration and nothing else — the harness owns
  * where a write lands, and the form stages until Save, so what is on screen is
@@ -40,6 +41,8 @@ export const SETTINGS_NAMESPACES = ["include:browser", "browser"] as const;
 
 /** The copy the page and its form frame render. */
 const COPY = {
+	summary:
+		"The agent's browser: which CLI it runs, how it opens, and how its live view is encoded.",
 	unavailable:
 		"This browser plugin is not loaded, so it has no settings to show right now.",
 	readOnly: "This deployment stores settings read-only.",
@@ -189,8 +192,8 @@ export class BrowserSettingsForm {
 	}
 }
 
-/** The face this page's slot registration injects. */
-interface BrowserSettingsProps extends PropsRuntime<"settings.plugins.tab"> {
+/** The injected face: the staged snapshot store and the form's actions. */
+interface BrowserSettingsProps extends PropsRuntime<"plugins.row.config"> {
 	readonly useBrowserSettings: <T>(
 		select: (snapshot: BrowserSettingsSnapshot) => T,
 	) => T;
@@ -392,15 +395,9 @@ const MachineCheck = (): ReactNode => {
 	);
 };
 
-/** The page: one form, ten controls, and the save the form frame owns. */
-export const BrowserSettingsPage = (
-	props: PropsRuntime<"settings.plugins.tab">,
-): ReactNode => {
-	// The slot is declared without an inject face, so the props this page is
-	// handed — its own snapshot store and the form's actions — are spelled here
-	// rather than inferred from the registration.
-	const page = props as unknown as BrowserSettingsProps;
-	const state = page.useBrowserSettings((snapshot) => snapshot);
+/** The form itself: one control per field and the save the form frame owns. */
+const BrowserSettingsBody = (props: BrowserSettingsProps): ReactNode => {
+	const state = props.useBrowserSettings((snapshot) => snapshot);
 
 	return (
 		<SettingsForm
@@ -412,14 +409,33 @@ export const BrowserSettingsPage = (
 				saving: COPY.saving,
 			}}
 			state={state}
-			onSave={page.save}
-			onDiscard={page.discard}
+			onSave={props.save}
+			onDiscard={props.discard}
 		>
 			{FIELDS.map((name) => (
-				<FieldControl key={name} name={name} state={state} props={page} />
+				<FieldControl key={name} name={name} state={state} props={props} />
 			))}
 
 			<MachineCheck />
 		</SettingsForm>
 	);
+};
+
+/**
+ * The configuration of this bundle's row on the Plugins page.
+ *
+ * `page` is the staged form, opened from the row's Configure control. `summary`
+ * is the row's one-liner, asked for only when the row has no description of its
+ * own, so it says what is configured and draws no chrome: the page owns the
+ * title, the icon, and the crumb, from the plugin's display metadata.
+ */
+export const BrowserSettingsPage = (
+	props: PropsRuntime<"plugins.row.config">,
+): ReactNode => {
+	if (props.view === "summary") return COPY.summary;
+
+	// The slot contract carries the owner's `view`/`form` only; the snapshot store
+	// and the form actions are this registration's own injected face, declared
+	// here rather than inferred from the registration site.
+	return <BrowserSettingsBody {...(props as BrowserSettingsProps)} />;
 };

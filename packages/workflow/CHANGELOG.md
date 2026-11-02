@@ -1,5 +1,25 @@
 # dsh-workflow-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- Remove the digest and correlation plugins, which did not pay off: their packages,
+  the `dsh-integration-host/digest` and `/correlation` contracts and the source
+  registrations in Atlassian, Sentry and GitLab are gone, and `dsh-workflow-plugin`
+  no longer mounts either. The only public API removal is on the library, whose
+  two client-safe entry points disappear with their consumers.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - dsh-browser-plugin@0.4.0
+  - dsh-atlassian-plugin@0.5.1
+  - dsh-sentry-plugin@0.3.1
+  - dsh-gitlab-plugin@0.4.1
+  - dsh-integrations-plugin@0.3.1
+
 ## 0.2.2
 
 ### Patch Changes

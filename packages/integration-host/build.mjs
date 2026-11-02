@@ -5,20 +5,14 @@
  * this package's source directly (see the alias in its build.mjs), so the two
  * can never disagree about the code.
  *
- * `status.ts`, `digest.ts`, `correlation.ts` and `shape.ts` are separate entries on purpose:
- * they are the contracts a browser half reads without pulling this package's
- * node code into its program.
+ * `status.ts` and `shape.ts` are separate entries on purpose: they are the
+ * contracts a browser half reads without pulling this package's node code into
+ * its program.
  */
 import { build } from "esbuild";
 
 await build({
-	entryPoints: [
-		"src/index.ts",
-		"src/status.ts",
-		"src/digest.ts",
-		"src/correlation.ts",
-		"src/shape.ts",
-	],
+	entryPoints: ["src/index.ts", "src/status.ts", "src/shape.ts"],
 	outdir: "lib",
 	entryNames: "[name]",
 	bundle: true,

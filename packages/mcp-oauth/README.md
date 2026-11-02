@@ -6,8 +6,8 @@ does not have, which is why an integration has to bring it.
 Part of **[DeepSeek Harness Plugins](https://github.com/k0ndrateff/dsh-plugins)**
 by [@k0ndrateff](https://github.com/k0ndrateff) — Jira, Confluence, Sentry, GitLab
 and Figma integrations for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
-a cross-provider correlation and project checks built on top of them.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus project
+checks built on top of them.
 
 **This is a library, not a plugin.** Installing it adds a dependency and nothing
 else: `dsh plugin add dsh-mcp-oauth` would show you nothing in the app. To use Jira,

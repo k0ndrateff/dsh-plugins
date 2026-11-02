@@ -12,6 +12,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { ActMeta } from "../../shared/meta";
 import { BROWSER_ACT_TOOL } from "../../shared/tools";
 import { fieldOf, isText, modelData } from "../envelope";
 import { type BrowserToolDeps, runForSession } from "./deps";
@@ -132,6 +133,18 @@ class ActTool {
 				else if (done.url !== "") lines.push(`The page is at ${done.url}.`);
 
 				return [{ type: "text", text: lines.join("\n") }];
+			},
+			// The browser half reads this back as `result.meta`: the verb, its
+			// target, and whether the page moved somewhere worth naming.
+			presentationMeta: (_args, value) => {
+				const done = value as unknown as ActMeta;
+
+				return {
+					action: done.action,
+					target: done.target,
+					url: done.url,
+					addressUnread: done.addressUnread,
+				};
 			},
 		},
 		execute: async (rawArgs, exec) => {

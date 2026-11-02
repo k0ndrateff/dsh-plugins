@@ -8,8 +8,8 @@ stylesheet they are drawn with.
 
 Part of DeepSeek Harness Plugins by [@k0ndrateff](https://github.com/k0ndrateff) —
 Jira, Confluence, Sentry, GitLab and Figma integrations for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
-a cross-provider correlation and project checks built on top of them.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus project
+checks built on top of them.
 
 **This is a library, not a plugin.** It exists so a provider plugin supplies only
 its payload, its drawing rules and its own tab kind; nothing appears in the app by

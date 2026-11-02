@@ -6,8 +6,8 @@ read from the **Dev Mode MCP server** the Figma desktop app serves while it runs
 Part of **[DeepSeek Harness Plugins](https://github.com/k0ndrateff/dsh-plugins)**
 by [@k0ndrateff](https://github.com/k0ndrateff) — Jira, Confluence, Sentry, GitLab
 and Figma integrations for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
-a cross-provider correlation and project checks built on top of them. Everything is
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus project
+checks built on top of them. Everything is
 in the [market index](https://k0ndrateff.github.io/dsh-plugins/market.json) and
 listed in the [collection README](https://github.com/k0ndrateff/dsh-plugins#packages).
 

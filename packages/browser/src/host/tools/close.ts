@@ -13,6 +13,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { CloseMeta } from "../../shared/meta";
 import { BROWSER_CLOSE_TOOL } from "../../shared/tools";
 import type { BrowserToolDeps } from "./deps";
 import { failureOf } from "./failure";
@@ -51,6 +52,14 @@ class CloseTool {
 				const answer = value as { closed: boolean; message: string };
 
 				return [{ type: "text", text: answer.message }];
+			},
+			// The browser half reads this back as `result.meta`: whether the call
+			// ended a browser or found none to end.
+			presentationMeta: (_args, value) => {
+				const answer = value as unknown as { closed: boolean };
+				const meta: CloseMeta = { closed: answer.closed };
+
+				return meta;
 			},
 		},
 		execute: async (_rawArgs, exec) => {

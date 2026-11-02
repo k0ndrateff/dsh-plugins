@@ -12,6 +12,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { RunMeta } from "../../shared/meta";
 import { BROWSER_RUN_TOOL } from "../../shared/tools";
 import { modelData } from "../envelope";
 import { boundJson } from "../text";
@@ -104,6 +105,17 @@ class RunTool {
 								: `agent-browser ${ran.command}\n${ran.answer}`,
 					},
 				];
+			},
+			// The browser half reads this back as `result.meta`: the command, and
+			// whether there is an answer behind it worth expanding.
+			presentationMeta: (_args, value) => {
+				const ran = value as unknown as { command: string; answer: string };
+				const meta: RunMeta = {
+					command: ran.command,
+					empty: ran.answer === "",
+				};
+
+				return meta;
 			},
 		},
 		execute: async (rawArgs, exec) => {

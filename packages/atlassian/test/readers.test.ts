@@ -3,8 +3,8 @@
  *
  * The extractor is what turns a Jira or Confluence field into the string the
  * panel renders and the model reads, so this is where the provider's own
- * conventions are read rather than where a card is assembled — `digest.test.ts`
- * covers that.
+ * conventions are read rather than where a card is assembled;
+ * `presentation.test.ts` covers that.
  */
 
 import { describe, expect, test } from "bun:test";

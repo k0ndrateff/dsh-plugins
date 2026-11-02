@@ -1,13 +1,16 @@
 /**
  * dsh-browser — the Web Client half.
  *
- * It contributes three things to the page:
+ * It contributes four things to the page:
  *  - one right-Sidebar panel, where the browser the agent is driving is watched
  *    live: the page, its frames, and what the agent is doing on it;
- *  - one keyed tool view for `browser_open`, so a call renders as one line
- *    instead of the raw JSON behind it — and so the panel is already showing the
- *    page by the time the reader looks up from the agent's answer;
- *  - the stylesheet the two are drawn with.
+ *  - one keyed tool view per browser tool, so a call renders as one line
+ *    instead of the raw JSON behind it — and so `browser_open` has the panel
+ *    already showing the page by the time the reader looks up from the answer;
+ *  - this bundle's configuration on the Plugins page, under its own row, so
+ *    changing the executable or showing the window happens where the bundle is
+ *    managed rather than in the read-only inventory under Settings;
+ *  - the stylesheet the seats are drawn with.
  *
  * The seats themselves — the tab type, the panel shell, the terse tool row —
  * come from `dsh-integration-ui`; this half says what is the browser's and
@@ -23,11 +26,14 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 // Each import below carries a declaration this half needs: the slot registry
-// itself and the right Sidebar's tab-type registry with its parameter map.
+// itself, the right Sidebar's tab-type registry with its parameter map, and the
+// Plugins page's row-configuration contract with its owner props.
+import type {} from "@deepseek-ai/dsh-client-ui-plugin-manager/client";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-settings/client";
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar-right/client";
 import { registerBrowserOpenRow } from "./components/tool-row";
+import { ROW_CONFIG_KEY } from "./plugin-id";
 import {
 	BrowserSettingsForm,
 	BrowserSettingsPage,
@@ -87,8 +93,9 @@ export const apply = (ctx: Context): void => {
 		),
 	);
 
-	// The settings page needs the harness's settings service, which a build
-	// without Settings does not compose: the page simply does not appear there.
+	// The row's configuration needs the harness's settings service, which a build
+	// without Settings does not compose: the row simply has nothing to configure
+	// there.
 	ctx.inject(["configForms"], (scoped) => {
 		scoped.effect(
 			() =>
@@ -105,13 +112,14 @@ export const apply = (ctx: Context): void => {
 					const form = new BrowserSettingsForm(
 						scoped.configForms.get(namespace),
 					);
-					const registration = scoped.slots.inject("settings.plugins.tab", () =>
+					// The configuration belongs on the Plugins page, under this bundle's
+					// own row: Settings → Built-in plugins is the read-only inventory, and
+					// a form there would sit where nothing can be configured.
+					const registration = scoped.slots.inject("plugins.row.config", () =>
 						scoped.slots.register(
 							{
-								name: "settings.plugins.tab",
-								id: "browser",
-								order: 20,
-								label: "Browser",
+								name: "plugins.row.config",
+								key: ROW_CONFIG_KEY,
 								inject: () => form.inject(),
 							},
 							BrowserSettingsPage,
@@ -123,7 +131,7 @@ export const apply = (ctx: Context): void => {
 						form.dispose();
 					};
 				}),
-			"browser: settings page",
+			"browser: row configuration",
 		);
 	});
 

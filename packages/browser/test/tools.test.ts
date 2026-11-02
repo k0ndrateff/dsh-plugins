@@ -39,6 +39,7 @@ import { readTool } from "../src/host/tools/read";
 import { runTool } from "../src/host/tools/run";
 import { screenshotTool } from "../src/host/tools/screenshot";
 import { snapshotTool } from "../src/host/tools/snapshot";
+import { asBrowserMeta } from "../src/shared/meta";
 
 /** An answer, or a function of the call that is being answered. */
 type Script =
@@ -873,6 +874,113 @@ test("every tool registers a schema the harness accepts", async () => {
 		expect(
 			definition.description.length > 120,
 			`${tool.TOOL_NAME} says what it is for`,
+		).toBe(true);
+	}
+});
+
+test("every settled call records the row it draws", async () => {
+	const { deps } = toolsFor((command) => {
+		switch (command.args[0]) {
+			case "open":
+				return ok({ title: "Checkout", url: "http://x/checkout" });
+			case "snapshot":
+				return ok({
+					origin: "http://x/",
+					refs: { e1: { name: "Save", role: "button" } },
+					snapshot: '- button "Save" [ref=e1]',
+				});
+			case "click":
+				return ok({ clicked: "@e1" });
+			case "get":
+				return ok({ url: "http://x/next" });
+			case "console":
+				return ok({ messages: [{ text: "ready", type: "log" }] });
+			case "network":
+				return ok({ requests: [] });
+			case "screenshot":
+				return ok({ path: "/tmp/shot.png" });
+			default:
+				return ok({});
+		}
+	});
+	const cases: readonly {
+		readonly tool: ToolDefinition;
+		readonly args: unknown;
+		readonly meta: Record<string, unknown>;
+	}[] = [
+		{
+			args: { url: "http://x/checkout" },
+			meta: {
+				session: "dsh-test",
+				url: "http://x/checkout",
+				title: "Checkout",
+			},
+			tool: openTool.create(deps),
+		},
+		{
+			args: {},
+			meta: { elements: 1, url: "http://x/", interactive: true, selector: "" },
+			tool: snapshotTool.create(deps),
+		},
+		{
+			args: { action: "click", target: "@e1" },
+			meta: {
+				action: "click",
+				target: "@e1",
+				url: "http://x/next",
+				addressUnread: false,
+			},
+			tool: actTool.create(deps),
+		},
+		{
+			args: { what: "console" },
+			meta: { what: "console", count: 1 },
+			tool: readTool.create(deps),
+		},
+		{
+			args: { args: ["network", "requests"] },
+			meta: { command: "network requests", empty: false },
+			tool: runTool.create(deps),
+		},
+		{
+			args: {},
+			meta: {
+				url: "http://x/",
+				format: "png",
+				bytes: 1_234,
+				width: 1_280,
+				height: 633,
+			},
+			tool: screenshotTool.create(deps),
+		},
+		{
+			args: {},
+			meta: { closed: true },
+			tool: closeTool.create(deps),
+		},
+	];
+
+	expect(
+		cases.length === browserTools.length,
+		"every browser tool is covered",
+	).toBe(true);
+
+	for (const one of cases) {
+		expect(
+			one.tool.output.presentationMeta !== undefined,
+			`${one.tool.name} records what its row says`,
+		).toBe(true);
+
+		const value = await one.tool.execute(one.args, execOf());
+		const meta = one.tool.output.presentationMeta?.(
+			one.args,
+			value as never,
+		) as unknown as Record<string, unknown>;
+
+		expect(meta).toEqual(one.meta);
+		expect(
+			asBrowserMeta(meta) !== undefined,
+			`${one.tool.name}'s metadata is one the browser half reads`,
 		).toBe(true);
 	}
 });

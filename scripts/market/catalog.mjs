@@ -18,7 +18,7 @@
 export const INDEX = {
 	title: "DeepSeek Harness plugins",
 	description:
-		"Integrations, a daily digest and cross-provider correlation for DeepSeek Harness.",
+		"Integrations, project checks and an agent browser for DeepSeek Harness.",
 	metadata: {
 		categories: {
 			integration: { title: "Integration" },
@@ -42,9 +42,9 @@ export const INDEX = {
 /**
  * How each plugin is filed, in the order the index lists them.
  *
- * The order is deliberate: the integrations a user comes for first, then the two
- * things built on top of them, then the page their settings appear on, the
- * project checks, and the bundle that mounts everything.
+ * The order is deliberate: the integrations a user comes for first, then the page
+ * their settings appear on, the project checks, the browser, and the bundle that
+ * mounts everything.
  */
 export const PLUGINS = {
 	"dsh-atlassian-plugin": {
@@ -79,23 +79,6 @@ export const PLUGINS = {
 			"tokens",
 			"variables",
 			"code connect",
-		],
-	},
-	"dsh-digest-plugin": {
-		category: "workflow",
-		labels: ["read-only"],
-		keywords: ["digest", "daily", "summary", "schedule", "morning"],
-	},
-	"dsh-correlation-plugin": {
-		category: "workflow",
-		labels: ["read-only"],
-		keywords: [
-			"correlation",
-			"chain",
-			"commit",
-			"merge request",
-			"ticket",
-			"root cause",
 		],
 	},
 	"dsh-integrations-plugin": {

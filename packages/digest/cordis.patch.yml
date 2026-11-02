@@ -1,4 +1,0 @@
-# dsh-digest-plugin bundle layer.
-- insert:
-    - id: digest
-      name: dsh-digest-plugin

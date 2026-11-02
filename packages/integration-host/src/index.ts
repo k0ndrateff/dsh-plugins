@@ -27,24 +27,6 @@ export {
 	type EndpointConfig,
 	resolveEndpointConfig,
 } from "./config";
-export {
-	CORRELATION_SOURCES,
-	type CorrelationFact,
-	type CorrelationKind,
-	type CorrelationRef,
-	type CorrelationSource,
-	type CorrelationSourceEntry,
-	CorrelationSources,
-} from "./correlation";
-export {
-	DIGEST_SOURCES,
-	type DigestBlockEntry,
-	type DigestBlockSpec,
-	type DigestItem,
-	type DigestLoadOptions,
-	type DigestSource,
-	DigestSources,
-} from "./digest";
 export type { AccountFacts, FactsReader } from "./facts";
 export { stripHtmlComments } from "./markdown";
 export {

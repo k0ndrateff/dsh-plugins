@@ -1,5 +1,15 @@
 # dsh-integration-host
 
+## 0.5.0
+
+### Minor Changes
+
+- Remove the digest and correlation plugins, which did not pay off: their packages,
+  the `dsh-integration-host/digest` and `/correlation` contracts and the source
+  registrations in Atlassian, Sentry and GitLab are gone, and `dsh-workflow-plugin`
+  no longer mounts either. The only public API removal is on the library, whose
+  two client-safe entry points disappear with their consumers.
+
 ## 0.4.1
 
 ### Patch Changes

@@ -4,9 +4,10 @@
 #
 # The browser this row drives is the machine's own `agent-browser` CLI. Its
 # settings — executable, timeouts, a visible window, a reusable Chrome profile,
-# the CLI's domain allowlist and the live view's frame size — are edited in
-# Settings → Plugins → Browser, which writes them into the profile patch under
-# this id. The row itself needs no config, and a patch can still disable it:
+# the CLI's domain allowlist and the live view's frame size — are edited on the
+# Plugins page, under this bundle's row (Configure), which writes them into the
+# profile patch under this id. The row itself needs no config, and a patch can
+# still disable it:
 #   - id: browser
 #     disabled: true
 - insert:

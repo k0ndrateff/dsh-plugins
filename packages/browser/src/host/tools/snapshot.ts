@@ -13,6 +13,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { SnapshotMeta } from "../../shared/meta";
 import { BROWSER_SNAPSHOT_TOOL } from "../../shared/tools";
 import { fieldOf, isRecord, isText, modelData } from "../envelope";
 import { bound } from "../text";
@@ -102,6 +103,18 @@ class SnapshotTool {
 				}
 
 				return [{ type: "text", text: lines.join("\n") }];
+			},
+			// The browser half reads this back as `result.meta`: one line about the
+			// tree, without the tree itself.
+			presentationMeta: (_args, value) => {
+				const tree = value as unknown as SnapshotMeta;
+
+				return {
+					elements: tree.elements,
+					url: tree.url,
+					interactive: tree.interactive,
+					selector: tree.selector,
+				};
 			},
 		},
 		execute: async (rawArgs, exec) => {

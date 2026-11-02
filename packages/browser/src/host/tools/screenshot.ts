@@ -18,6 +18,7 @@ import type {
 	ImageMediaType,
 } from "@deepseek-ai/dsh-attachment";
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { ScreenshotMeta } from "../../shared/meta";
 import { BROWSER_SCREENSHOT_TOOL } from "../../shared/tools";
 import { fieldOf, isText, modelData } from "../envelope";
 import type { ScreenshotFormat, StoredImageRef } from "../screenshots";
@@ -157,6 +158,21 @@ class ScreenshotTool {
 					blocks.push({ type: "image", attachment: refOf(shot.image) });
 
 				return blocks;
+			},
+			// The browser half reads this back as `result.meta`: the picture's size,
+			// format and weight, without the picture or the file path.
+			presentationMeta: (_args, value) => {
+				const shot = value as unknown as ScreenshotValue;
+				const meta: ScreenshotMeta = {
+					url: shot.url,
+					format: shot.format,
+					bytes: shot.bytes,
+					...(shot.image === undefined
+						? {}
+						: { width: shot.image.width, height: shot.image.height }),
+				};
+
+				return meta;
 			},
 		},
 		execute: async (rawArgs, exec) => {

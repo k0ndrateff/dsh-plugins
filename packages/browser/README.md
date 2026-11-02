@@ -46,11 +46,12 @@ The plugin does not ship a browser engine and does not wrap Playwright.
 
 ## Settings
 
-Settings → Plugins → **Browser** edits this plugin's configuration and writes it
-into the profile patch: the executable, the command timeout and the answer
+**Plugins → Browser → Configure** edits this plugin's configuration and writes
+it into the profile patch: the executable, the command timeout and the answer
 limit, a visible window instead of headless, a real Chrome profile to reuse, the
 CLI's own domain allowlist, and the live view's quality, size and frame rate.
 Nothing is written until Save, and clearing a field returns it to the default.
+Settings → Built-in plugins is the read-only inventory of what is installed.
 
 A browser that is already running keeps the frame shape it started with; the
 rest applies to the next one. Editing the profile also works by hand — the page

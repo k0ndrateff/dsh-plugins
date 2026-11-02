@@ -6,8 +6,8 @@ that a plugin's own `build.mjs` is two lines.
 
 Part of DeepSeek Harness Plugins by [@k0ndrateff](https://github.com/k0ndrateff) —
 Jira, Confluence, Sentry, GitLab and Figma integrations for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus a digest,
-a cross-provider correlation and project checks built on top of them.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), plus project
+checks built on top of them.
 
 **This is a library, not a plugin**, and it works from a checkout of the collection:
 it resolves the sibling libraries from source, so a build never depends on build

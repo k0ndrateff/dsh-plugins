@@ -5,8 +5,7 @@
 Plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 Each one gives the agent a provider's tools and draws what it finds as cards and
 panels in the Web Client instead of raw JSON: Jira and Confluence, Sentry, GitLab,
-Figma, a daily digest across them, and a correlation that follows an error to the
-commit behind it, the merge request that commit belongs to, and the ticket it names.
+Figma, and a real browser for checking UI work.
 
 A plugin connects however its provider allows — a browser OAuth flow, a personal
 token the user pastes, or no credential at all for a server on the same machine.
@@ -16,14 +15,14 @@ Built against DSH `0.2.1-rc.2`; every package is on npm.
 
 Install all plugins at once — Plugins → Add plugin → `dsh-workflow-plugin`.
 
-Add the market index as a source — Settings → Plugins → Discover, with
+Add the market index as a source — the sidebar Plugins page, then Discover, with
 `@deepseek-ai/dsh-experimental-plugin-market-bundle` turned on:
 
 ```
 https://k0ndrateff.github.io/dsh-plugins/market.json
 ```
 
-`dsh-workflow-plugin` is the shortcut: it depends on nine bundles and
+`dsh-workflow-plugin` is the shortcut: it depends on seven bundles and
 mounts a row for each, so one install gives you all of them. Install it
 **instead of** the individual bundles, not beside them — two profile layers
 inserting a row with the same id is a duplicate the loader refuses.
@@ -53,14 +52,12 @@ fetched.
 | `dsh-sentry-plugin` | Sentry errors, with an issue panel |
 | `dsh-gitlab-plugin` | Merge requests, review threads and pipelines, over REST |
 | `dsh-figma-plugin` | A frame, its variables and its Code Connect mapping, from the local Dev Mode server |
-| `dsh-digest-plugin` | One read-only daily digest across the integrations above |
-| `dsh-correlation-plugin` | Error → commit → merge request → ticket, in one card |
+| `dsh-browser-plugin` | A real browser the agent drives to check its UI work, one browser per session, live in the side panel |
 | `dsh-integrations-plugin` | The one Settings page the connection cards appear on |
 | `dsh-devkit-plugin` | The project's own lint, typecheck, test and build recipes |
-| `dsh-browser-plugin` | A real browser the agent drives to check its UI work, one browser per session, live in the side panel |
 | `dsh-workflow-plugin` | Every bundle above behind one profile entry |
 | `dsh-mcp-oauth` | OAuth for MCP servers, and the authenticated bridge |
-| `dsh-integration-host` | Host-half shell: endpoint patch, sign-in state, settings route, slash command, the digest and correlation registries |
+| `dsh-integration-host` | Host-half shell: endpoint patch, sign-in state, settings route, slash command |
 | `dsh-integration-ui` | Browser-half shell: panel body, result card, tool row, settings card, stylesheet |
 | `dsh-plugin-build` | The build every plugin runs |
 
@@ -112,22 +109,14 @@ carries each check's counts, duration and failures, and a failure row is a
 `vitest`, `jest`, `pytest`, `generic`. `/checks` lists the recipes, `/checks init`
 prints a draft from `package.json` without writing it.
 
-**Digest.** One read-only card assembled from whatever integrations are installed
-— Jira issues in flight and overdue, work assigned but not started, merge requests
-waiting for your review, your own, new Sentry errors, and CodeRabbit's notes (off
-by default). Nothing in it is a model call, and a block that fails is that block's
-`unavailable` line rather than a failed digest. Delivery goes through the
-harness's own scheduler: `/digest on` binds a reminder to the session it is typed
-in, and the settings card decides what and when. `/digest now|on|off|time|timezone|days|blocks`.
-
-**Correlation.** `correlate` takes an integration and one of its own identifiers —
-a Sentry short id or issue link, a commit sha, `group/project!12`, or a tracker key
-such as `DEV-5977` — and walks from there: the error, the commit behind it, the
-merge requests that contain it, the ticket either names. Each provider answers
-about the reference it was asked about and names the next ones, so nothing here
-knows another provider's identifiers. Where the chain stops is reported: "no
-installed integration resolves this", "GitLab refused the request (403)" and
-"nothing found" are three different lines.
+**Browser.** A real Chrome the agent drives for one conversation: `browser_open`,
+`browser_snapshot`, `browser_act`, `browser_read`, `browser_run`,
+`browser_screenshot` and `browser_close`. The page shows up live in the right
+panel as the agent works — frames, addresses, tabs and the commands behind them —
+and the person at the panel can click, type, scroll and navigate on the same page.
+`/browser` prints the state; the plugin is configured on the Plugins page under
+its own row (executable, timeouts, a visible window, a reusable Chrome profile,
+the CLI's domain allowlist and the live view's frame size).
 
 ## Configuration
 
@@ -167,11 +156,6 @@ Disable one plugin without uninstalling anything:
   disabled: true
 ```
 
-The digest takes no deployment configuration: what it contains and when it
-arrives are settings, written by its card and by `/digest` to
-`$DSH_HOME/digest/settings.json`. The file is read forgivingly — a hand-edited typo
-falls back to its default rather than taking the plugin down.
-
 ## Development
 
 ```sh
@@ -206,9 +190,9 @@ and what was measured on the way — [docs/roadmap.md](docs/roadmap.md).
   locale service nor the provider's language. This is an accepted decision for
   now, not an oversight: a locale bundle is a separate release, and a half-English
   UI would be worse than one language everywhere.
-- **Three tool names are deliberately short.** `digest`, `correlate` and `checks`
-  keep their product names rather than a `dsh_*` prefix; the prefix is a
-  namespace for provider tools, not a requirement for the suite's own tools.
+- **One tool name is deliberately short.** `checks` keeps its product name
+  rather than a `dsh_*` prefix; the prefix is a namespace for provider tools, not
+  a requirement for the suite's own tools.
 - **The local `/dsh-*` routes trust the machine.** Cross-origin writes are
   refused by the page header and an origin check, but any local process can forge
   that header. These routes do write to providers: a Jira transition or assignee,
@@ -226,8 +210,3 @@ and what was measured on the way — [docs/roadmap.md](docs/roadmap.md).
   for the agent**, a diff is cut at 48 000 characters and `gitlab_read` at
   32 000 characters; and a merge request list carries no pipeline status —
   GitLab's list endpoint does not send it.
-- **A digest block looks back 24 hours** whatever the delivery cadence, and its
-  reminder belongs to the session `/digest on` was typed in.
-- **A correlation walks depth first** and is capped at four references deep and
-  forty facts, so a second commit behind the same error is reported one branch
-  later rather than side by side.

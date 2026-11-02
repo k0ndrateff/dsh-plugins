@@ -138,11 +138,6 @@ export const IntegrationsSection = ({
 						})}
 					</div>
 
-					<p className={styles.empty}>
-						Digest and Browser keep their own sections — Settings → Digest and
-						Settings → Plugins → Browser.
-					</p>
-
 					{tabs
 						.filter((tab) => tab.id === activeId || visitedIds.has(tab.id))
 						.map((tab) => (

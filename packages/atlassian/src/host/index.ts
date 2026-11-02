@@ -40,8 +40,6 @@ import {
 	PLUGIN_NAME,
 	resolveConfig,
 } from "./config";
-import { registerCorrelationSource } from "./correlation";
-import { registerDigestSource } from "./digest";
 import { PanelApi } from "./panels/panel";
 import { extractor } from "./presentation/extract";
 import type { SiteFacts } from "./store/site";
@@ -106,14 +104,6 @@ export function apply(ctx: Context, configInput?: ConfigInput): void {
 	>({ ctx, config, state, store, flow, bridge, spec: atlassianAuthSpec });
 
 	const panel = new PanelApi({ bridge, state, store });
-
-	// The digest plugin, when it is installed, composes this plugin's Jira blocks
-	// into its card; nothing is read until a digest actually asks.
-	registerDigestSource(ctx, { bridge, state });
-
-	// The correlation plugin, when it is installed, asks this plugin about the
-	// ticket a chain reaches; nothing is read until it asks.
-	registerCorrelationSource(ctx, { bridge, state });
 
 	// Registering the flow tells the harness this credential can be authorized,
 	// and routes each attempt's notices to whoever started it.

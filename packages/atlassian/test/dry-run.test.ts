@@ -41,8 +41,6 @@ const registered = {
 	commands: [] as unknown[],
 	flows: [] as unknown[],
 	routes: [] as unknown[],
-	digestSources: [] as { blocks: { id: string }[] }[],
-	correlationSources: [] as { resolves: string[] }[],
 };
 
 /**
@@ -141,32 +139,8 @@ function fakeContext(): Context {
 				: undefined,
 		// The route waits for this service; the fake answers as the harness does
 		// once it is there, which is what a dry-run cares about.
-		inject: (deps: readonly string[], callback: (scoped: unknown) => void) => {
-			callback({
-				...fake,
-				...(deps.includes("digestSources")
-					? {
-							digestSources: {
-								register: (source: { blocks: { id: string }[] }) => {
-									registered.digestSources.push(source);
-
-									return () => {};
-								},
-							},
-						}
-					: {}),
-				...(deps.includes("correlationSources")
-					? {
-							correlationSources: {
-								register: (source: { resolves: string[] }) => {
-									registered.correlationSources.push(source);
-
-									return () => {};
-								},
-							},
-						}
-					: {}),
-			});
+		inject: (_deps: readonly string[], callback: (scoped: unknown) => void) => {
+			callback(fake);
 
 			return () => {};
 		},
@@ -291,21 +265,6 @@ test("the host against recorded payloads", async () => {
 	expect(
 		registered.routes.length === 1,
 		"apply registers the loopback API route",
-	).toBe(true);
-	expect(
-		registered.digestSources.length === 1 &&
-			registered.digestSources[0]?.blocks.map((block) => block.id).join(",") ===
-				"jira-active,jira-queued",
-		`apply offers the digest its Jira blocks — ${registered.digestSources
-			.flatMap((source) => source.blocks.map((block) => block.id))
-			.join(",")}`,
-	).toBe(true);
-	expect(
-		registered.correlationSources.length === 1 &&
-			registered.correlationSources[0]?.resolves.join(",") === "task",
-		`and offers a chain the Jira issue a ticket key names — ${registered.correlationSources
-			.flatMap((source) => source.resolves)
-			.join(",")}`,
 	).toBe(true);
 
 	// A grant read back from the store is plain JSON, not a class instance: this is

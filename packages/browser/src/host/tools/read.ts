@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
+import type { ReadMeta } from "../../shared/meta";
 import { BROWSER_READ_TOOL } from "../../shared/tools";
 import { fieldOf, isList, isText, modelData } from "../envelope";
 import { bound } from "../text";
@@ -140,6 +141,13 @@ class ReadTool {
 						text: read.count === 0 ? EMPTY[read.what] : read.text,
 					},
 				];
+			},
+			// The browser half reads this back as `result.meta`: which log, and how
+			// much of it the row can count without the log itself.
+			presentationMeta: (_args, value) => {
+				const read = value as unknown as ReadMeta;
+
+				return { what: read.what, count: read.count };
 			},
 		},
 		execute: async (rawArgs, exec) => {

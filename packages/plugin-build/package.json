@@ -1,6 +1,6 @@
 {
 	"name": "dsh-plugin-build",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"type": "module",
 	"description": "The build every plugin of k0ndrateff/dsh-plugins runs — a library, not a plugin",
 	"license": "MIT",

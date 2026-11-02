@@ -1,5 +1,19 @@
 # dsh-browser-plugin
 
+## 0.4.0
+
+### Minor Changes
+
+- Improve the browser plugin's interface: its settings form moves from the read-only
+  Settings → Built-in plugins section to the sidebar Plugins page, under the bundle's
+  own row (`plugins.row.config`), which is where the harness configures a bundle; the
+  card above the composer is redrawn as a single-row stock card (centred by the
+  composer's own variables, same menu material as the Goal and TODO cards) instead of
+  a left-shifted pill; and every browser tool now renders a useful one-line row
+  (`browser_snapshot`, `browser_act`, `browser_read`, `browser_run`,
+  `browser_screenshot`, `browser_close`) from a recorded `presentationMeta`, the way
+  the Atlassian rows do.
+
 ## 0.3.0
 
 ### Minor Changes

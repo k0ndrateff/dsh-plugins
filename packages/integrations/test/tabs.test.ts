@@ -60,7 +60,7 @@ describe("the Integrations tab strip", () => {
 		expect(
 			integrationTabs([
 				entry(undefined, 10, "Nowhere"),
-				entry("digest", 30, "Digest"),
+				entry("sentry", 30, "Sentry"),
 			]),
 		).toHaveLength(1);
 	});

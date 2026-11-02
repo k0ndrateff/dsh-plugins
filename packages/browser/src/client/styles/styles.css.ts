@@ -344,17 +344,100 @@ export const answerError = style({
 	color: theme.color.danger,
 });
 
-/** The chip above the chat: one pill on its own row, left aligned. */
-export const indicatorRow = style({
-	display: "flex",
-	alignItems: "center",
-	padding: "0 2px 6px",
+/**
+ * The card above the chat, constrained the way a composer dock card must be.
+ *
+ * The dock strip spans the whole composer column, so a card that does not
+ * subtract the composer's own clearance and insets lands at the strip's left
+ * edge instead of under the card it belongs to. This is the Goal bar's formula:
+ * the strip minus its side clearance and four dock insets, centred.
+ */
+export const indicatorDock = style({
+	boxSizing: "border-box",
+	flex: "none",
+	width:
+		"calc(100% - 2 * var(--dsh-composer-side-clearance) - 4 * var(--dsh-composer-dock-inset))",
+	margin: "0 auto",
 });
 
-/** The address the browser is on, quiet enough not to compete with the word. */
-export const indicatorHost = style({
-	fontFamily: theme.font.code,
-	fontSize: "11px",
+/** The card itself: the Goal bar's menu material, radius, height and shadow. */
+export const indicatorBar = style({
+	boxSizing: "border-box",
+	isolation: "isolate",
+	display: "flex",
+	alignItems: "center",
+	gap: "10px",
+	position: "relative",
+	width: "100%",
+	maxWidth:
+		"calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset))",
+	height: "36px",
+	margin: "0 auto",
+	padding: "4px 5px 4px 12px",
+	border: 0,
+	borderRadius: theme.radius.md,
+	background: "transparent",
+	boxShadow: "var(--dsw-elevation-panel)",
+	color: theme.color.labelPrimary,
+	fontFamily: "var(--dsw-font-family)",
+	textAlign: "left",
+	cursor: "pointer",
+	// The panel shadow draws its hairline from --dsw-elevation-stroke-color, and
+	// the stock cards paint it with the light border token rather than its default.
+	vars: {
+		"--dsw-elevation-stroke-color": "var(--dsw-alias-border-l1)",
+	},
+	selectors: {
+		"&::before": {
+			position: "absolute",
+			inset: 0,
+			zIndex: -1,
+			borderRadius: "inherit",
+			background: "var(--dsw-specific-menu)",
+			backdropFilter: "var(--dsw-menu-backdrop-filter)",
+			content: '""',
+			pointerEvents: "none",
+		},
+		"&:focus-visible": {
+			outline:
+				"var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary))",
+			outlineOffset: "-2px",
+		},
+	},
+});
+
+/** The globe that says this card is about the browser. */
+export const indicatorGlyph = style({
+	flex: "none",
+	display: "inline-flex",
+	color: theme.color.labelTertiary,
+});
+
+/** The product's word for this browser, fixed so the card stays easy to aim at. */
+export const indicatorLabel = style({
+	flex: "none",
+	fontSize: "13px",
+	fontWeight: 500,
+	lineHeight: "24px",
+	color: theme.color.labelPrimary,
+});
+
+/** The page's name on one line: the part that gives way when the card is narrow. */
+export const indicatorTitle = style({
+	flex: 1,
+	minWidth: 0,
+	overflow: "hidden",
+	fontSize: "13px",
+	lineHeight: "20px",
+	color: "var(--dsw-alias-label-primary-dimmed)",
+	textOverflow: "ellipsis",
+	whiteSpace: "nowrap",
+});
+
+/** The chevron: the card is a control, and this is what says so. */
+export const indicatorChevron = style({
+	flex: "none",
+	display: "inline-flex",
 	color: theme.color.labelTertiary,
 });
 

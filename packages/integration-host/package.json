@@ -1,6 +1,6 @@
 {
 	"name": "dsh-integration-host",
-	"version": "0.4.1",
+	"version": "0.5.0",
 	"type": "module",
 	"description": "The host-half shell the integrations of k0ndrateff/dsh-plugins share — a library, not a plugin",
 	"license": "MIT",
@@ -10,14 +10,6 @@
 		".": {
 			"types": "./lib/index.d.ts",
 			"default": "./lib/index.js"
-		},
-		"./correlation": {
-			"types": "./lib/correlation.d.ts",
-			"default": "./lib/correlation.js"
-		},
-		"./digest": {
-			"types": "./lib/digest.d.ts",
-			"default": "./lib/digest.js"
 		},
 		"./status": {
 			"types": "./lib/status.d.ts",
