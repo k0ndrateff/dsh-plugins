@@ -15,9 +15,9 @@ import { resolveConfig } from "../src/host/config";
 import type { TokenStore } from "../src/host/token";
 
 /** A client whose token is already stored. */
-const api = (): GitLabApi =>
+const api = (endpoint?: string): GitLabApi =>
 	new GitLabApi({
-		config: resolveConfig(undefined),
+		config: resolveConfig(endpoint === undefined ? undefined : { endpoint }),
 		token: { read: async () => "token" } as unknown as TokenStore,
 	});
 
@@ -28,6 +28,27 @@ async function failureOf(thrown: () => never): Promise<string> {
 
 	try {
 		await api().get("/user");
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	} finally {
+		globalThis.fetch = original;
+	}
+
+	return "";
+}
+
+/** Run one read with `fetch` replaced by a refusal GitLab itself answered. */
+async function refusalOf(
+	status: number,
+	body: string,
+	endpoint?: string,
+): Promise<string> {
+	const original = globalThis.fetch;
+	globalThis.fetch = (async () =>
+		new Response(body, { status })) as unknown as typeof fetch;
+
+	try {
+		await api(endpoint).get("/user");
 	} catch (error) {
 		return error instanceof Error ? error.message : String(error);
 	} finally {
@@ -62,5 +83,19 @@ test("a timeout says the call can be retried", async () => {
 			message.includes("timed out") &&
 			message.includes("can be retried"),
 		`a timeout is answered as a timeout, with the retry it allows — ${message}`,
+	).toBe(true);
+});
+
+test("a refused token names the instance that refused it", async () => {
+	const message = await refusalOf(
+		401,
+		JSON.stringify({ message: "401 Unauthorized" }),
+		"https://gitlab.example",
+	);
+
+	expect(
+		message.includes("(401) at https://gitlab.example") &&
+			message.includes("401 Unauthorized"),
+		`a self-hosted token is refused by its own instance, so the message has to name it — ${message}`,
 	).toBe(true);
 });

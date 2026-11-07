@@ -276,7 +276,7 @@ export class GitLabApi {
 
 		const response = await this.requestOnce(url, method, token, body);
 
-		if (!response.ok) throw await this.failureOf(response);
+		if (!response.ok) throw await this.failureOf(response, url);
 
 		return response;
 	}
@@ -315,7 +315,7 @@ export class GitLabApi {
 	}
 
 	/** GitLab's own words about a refusal, as one sentence. */
-	private async failureOf(response: Response): Promise<Error> {
+	private async failureOf(response: Response, url: URL): Promise<Error> {
 		const text = await response.text().catch(() => "");
 		let message = text.trim();
 
@@ -340,7 +340,7 @@ export class GitLabApi {
 
 		if (response.status === 401)
 			return new Error(
-				`GitLab refused the token (401): ${message === "" ? "it may have expired, or lack the api scope" : message}`,
+				`GitLab refused the token (401) at ${url.origin}: ${message === "" ? "it may have expired, or lack the api scope" : message}`,
 			);
 		if (response.status === 403)
 			return new Error(
