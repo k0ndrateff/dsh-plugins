@@ -1,5 +1,13 @@
 # dsh-gitlab-plugin
 
+## 0.4.2
+
+### Patch Changes
+
+- 9e10078: The settings card names the instance the token is read from, so a self-hosted
+  instance is visible instead of implied, and a refused token says which instance
+  refused it: `GitLab refused the token (401) at <instance>`.
+
 ## 0.4.1
 
 ### Patch Changes
